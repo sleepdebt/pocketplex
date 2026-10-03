@@ -1,0 +1,144 @@
+{
+ "MediaContainer": {
+  "size": 2,
+  "allowSync": true,
+  "art": "/library/metadata/53782/art/1790926366",
+  "identifier": "com.plexapp.plugins.library",
+  "key": "53782",
+  "librarySectionID": 2,
+  "librarySectionTitle": "TV Shows",
+  "librarySectionUUID": "f732a3ec-ef75-4fba-8e24-66196159c94b",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1788052632,
+  "nocache": true,
+  "parentIndex": 1,
+  "parentTitle": "The Americans (2013)",
+  "parentYear": 2013,
+  "summary": "Set during the Cold War period in the 1980s, The Americans is the story of Elizabeth and Philip Jennings, two Soviet KGB officers posing as an American married couple in the suburbs of Washington D.C. and their neighbor, Stan Beeman, an FBI Counterintelligence agent.",
+  "theme": "/library/metadata/53782/theme/1790926366",
+  "thumb": "/library/metadata/53782/thumb/1790926366",
+  "title1": "TV Shows",
+  "title2": "The Americans (2013)",
+  "viewGroup": "season",
+  "viewMode": 65593,
+  "Directory": [
+   {
+    "leafCount": 75,
+    "thumb": "/library/metadata/53782/thumb/1790926366",
+    "viewedLeafCount": 4,
+    "key": "/library/metadata/53782/allLeaves",
+    "title": "All episodes"
+   }
+  ],
+  "Metadata": [
+   {
+    "ratingKey": "53833",
+    "key": "/library/metadata/53833/children",
+    "parentRatingKey": "53782",
+    "guid": "plex://season/602e674e66dfdb002c0a0499",
+    "parentGuid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "parentSlug": "the-americans-2013",
+    "parentStudio": "DreamWorks Television",
+    "type": "season",
+    "title": "Season 1",
+    "parentKey": "/library/metadata/53782",
+    "parentTitle": "The Americans (2013)",
+    "summary": "In 1980s Washington, D.C., KGB sleeper agents Philip and Elizabeth Jennings take extreme measures to continue their mission and keep their true identities hidden when Stan Beeman, an FBI Counterintelligence agent, moves in across the street from them.",
+    "index": 1,
+    "parentIndex": 1,
+    "viewCount": 1,
+    "lastViewedAt": 1776038385,
+    "parentYear": 2013,
+    "thumb": "/library/metadata/53833/thumb/1769831425",
+    "art": "/library/metadata/53833/art/1769831425",
+    "parentThumb": "/library/metadata/53782/thumb/1790926366",
+    "parentTheme": "/library/metadata/53782/theme/1790926366",
+    "leafCount": 13,
+    "viewedLeafCount": 4,
+    "addedAt": 1769831422,
+    "updatedAt": 1769831425,
+    "Image": [
+     {
+      "alt": "Season 1",
+      "type": "coverPoster",
+      "url": "/library/metadata/53833/thumb/1769831425"
+     },
+     {
+      "alt": "Season 1",
+      "type": "background",
+      "url": "/library/metadata/53833/art/1769831425"
+     },
+     {
+      "alt": "Season 1",
+      "type": "clearLogo",
+      "url": "/library/metadata/53782/clearLogo/1790926366"
+     },
+     {
+      "alt": "Season 1",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/53782/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "5c0301",
+     "topRight": "0a1c44",
+     "bottomRight": "a80604",
+     "bottomLeft": "9b3b0c"
+    }
+   },
+   {
+    "ratingKey": "53783",
+    "key": "/library/metadata/53783/children",
+    "parentRatingKey": "53782",
+    "guid": "plex://season/602e675066dfdb002c0a04b6",
+    "parentGuid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "parentSlug": "the-americans-2013",
+    "parentStudio": "DreamWorks Television",
+    "type": "season",
+    "title": "Season 2",
+    "parentKey": "/library/metadata/53782",
+    "parentTitle": "The Americans (2013)",
+    "summary": "Technological advances have escalated Cold War tensions to an all-time high, and Philip and Elizabeth face the growing threat of discovery. As their assignments grow more deadly, their family is in more danger, and their loyalties are tested like never before.",
+    "index": 2,
+    "parentIndex": 1,
+    "parentYear": 2013,
+    "thumb": "/library/metadata/53783/thumb/1769826532",
+    "art": "/library/metadata/53783/art/1769826532",
+    "parentThumb": "/library/metadata/53782/thumb/1790926366",
+    "parentTheme": "/library/metadata/53782/theme/1790926366",
+    "leafCount": 13,
+    "viewedLeafCount": 0,
+    "addedAt": 1769826525,
+    "updatedAt": 1769826532,
+    "Image": [
+     {
+      "alt": "Season 2",
+      "type": "coverPoster",
+      "url": "/library/metadata/53783/thumb/1769826532"
+     },
+     {
+      "alt": "Season 2",
+      "type": "background",
+      "url": "/library/metadata/53783/art/1769826532"
+     },
+     {
+      "alt": "Season 2",
+      "type": "clearLogo",
+      "url": "/library/metadata/53782/clearLogo/1790926366"
+     },
+     {
+      "alt": "Season 2",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/53782/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "5c0301",
+     "topRight": "0a1c44",
+     "bottomRight": "a80604",
+     "bottomLeft": "9b3b0c"
+    }
+   }
+  ]
+ }
+}

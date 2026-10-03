@@ -1,0 +1,90 @@
+{
+ "MediaContainer": {
+  "size": 2,
+  "totalSize": 1772,
+  "offset": 0,
+  "allowSync": true,
+  "art": "/:/resources/artist-fanart.jpg",
+  "identifier": "com.plexapp.plugins.library",
+  "librarySectionID": 3,
+  "librarySectionTitle": "Music",
+  "librarySectionUUID": "ff6194e4-dcb1-461d-a072-1b4b1dd2eadf",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1788052632,
+  "nocache": true,
+  "thumb": "/:/resources/artist.png",
+  "title1": "Music",
+  "title2": "All Artists",
+  "viewGroup": "artist",
+  "viewMode": 65592,
+  "Metadata": [
+   {
+    "ratingKey": "21508",
+    "key": "/library/metadata/21508/children",
+    "guid": "plex://artist/5d07bc24403c6402904c4bea",
+    "type": "artist",
+    "title": "!!!",
+    "summary": "Over a long, consistent career, !!! have traded in uptempo, tightly wound dance music that splits the difference between disco and punk. Guided by the vocals and vision of Nic Offer, the multi-member outfit began making records in the mid-'90s and first captured attention with their boomingly insistent 2003 single \"Me and Giuliani Down by the School Yard (A True Story),\" which vaulted them to the front of the dance-punk class. From there, the band released a long string of singles and LPs that found them exploring politics on 2004's Louden Up Now, covering Magnetic Fields and Nate Dogg on 2005's \"Take Ecstacy with Me\"/\"Get Up\" single, expanding into disco and Afro-funk on 2013's Thr!!!er, and generally being considered one of the most reliably fun and danceable bands of their era. As they moved into their fourth decade, !!! still experimented with their sound with joyous abandon, even mixing in acoustic guitars and melancholy on 2022's Let It Be Blue.\r\n!!!, whose name can be pronounced by repeating any one-syllable percussive sound three times (e.g., \"chk chk chk\"), formed in 1996 after the demise of the Yah Mos; while on tour, members of that post-hardcore act envisioned forming a more dance-oriented band, and once they returned to their native Sacramento, California, they turned the concept into an actual group. The band quickly became an eight-member ensemble: Nic Offer on vocals, Mario Andreoni on guitar, Justin van der Volgen on bass, Dan Gorman on trumpet and percussion, Tyler Pope on guitar, Allan Wilson on saxophone and percussion, Mikel Gius on drums, and Jason Racine on percussion.\r\n!!! spent their first few years developing their groove-oriented, post-punk-indebted sound while playing local house parties. At the same time, Offer, Pope, and van der Volgen were in a dub-inflected instrumental outfit called Out Hud. After releasing a 7\" on Hopscotch and a split single with Out Hud in 1998, the two bands issued a split full-length, a 1999 release jointly sponsored by Gold Standard Laboratories (a Sacramento label) and Zum (a San Francisco zine). After extensive touring of the States, !!! released a self-titled album on GSL in December 2000. Soon after, the band re-entered the studio and recorded enough material for a follow-up. Some members moved to New York, but the group remained intact and active as they booked regional tours.\r\nIn 2003, the band issued Me and Giuliani Down by the School Yard (A True Story), their first release -- a ringing, hypnotic single nine minutes in length -- for Touch & Go. It set the tone for 2004's politically charged Louden Up Now, mixed to bold effect by Maurice Fulton. The relatively lighthearted Myth Takes and Strange Weather, Isn't It? (their first for new label Warp) were the band's third and fourth albums, released respectively in March 2007 and August 2010.\r\nBefore their fifth album, !!! had some major personnel shifts, as longtime member Pope departed and was replaced by bassist Rafael Cohen, and drummer Paul Quattrone joined. Released in April 2013, Thr!!!er featured production by Spoon's Jim Eno and vocals from Sonia Moore, a onetime backing vocalist for MC Hammer. They followed it up with an EP of remixes, R!M!X!S, later that year. To prep for the next album, Offer retreated to his N.Y.C. bedroom studio, working with Cohen, and eventually finishing 40 songs. They cut it down to the best 30 and hit studios in New York, Los Angeles, and Austin to record them with help from Eno again, as well as Chris Coady and Patrick Ford, though most of the album was self-produced by the band. As If was released by Warp in October 2015.\n!!!'s seventh long-player was hatched in a practice space in Barcelona, where they began working out songs during lengthy recorded jam sessions before heading back to their N.Y.C. studio with Patrick Ford, where the core group of Offer, Cohen, Quattrone, Andreoni, and Gorman were augmented by a host of guest artists like Lea Lea, Meah Pace, Nicole Fayu, Cameron Mesirow, and Molly Schnick. The songs began to come together in late 2016 when the band, unnerved and inspired by the political climate, decided to head back to the studio, strip the nearly finished tracks down to the basics, and essentially start over. They recorded 17 songs in four days, then sent them to producers Joakim, Phil Moffa, and Matt Wiggins to give them an extra dancefloor punch. The record, Shake the Shudder, was released in 2017. Their next LP was made with mostly the same personnel and production team, while also adding vocals from Angus Andrew of Liars, Maria Uzor of Sink Ya Teeth, and Glasser's Cameron Mesirow. Wallop was recorded in Offer's New York apartment and released in August 2019.\r\nThe band brought in Patrick Ford to produce 2022's Let It Be Blue and conjured up a sound that blurred the boundaries between live instruments, samples, and programmed beats. The core band was joined by guest vocalists Angelica Garcia, Meah Pace, and Maria Uzor on a set of songs that ranged from acoustic ballads and melancholy dance tracks to upbeat floor-fillers and party-starters. ~ Josh Eppert & Tim Sendra",
+    "index": 1,
+    "thumb": "/library/metadata/21508/thumb/1790405566",
+    "art": "/library/metadata/21508/art/1790405566",
+    "addedAt": 1261710732,
+    "updatedAt": 1790405566,
+    "Image": [
+     {
+      "alt": "!!!",
+      "type": "coverPoster",
+      "url": "/library/metadata/21508/thumb/1790405566"
+     },
+     {
+      "alt": "!!!",
+      "type": "background",
+      "url": "/library/metadata/21508/art/1790405566"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "422609",
+     "topRight": "361703",
+     "bottomRight": "48260c",
+     "bottomLeft": "391903"
+    },
+    "Genre": [
+     {
+      "tag": "Pop/Rock"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "United States of America"
+     }
+    ]
+   },
+   {
+    "ratingKey": "31346",
+    "key": "/library/metadata/31346/children",
+    "guid": "plex://artist/5d07bc5b403c6402904f3d99",
+    "type": "artist",
+    "title": "The '89 Cubs",
+    "titleSort": "'89 Cubs",
+    "summary": "If music pedigree means anything, THE ‘89 CUBS are a band gifted from their humble birth.\n\nComprised of Dan Brennan, Matt Baum and Ryan Fox, THE ‘89 CUBS hail with much pride from Omaha, NE. The trio features members of such respected indie acts as THE GOOD LIFE, BRIGHT EYES and DESAPARECIDOS. With a jittery and upbeat indie-rock style that leans heavy on the introspective lyrics, jangling guitars and a loose-knit interplay that could only come from both lifelong musicians and longtime friends. In fact, the band even got their fathers (Terry Brennan and Greg Fox) involved, having the two of them lend guitar work to \"There Are Giants in the Earth\" final song.\n\n\"There Are Giants in the Earth\" was recorded by the band over a period of a couple months in various locations (from studios and houses in Nebraska to a library in North Carolina, etc) and the final material was mixed AJ Mogis and mastered by Doug Van Sloun.\n\nWith a level of enthuasism that draws comparison to the early days of SUPERCHUNK, guitar heroics that recall MY BLOODY VALENTINE and a level of songwriting sincerity that brings to mind any number of their Omaha peers, THE ‘89 CUBS have created a stunning debut album of confidence and pose in \"There Are Giants in the Earth\". Read more on Last.fm. User-contributed text is available under the Creative Commons By-SA License; additional terms may apply.",
+    "index": 1,
+    "thumb": "/library/metadata/31346/thumb/1789196269",
+    "addedAt": 1261724072,
+    "updatedAt": 1789196269,
+    "Image": [
+     {
+      "alt": "The '89 Cubs",
+      "type": "coverPoster",
+      "url": "/library/metadata/31346/thumb/1789196269"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "0d0419",
+     "topRight": "10071f",
+     "bottomRight": "1e204b",
+     "bottomLeft": "1e1c49"
+    }
+   }
+  ]
+ }
+}

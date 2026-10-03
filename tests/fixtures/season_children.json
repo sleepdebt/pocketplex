@@ -1,0 +1,512 @@
+{
+ "MediaContainer": {
+  "size": 4,
+  "allowSync": true,
+  "art": "/library/metadata/53833/art/1769831425",
+  "grandparentContentRating": "TV-MA",
+  "grandparentRatingKey": 53782,
+  "grandparentStudio": "DreamWorks Television",
+  "grandparentTheme": "/library/metadata/53782/theme/1790926366",
+  "grandparentThumb": "/library/metadata/53782/thumb/1790926366",
+  "grandparentTitle": "The Americans (2013)",
+  "identifier": "com.plexapp.plugins.library",
+  "key": "53833",
+  "librarySectionID": 2,
+  "librarySectionTitle": "TV Shows",
+  "librarySectionUUID": "f732a3ec-ef75-4fba-8e24-66196159c94b",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1788052632,
+  "nocache": true,
+  "parentIndex": 1,
+  "parentTitle": "",
+  "summary": "In 1980s Washington, D.C., KGB sleeper agents Philip and Elizabeth Jennings take extreme measures to continue their mission and keep their true identities hidden when Stan Beeman, an FBI Counterintelligence agent, moves in across the street from them.",
+  "theme": "/library/metadata/53782/theme/1790926366",
+  "thumb": "/library/metadata/53833/thumb/1769831425",
+  "title1": "The Americans (2013)",
+  "title2": "Season 1",
+  "viewGroup": "episode",
+  "viewMode": 65592,
+  "Metadata": [
+   {
+    "ratingKey": "53834",
+    "key": "/library/metadata/53834",
+    "parentRatingKey": "53833",
+    "grandparentRatingKey": "53782",
+    "guid": "plex://episode/5d9c122d0aaccd001f913b44",
+    "parentGuid": "plex://season/602e674e66dfdb002c0a0499",
+    "grandparentGuid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "grandparentSlug": "the-americans-2013",
+    "type": "episode",
+    "title": "Pilot",
+    "grandparentKey": "/library/metadata/53782",
+    "parentKey": "/library/metadata/53833",
+    "grandparentTitle": "The Americans (2013)",
+    "parentTitle": "Season 1",
+    "contentRating": "TV-MA",
+    "summary": "The arranged marriage of Philip and Elizabeth Jennings grows more passionate and genuine by the day, but is constantly tested by the escalation of the Cold War. Tensions heighten upon the arrival of a new neighbor, Stan Beeman, an FBI agent.",
+    "index": 1,
+    "parentIndex": 1,
+    "audienceRating": 7.8,
+    "viewCount": 1,
+    "lastViewedAt": 1768100571,
+    "year": 2013,
+    "thumb": "/library/metadata/53834/thumb/1769846950",
+    "art": "/library/metadata/53833/art/1769831425",
+    "parentThumb": "/library/metadata/53833/thumb/1769831425",
+    "grandparentThumb": "/library/metadata/53782/thumb/1790926366",
+    "grandparentArt": "/library/metadata/53782/art/1790926366",
+    "grandparentTheme": "/library/metadata/53782/theme/1790926366",
+    "duration": 4155167,
+    "originallyAvailableAt": "2013-01-30",
+    "addedAt": 1769831422,
+    "updatedAt": 1769846950,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "chapterSource": "media",
+    "Media": [
+     {
+      "id": 49161,
+      "duration": 4155167,
+      "bitrate": 12521,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "ac3",
+      "videoCodec": "hevc",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "main 10",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 83732,
+        "key": "/library/parts/83732/1645653305/file.mkv",
+        "duration": 4155167,
+        "file": "/media/The Americans (2013) - S01E01 - Pilot Bluray-1080p.mkv",
+        "size": 6503587514,
+        "container": "mkv",
+        "videoProfile": "main 10"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Pilot",
+      "type": "coverPoster",
+      "url": "/library/metadata/53782/thumb/1790926366"
+     },
+     {
+      "alt": "Pilot",
+      "type": "snapshot",
+      "url": "/library/metadata/53834/thumb/1769846950"
+     },
+     {
+      "alt": "Pilot",
+      "type": "background",
+      "url": "/library/metadata/53833/art/1769831425"
+     },
+     {
+      "alt": "Pilot",
+      "type": "clearLogo",
+      "url": "/library/metadata/53782/clearLogo/1790926366"
+     },
+     {
+      "alt": "Pilot",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/53782/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "492016",
+     "topRight": "200c03",
+     "bottomRight": "1b0a03",
+     "bottomLeft": "481d17"
+    },
+    "Director": [
+     {
+      "tag": "Gavin O'Connor"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Joe Weisberg"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Matthew Rhys"
+     },
+     {
+      "tag": "Holly Taylor"
+     }
+    ]
+   },
+   {
+    "ratingKey": "53835",
+    "key": "/library/metadata/53835",
+    "parentRatingKey": "53833",
+    "grandparentRatingKey": "53782",
+    "guid": "plex://episode/5d9c122d0aaccd001f913b48",
+    "parentGuid": "plex://season/602e674e66dfdb002c0a0499",
+    "grandparentGuid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "grandparentSlug": "the-americans-2013",
+    "type": "episode",
+    "title": "The Clock",
+    "titleSort": "Clock",
+    "grandparentKey": "/library/metadata/53782",
+    "parentKey": "/library/metadata/53833",
+    "grandparentTitle": "The Americans (2013)",
+    "parentTitle": "Season 1",
+    "contentRating": "TV-MA",
+    "summary": "When Philip and Elizabeth are given an urgent task to plant a bug in Defense Secretary Caspar Weinberger's office, they risk exposure when an unwilling maid of the Weinberger home refuses to cooperate. Stan closes in on a member of the Soviet Rezidentura in an effort to uncover the identities of deep cover Directorate S operatives.",
+    "index": 2,
+    "parentIndex": 1,
+    "audienceRating": 7.3,
+    "viewCount": 1,
+    "lastViewedAt": 1768441301,
+    "year": 2013,
+    "thumb": "/library/metadata/53835/thumb/1769846948",
+    "art": "/library/metadata/53833/art/1769831425",
+    "parentThumb": "/library/metadata/53833/thumb/1769831425",
+    "grandparentThumb": "/library/metadata/53782/thumb/1790926366",
+    "grandparentArt": "/library/metadata/53782/art/1790926366",
+    "grandparentTheme": "/library/metadata/53782/theme/1790926366",
+    "duration": 2867871,
+    "originallyAvailableAt": "2013-02-06",
+    "addedAt": 1769831600,
+    "updatedAt": 1769846948,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "chapterSource": "media",
+    "Media": [
+     {
+      "id": 49162,
+      "duration": 2867871,
+      "bitrate": 7092,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "ac3",
+      "videoCodec": "hevc",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "main 10",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 83733,
+        "key": "/library/parts/83733/1645653306/file.mkv",
+        "duration": 2867871,
+        "file": "/media/The Americans (2013) - S01E02 - The Clock Bluray-1080p.mkv",
+        "size": 2542425098,
+        "container": "mkv",
+        "videoProfile": "main 10"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "The Clock",
+      "type": "coverPoster",
+      "url": "/library/metadata/53782/thumb/1790926366"
+     },
+     {
+      "alt": "The Clock",
+      "type": "snapshot",
+      "url": "/library/metadata/53835/thumb/1769846948"
+     },
+     {
+      "alt": "The Clock",
+      "type": "background",
+      "url": "/library/metadata/53833/art/1769831425"
+     },
+     {
+      "alt": "The Clock",
+      "type": "clearLogo",
+      "url": "/library/metadata/53782/clearLogo/1790926366"
+     },
+     {
+      "alt": "The Clock",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/53782/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "472210",
+     "topRight": "44191a",
+     "bottomRight": "512303",
+     "bottomLeft": "633113"
+    },
+    "Director": [
+     {
+      "tag": "Adam Arkin"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Joe Weisberg"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Matthew Rhys"
+     },
+     {
+      "tag": "Holly Taylor"
+     }
+    ]
+   },
+   {
+    "ratingKey": "53836",
+    "key": "/library/metadata/53836",
+    "parentRatingKey": "53833",
+    "grandparentRatingKey": "53782",
+    "guid": "plex://episode/5d9c122d0aaccd001f913b2d",
+    "parentGuid": "plex://season/602e674e66dfdb002c0a0499",
+    "grandparentGuid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "grandparentSlug": "the-americans-2013",
+    "type": "episode",
+    "title": "Gregory",
+    "grandparentKey": "/library/metadata/53782",
+    "parentKey": "/library/metadata/53833",
+    "grandparentTitle": "The Americans (2013)",
+    "parentTitle": "Season 1",
+    "contentRating": "TV-MA",
+    "summary": "Philip and Elizabeth discover that their murdered colleague Robert had a wife they never knew about. As they try to determine what she knows and where her allegiance lies, Stan's investigation into Robert's death puts him hot on their trail.",
+    "index": 3,
+    "parentIndex": 1,
+    "audienceRating": 7.4,
+    "viewCount": 1,
+    "lastViewedAt": 1768694132,
+    "year": 2013,
+    "thumb": "/library/metadata/53836/thumb/1769846981",
+    "art": "/library/metadata/53833/art/1769831425",
+    "parentThumb": "/library/metadata/53833/thumb/1769831425",
+    "grandparentThumb": "/library/metadata/53782/thumb/1790926366",
+    "grandparentArt": "/library/metadata/53782/art/1790926366",
+    "grandparentTheme": "/library/metadata/53782/theme/1790926366",
+    "duration": 2741760,
+    "originallyAvailableAt": "2013-02-13",
+    "addedAt": 1769831697,
+    "updatedAt": 1769846981,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "chapterSource": "media",
+    "Media": [
+     {
+      "id": 49163,
+      "duration": 2741760,
+      "bitrate": 6399,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "ac3",
+      "videoCodec": "hevc",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "main 10",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 83734,
+        "key": "/library/parts/83734/1645653242/file.mkv",
+        "duration": 2741760,
+        "file": "/media/The Americans (2013) - S01E03 - Gregory Bluray-1080p.mkv",
+        "size": 2193027358,
+        "container": "mkv",
+        "videoProfile": "main 10"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Gregory",
+      "type": "coverPoster",
+      "url": "/library/metadata/53782/thumb/1790926366"
+     },
+     {
+      "alt": "Gregory",
+      "type": "snapshot",
+      "url": "/library/metadata/53836/thumb/1769846981"
+     },
+     {
+      "alt": "Gregory",
+      "type": "background",
+      "url": "/library/metadata/53833/art/1769831425"
+     },
+     {
+      "alt": "Gregory",
+      "type": "clearLogo",
+      "url": "/library/metadata/53782/clearLogo/1790926366"
+     },
+     {
+      "alt": "Gregory",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/53782/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "452412",
+     "topRight": "874d1d",
+     "bottomRight": "331903",
+     "bottomLeft": "76370b"
+    },
+    "Director": [
+     {
+      "tag": "Thomas Schlamme"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Joel Fields"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Matthew Rhys"
+     },
+     {
+      "tag": "Holly Taylor"
+     }
+    ]
+   },
+   {
+    "ratingKey": "53837",
+    "key": "/library/metadata/53837",
+    "parentRatingKey": "53833",
+    "grandparentRatingKey": "53782",
+    "guid": "plex://episode/5d9c122d0aaccd001f913b39",
+    "parentGuid": "plex://season/602e674e66dfdb002c0a0499",
+    "grandparentGuid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "grandparentSlug": "the-americans-2013",
+    "type": "episode",
+    "title": "In Control",
+    "grandparentKey": "/library/metadata/53782",
+    "parentKey": "/library/metadata/53833",
+    "grandparentTitle": "The Americans (2013)",
+    "parentTitle": "Season 1",
+    "contentRating": "TV-MA",
+    "summary": "When an assassin attempts to kill President Reagan, Philip and Elizabeth scramble to handle the fallout within the KGB. Meanwhile, Stan pressures his source within the Rezidentura to find out if the KGB was responsible for the attempted assassination.",
+    "index": 4,
+    "parentIndex": 1,
+    "audienceRating": 7.8,
+    "viewCount": 1,
+    "lastViewedAt": 1773604915,
+    "year": 2013,
+    "thumb": "/library/metadata/53837/thumb/1769846981",
+    "art": "/library/metadata/53833/art/1769831425",
+    "parentThumb": "/library/metadata/53833/thumb/1769831425",
+    "grandparentThumb": "/library/metadata/53782/thumb/1790926366",
+    "grandparentArt": "/library/metadata/53782/art/1790926366",
+    "grandparentTheme": "/library/metadata/53782/theme/1790926366",
+    "duration": 2535551,
+    "originallyAvailableAt": "2013-02-20",
+    "addedAt": 1769831797,
+    "updatedAt": 1769846981,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "chapterSource": "media",
+    "Media": [
+     {
+      "id": 49164,
+      "duration": 2535551,
+      "bitrate": 6869,
+      "width": 1920,
+      "height": 1080,
+      "aspectRatio": 1.78,
+      "audioChannels": 6,
+      "audioCodec": "ac3",
+      "videoCodec": "hevc",
+      "videoResolution": "1080",
+      "container": "mkv",
+      "videoFrameRate": "24p",
+      "videoProfile": "main 10",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 83735,
+        "key": "/library/parts/83735/1645652941/file.mkv",
+        "duration": 2535551,
+        "file": "/media/The Americans (2013) - S01E04 - In Control Bluray-1080p.mkv",
+        "size": 2177176709,
+        "container": "mkv",
+        "videoProfile": "main 10"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "In Control",
+      "type": "coverPoster",
+      "url": "/library/metadata/53782/thumb/1790926366"
+     },
+     {
+      "alt": "In Control",
+      "type": "snapshot",
+      "url": "/library/metadata/53837/thumb/1769846981"
+     },
+     {
+      "alt": "In Control",
+      "type": "background",
+      "url": "/library/metadata/53833/art/1769831425"
+     },
+     {
+      "alt": "In Control",
+      "type": "clearLogo",
+      "url": "/library/metadata/53782/clearLogo/1790926366"
+     },
+     {
+      "alt": "In Control",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/53782/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "3e1a0f",
+     "topRight": "39160c",
+     "bottomRight": "a42b2a",
+     "bottomLeft": "211e1c"
+    },
+    "Director": [
+     {
+      "tag": "Jean de Segonzac"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "Joel Fields"
+     },
+     {
+      "tag": "Joe Weisberg"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Matthew Rhys"
+     },
+     {
+      "tag": "Holly Taylor"
+     }
+    ]
+   }
+  ]
+ }
+}

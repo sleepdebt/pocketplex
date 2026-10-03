@@ -1,0 +1,13 @@
+{
+ "MediaContainer": {
+  "size": 1,
+  "allowSync": "1",
+  "generalDecisionCode": 2003,
+  "generalDecisionText": "The server refused to start a transcode session for this client.",
+  "directPlayDecisionCode": 3000,
+  "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+  "transcodeDecisionCode": 2003,
+  "transcodeDecisionText": "The server refused to start a transcode session for this client.",
+  "identifier": "com.plexapp.plugins.library"
+ }
+}

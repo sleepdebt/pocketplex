@@ -1,0 +1,266 @@
+{
+ "MediaContainer": {
+  "size": 3,
+  "totalSize": 77,
+  "offset": 0,
+  "allowSync": true,
+  "art": "/:/resources/show-fanart.jpg",
+  "identifier": "com.plexapp.plugins.library",
+  "librarySectionID": 2,
+  "librarySectionTitle": "TV Shows",
+  "librarySectionUUID": "f732a3ec-ef75-4fba-8e24-66196159c94b",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1788052632,
+  "nocache": true,
+  "thumb": "/:/resources/show.png",
+  "title1": "TV Shows",
+  "title2": "All Shows",
+  "viewGroup": "show",
+  "viewMode": 65592,
+  "Metadata": [
+   {
+    "ratingKey": "52009",
+    "key": "/library/metadata/52009/children",
+    "guid": "plex://show/66391fb2895fabeb264433d1",
+    "slug": "alien-earth",
+    "studio": "FX Productions",
+    "type": "show",
+    "title": "Alien: Earth",
+    "contentRating": "TV-MA",
+    "contentRatingAge": 15,
+    "summary": "When the mysterious deep space research vessel USCSS Maginot crash-lands on Earth, Wendy and a ragtag group of tactical soldiers make a fateful discovery that puts them face-to-face with the planet's greatest threat.",
+    "index": 1,
+    "audienceRating": 7.3,
+    "viewCount": 9,
+    "lastViewedAt": 1760842991,
+    "year": 2025,
+    "tagline": "In 2120, Mother Earth is expecting.",
+    "thumb": "/library/metadata/52009/thumb/1790926366",
+    "art": "/library/metadata/52009/art/1790926366",
+    "duration": 3300000,
+    "originallyAvailableAt": "2025-08-12",
+    "leafCount": 8,
+    "viewedLeafCount": 8,
+    "childCount": 1,
+    "addedAt": 1755094072,
+    "updatedAt": 1790926366,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "primaryExtraKey": "/library/metadata/52012",
+    "Image": [
+     {
+      "alt": "Alien: Earth",
+      "type": "coverPoster",
+      "url": "/library/metadata/52009/thumb/1790926366"
+     },
+     {
+      "alt": "Alien: Earth",
+      "type": "background",
+      "url": "/library/metadata/52009/art/1790926366"
+     },
+     {
+      "alt": "Alien: Earth",
+      "type": "clearLogo",
+      "url": "/library/metadata/52009/clearLogo/1790926366"
+     },
+     {
+      "alt": "Alien: Earth",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/52009/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "022d5b",
+     "topRight": "13435e",
+     "bottomRight": "0a2f4b",
+     "bottomLeft": "13545f"
+    },
+    "Genre": [
+     {
+      "tag": "Drama"
+     },
+     {
+      "tag": "Horror"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "United States of America"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Sydney Chandler"
+     },
+     {
+      "tag": "Alex Lawther"
+     },
+     {
+      "tag": "Essie Davis"
+     }
+    ]
+   },
+   {
+    "ratingKey": "53782",
+    "key": "/library/metadata/53782/children",
+    "guid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "slug": "the-americans-2013",
+    "studio": "DreamWorks Television",
+    "type": "show",
+    "title": "The Americans (2013)",
+    "titleSort": "Americans (2013)",
+    "contentRating": "TV-MA",
+    "contentRatingAge": 16,
+    "summary": "Set during the Cold War period in the 1980s, The Americans is the story of Elizabeth and Philip Jennings, two Soviet KGB officers posing as an American married couple in the suburbs of Washington D.C. and their neighbor, Stan Beeman, an FBI Counterintelligence agent.",
+    "index": 1,
+    "audienceRating": 7.9,
+    "viewCount": 1,
+    "lastViewedAt": 1776038385,
+    "year": 2013,
+    "tagline": "All's fair in love and cold war.",
+    "thumb": "/library/metadata/53782/thumb/1790926366",
+    "art": "/library/metadata/53782/art/1790926366",
+    "theme": "/library/metadata/53782/theme/1790926366",
+    "duration": 2640000,
+    "originallyAvailableAt": "2013-01-30",
+    "leafCount": 75,
+    "viewedLeafCount": 4,
+    "childCount": 6,
+    "addedAt": 1769826525,
+    "updatedAt": 1790926366,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "primaryExtraKey": "/library/metadata/53785",
+    "Image": [
+     {
+      "alt": "The Americans (2013)",
+      "type": "coverPoster",
+      "url": "/library/metadata/53782/thumb/1790926366"
+     },
+     {
+      "alt": "The Americans (2013)",
+      "type": "background",
+      "url": "/library/metadata/53782/art/1790926366"
+     },
+     {
+      "alt": "The Americans (2013)",
+      "type": "clearLogo",
+      "url": "/library/metadata/53782/clearLogo/1790926366"
+     },
+     {
+      "alt": "The Americans (2013)",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/53782/squareArt/1790926366"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "5c0301",
+     "topRight": "0a1c44",
+     "bottomRight": "a80604",
+     "bottomLeft": "9b3b0c"
+    },
+    "Genre": [
+     {
+      "tag": "Crime"
+     },
+     {
+      "tag": "Drama"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "United States of America"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Keri Russell"
+     },
+     {
+      "tag": "Matthew Rhys"
+     },
+     {
+      "tag": "Holly Taylor"
+     }
+    ]
+   },
+   {
+    "ratingKey": "1311",
+    "key": "/library/metadata/1311/children",
+    "guid": "plex://show/5d9c0817e264b7001fc3bbb1",
+    "slug": "atlanta",
+    "studio": "FX Productions",
+    "type": "show",
+    "title": "Atlanta",
+    "contentRating": "TV-MA",
+    "contentRatingAge": 15,
+    "summary": "Earn and his cousin Alfred try to make their way in the world through Atlanta's rap scene. Along the way they come face-to-face with social and economic issues touching on race, relationships, poverty, status, and parenthood.",
+    "index": 1,
+    "audienceRating": 8.0,
+    "year": 2016,
+    "thumb": "/library/metadata/1311/thumb/1790495049",
+    "art": "/library/metadata/1311/art/1790495049",
+    "theme": "/library/metadata/1311/theme/1790495049",
+    "duration": 1800000,
+    "originallyAvailableAt": "2016-09-06",
+    "leafCount": 31,
+    "viewedLeafCount": 0,
+    "childCount": 3,
+    "addedAt": 1522125152,
+    "updatedAt": 1790495049,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "primaryExtraKey": "/library/metadata/1350",
+    "Image": [
+     {
+      "alt": "Atlanta",
+      "type": "coverPoster",
+      "url": "/library/metadata/1311/thumb/1790495049"
+     },
+     {
+      "alt": "Atlanta",
+      "type": "background",
+      "url": "/library/metadata/1311/art/1790495049"
+     },
+     {
+      "alt": "Atlanta",
+      "type": "clearLogo",
+      "url": "/library/metadata/1311/clearLogo/1790495049"
+     },
+     {
+      "alt": "Atlanta",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/1311/squareArt/1790495049"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "510807",
+     "topRight": "9e190a",
+     "bottomRight": "700907",
+     "bottomLeft": "73160f"
+    },
+    "Genre": [
+     {
+      "tag": "Comedy"
+     },
+     {
+      "tag": "Drama"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "United States of America"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Donald Glover"
+     },
+     {
+      "tag": "Brian Tyree Henry"
+     },
+     {
+      "tag": "LaKeith Stanfield"
+     }
+    ]
+   }
+  ]
+ }
+}

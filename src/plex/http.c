@@ -35,8 +35,6 @@ static size_t write_cb(char *ptr, size_t size, size_t nmemb, void *ud) {
   return len;
 }
 
-static struct curl_slist *appendf(struct curl_slist *h, const char *fmt, const char *a)
-    __attribute__((format(printf, 2, 3)));
 static struct curl_slist *appendf(struct curl_slist *h, const char *fmt, const char *a) {
   char buf[256];
   if (snprintf(buf, sizeof buf, fmt, a) >= (int)sizeof buf) return h; /* too long: skip */

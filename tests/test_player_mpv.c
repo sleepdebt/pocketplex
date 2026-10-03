@@ -241,6 +241,39 @@ static void test_missing_binary(void) {
   CHECK(player_poll(NULL, &pos, &fin) < 0);
 }
 
+/* If the app dies mid-playback, mpv must not outlive it (on the SP nothing could quit it then).
+ * Linux only (PR_SET_PDEATHSIG). A forked "app" starts the fake mpv, reports its pid, and is killed. */
+static void test_mpv_dies_with_app(void) {
+#ifdef __linux__
+  int pipefd[2], alive = 1, i;
+  pid_t app, mpv_pid = 0;
+  setenv("PP_MPV_BIN", self_path, 1);
+  unsetenv("FAKE_MPV_EXIT"); unsetenv("FAKE_MPV_DURATION");
+  CHECK(pipe(pipefd) == 0);
+  app = fork();
+  if (app == 0) {
+    pp_player *p = player_start("u", 0);
+    pid_t pid = p ? p->pid : 0;
+    if (write(pipefd[1], &pid, sizeof pid) < 0) _exit(1);
+    pause();
+    _exit(0);
+  }
+  CHECK(read(pipefd[0], &mpv_pid, sizeof mpv_pid) == sizeof mpv_pid);
+  CHECK(mpv_pid > 0);
+  kill(app, SIGKILL);
+  waitpid(app, NULL, 0);
+  for (i = 0; i < 40 && alive; i++) {   /* the fake is reparented, so poll with kill(pid, 0) */
+    usleep(50 * 1000);
+    alive = mpv_pid > 0 && kill(mpv_pid, 0) == 0;
+  }
+  CHECK(!alive);
+  if (alive) kill(mpv_pid, SIGKILL);
+  close(pipefd[0]); close(pipefd[1]);
+#else
+  fprintf(stderr, "    (skipped: Linux only)\n");
+#endif
+}
+
 /* ---- real mpv, local lavfi source (no network); skipped when mpv isn't installed ---- */
 
 static void test_real_mpv(void) {
@@ -275,6 +308,7 @@ int main(int argc, char **argv) {
   RUN(test_fake_ends_by_itself);
   RUN(test_fake_fails_to_play);
   RUN(test_missing_binary);
+  RUN(test_mpv_dies_with_app);
   RUN(test_real_mpv);
   return TEST_RESULT();
 }

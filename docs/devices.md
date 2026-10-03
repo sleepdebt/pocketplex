@@ -85,3 +85,52 @@ mpv can't read the gamepad itself (see above), so `player_mpv.c` reads evdev in 
 | L1 / R1 | seek −60 / +60 s |
 | Up / Down | seek +300 / −300 s |
 | X, Select | show progress bar |
+
+On desktop, mpv's own window takes the keyboard (generated input.conf): Space/Enter pause, ←/→ ±10 s,
+PgUp/PgDn ±60 s, ↑/↓ ±300 s, Tab progress, Esc/Backspace/q quit.
+
+mpv is started with `--no-config --no-input-default-bindings --vo=sdl --hwdec=no --start=<resume>`,
+plus a 32 MiB forward / 16 MiB back demuxer cache. Its stdout/stderr go to `/dev/null` because mpv prints the
+URL, which carries the token. Overrides for testing: `PP_MPV_BIN`, `PP_MPV_VO`, `PP_MPV_AO`.
+
+### Device test harness: `pp_play`
+
+`src/player/pp_play.c` drives `player.h` on the device without the UI. It isn't part of the app build.
+Until core's toolchain lands, build it in an arm64 Debian bookworm VM (glibc 2.36, older than the SP's 2.40,
+so the binary runs there). Example with OrbStack:
+
+```sh
+orb create debian:bookworm pp-build && orb -m pp-build sudo apt-get install -y build-essential libsdl2-dev
+orb -m pp-build bash -c 'cd <repo> && mkdir -p build/sp && gcc -std=c99 -Wall -Wextra -O2 -D_DEFAULT_SOURCE \
+  -DPP_PLAY_SDL -Isrc $(sdl2-config --cflags) -o build/sp/pp_play src/player/pp_play.c \
+  src/player/player_mpv.c src/log.c $(sdl2-config --libs) -lpthread'
+scp build/sp/pp_play knulli:/tmp/
+# URL from a transcode request with offset=0. Keep it in /tmp (RAM), because it contains the token:
+ssh knulli 'PP_DEBUG=1 /tmp/pp_play --sdl 1865000 /tmp/url.txt'
+```
+
+**Test from the Ports menu, not over SSH while ES is in its menu.** ES reads the same controller. Over SSH, the
+owner's button presses also navigate ES (one test accidentally launched a SNES game behind mpv). When launched
+from Ports, ES waits in the background and ignores input. A temporary launcher
+`/userdata/roms/ports/PocketPlex Player Test.sh` (device only, not in the repo) runs `pp_play --sdl` that way.
+
+Port-launch run (2026-10-03 15:52, owner watching): blue SDL window → mpv video → buttons → B → green SDL
+window → back to ES. The owner confirmed each step. Log (`PP_DEBUG=1`):
+
+```
+I pp_play: SDL window up (blue)
+I player: mpv pid 10802, start 1865000 ms, vo sdl
+I player: reading buttons from /dev/input/event1
+D player: button 304/1 -> ["cycle","pause"]
+D player: button 304/1 -> ["cycle","pause"]
+D player: button 16/1 -> ["seek",10,"relative"]
+D player: button 16/-1 -> ["seek",-10,"relative"]
+D player: button 309/1 -> ["seek",60,"relative"]
+D player: button 305/1 -> ["quit"]
+I player: mpv exited (code 0) at 1936084 ms
+I pp_play: screen handed back (green) for 5 s
+sdl: 18 stale events flushed after player_stop
+```
+
+The 18 stale events are the button presses the app's own SDL queue also received. The UI has to drop them after
+`player_stop` (the spec).

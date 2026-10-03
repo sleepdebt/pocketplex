@@ -30,6 +30,10 @@
 #include <sys/wait.h>
 #include <unistd.h>
 
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
+
 #if defined(__linux__) && !defined(PP_PLATFORM_DESKTOP)
 #define PP_MPV_EVDEV 1
 #include <dirent.h>
@@ -267,12 +271,49 @@ static void *input_main(void *arg) {
 }
 #endif
 
+/* Starts mpv with stdio on /dev/null. 0 = ok, else an errno value.
+ * On Linux this is fork + PR_SET_PDEATHSIG + exec, so mpv dies with the app: a crashed app would
+ * otherwise leave a fullscreen mpv on the SP that no button can quit (the evdev thread died too).
+ * PDEATHSIG fires when the forking *thread* exits, so call player_start from the main/UI thread. */
+static int spawn_mpv(pid_t *pid, const char *bin, char **argv) {
+#ifdef __linux__
+  pid_t parent = getpid(), c;
+  int devnull = open("/dev/null", O_RDWR | O_CLOEXEC), e;
+  if (devnull < 0) return errno;
+  c = fork();
+  if (c == 0) {   /* child: async-signal-safe calls only */
+    sigset_t none;
+    sigemptyset(&none);
+    sigprocmask(SIG_SETMASK, &none, NULL);
+    prctl(PR_SET_PDEATHSIG, SIGTERM);
+    if (getppid() != parent) _exit(127);   /* the app died before prctl */
+    dup2(devnull, 0); dup2(devnull, 1); dup2(devnull, 2);
+    execvp(bin, argv);
+    _exit(127);
+  }
+  e = errno;
+  close(devnull);
+  if (c < 0) return e;
+  *pid = c;
+  return 0;
+#else
+  posix_spawn_file_actions_t fa;
+  int rc;
+  posix_spawn_file_actions_init(&fa);
+  posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
+  posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
+  posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
+  rc = posix_spawnp(pid, bin, &fa, NULL, argv, environ);
+  posix_spawn_file_actions_destroy(&fa);
+  return rc;
+#endif
+}
+
 pp_player *player_start(const char *url, long start_ms) {
   static int seq;
   char *argv[PP_MPV_MAX_ARGS];
   char bufs[PP_MPV_MAX_ARGS][PP_MPV_ARG_LEN];
   const char *bin = getenv("PP_MPV_BIN"), *vo = getenv("PP_MPV_VO");
-  posix_spawn_file_actions_t fa;
   pp_player *p;
   FILE *f;
   int rc;
@@ -293,12 +334,7 @@ pp_player *player_start(const char *url, long start_ms) {
   else p->conf[0] = 0;
 
   mpv_build_args(argv, bufs, bin, url, p->pos_ms, p->sock, p->conf[0] ? p->conf : NULL, vo);
-  posix_spawn_file_actions_init(&fa);
-  posix_spawn_file_actions_addopen(&fa, 0, "/dev/null", O_RDONLY, 0);
-  posix_spawn_file_actions_addopen(&fa, 1, "/dev/null", O_WRONLY, 0);
-  posix_spawn_file_actions_addopen(&fa, 2, "/dev/null", O_WRONLY, 0);
-  rc = posix_spawnp(&p->pid, bin, &fa, NULL, argv, environ);
-  posix_spawn_file_actions_destroy(&fa);
+  rc = spawn_mpv(&p->pid, bin, argv);
   if (rc != 0) {
     LOGE("player: can't start %s: %s", bin, strerror(rc));
     if (p->conf[0]) unlink(p->conf);

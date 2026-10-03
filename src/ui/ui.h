@@ -25,6 +25,7 @@ typedef enum {
 typedef struct pp_screen pp_screen;
 struct pp_screen {
   pp_screen_id id;
+  int loading;       /* 1 while an async request is pending */
   void (*render)(pp_screen *self);
   void (*handle_button)(pp_screen *self, pp_btn);
   void (*destroy)(pp_screen *self);
@@ -41,6 +42,11 @@ void ui_quit(void);
 /* Auto-exit timeout (for --exit-after-ms). */
 void ui_set_exit_after_ms(long ms);
 long  ui_get_exit_after_ms(void);
+
+/* Smoke test mode: auto-navigates Link→Servers→Home→List(2000),
+ * holds DOWN for ~3s, logs fps. */
+void ui_set_smoke_scroll(int on);
+int  ui_is_smoke_scroll(void);
 
 /* Push/pop screens on the global stack. */
 void ui_push(pp_screen *s);
@@ -100,6 +106,7 @@ pp_screen *screen_link_create(void);
 pp_screen *screen_servers_create(void);
 pp_screen *screen_home_create(void);
 pp_screen *screen_list_create(const pp_list *items, const char *title);
+pp_screen *screen_list_create_key(const char *key, const char *title);
 pp_screen *screen_detail_create(const pp_item *item);
 pp_screen *screen_settings_create(void);
 

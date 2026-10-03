@@ -39,12 +39,31 @@ static void test_default_keys_table_terminates(void) {
   CHECK(pp_default_keys[i].sdl_key == 0);
 }
 
+static void test_swap_ab_swaps_enter_and_backspace(void) {
+  ui_set_swap_ab(0);
+  CHECK(pp_keycode_to_btn(0x0D) == BTN_A);  /* RETURN */
+  CHECK(pp_keycode_to_btn(0x08) == BTN_B);  /* BACKSPACE */
+  ui_set_swap_ab(1);
+  CHECK(pp_keycode_to_btn(0x0D) == BTN_B);
+  CHECK(pp_keycode_to_btn(0x08) == BTN_A);
+  ui_set_swap_ab(0);
+}
+
+static void test_swap_ab_does_not_affect_other_buttons(void) {
+  ui_set_swap_ab(1);
+  CHECK(pp_keycode_to_btn(0x28) == BTN_DOWN);
+  CHECK(pp_keycode_to_btn(0x1B) == BTN_MENU);
+  ui_set_swap_ab(0);
+}
+
 int main(void) {
   RUN(test_arrow_keys_map_to_dpad);
   RUN(test_enter_is_a);
   RUN(test_backspace_is_b);
   RUN(test_page_keys_are_l1_r1);
   RUN(test_escape_is_menu);
+  RUN(test_swap_ab_swaps_enter_and_backspace);
+  RUN(test_swap_ab_does_not_affect_other_buttons);
   RUN(test_unknown_key_is_none);
   RUN(test_default_keys_table_terminates);
   return TEST_RESULT();

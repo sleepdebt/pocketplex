@@ -1,6 +1,9 @@
-/* screen_home.c: Home screen — Continue Watching hub + library sections. */
+/* screen_home.c: Home screen — Continue Watching hub + library sections.
+ * Loads data via worker thread; shows spinner while pending.
+ */
 #include "ui.h"
 #include "ui/fake_provider.h"
+#include "ui/worker.h"
 #include "log.h"
 
 #include <stdlib.h>
@@ -10,33 +13,54 @@
 typedef struct {
   pp_list on_deck;     /* continue-watching items */
   pp_list sections;    /* library roots */
+  pp_request req_ondeck;
+  pp_request req_sections;
+  int ondeck_loaded;   /* 1 after on_deck request completed + processed */
+  int sections_loaded; /* 1 after sections request completed + processed */
   int sel;             /* 0..on_deck.count: -1 means in sections area */
   int in_sections;     /* 0 = on-deck row, 1 = sections row */
 } home_data_t;
 
 static void home_render(pp_screen *self) {
   home_data_t *d = (home_data_t *)self->data;
-  (void)d;
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_SCREEN_H, PP_COLOR_BG);
 
-  /* Header */
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
   ui_draw_text("PocketPlex", PP_MARGIN_L, 10, PP_COLOR_FG);
   ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
+
+  /* Process completed requests */
+  if (!d->ondeck_loaded && d->req_ondeck.done) {
+    if (d->req_ondeck.status == 0) d->on_deck = d->req_ondeck.result;
+    d->ondeck_loaded = 1;
+  }
+  if (!d->sections_loaded && d->req_sections.done) {
+    if (d->req_sections.status == 0) d->sections = d->req_sections.result;
+    d->sections_loaded = 1;
+  }
+
+  /* Still loading? */
+  if (!d->ondeck_loaded || !d->sections_loaded) {
+    self->loading = 1;
+    ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
+    g_spinner_frame++;
+    return;
+  }
+  self->loading = 0;
+
+  int total_top = d->on_deck.count;
 
   /* Continue Watching */
   ui_draw_text("Continue Watching", PP_MARGIN_L, 52, PP_COLOR_FG);
   int y = 80;
   int i;
-  for (i = 0; i < d->on_deck.count && i < 4; i++) {
+  for (i = 0; i < total_top && i < 4; i++) {
     pp_item *it = &d->on_deck.items[i];
     pp_color col = (d->in_sections == 0 && d->sel == i) ? PP_COLOR_SEL : PP_COLOR_FG;
-    char buf[128];
-    snprintf(buf, sizeof(buf), "%s", it->title);
-    ui_draw_text(buf, PP_MARGIN_L, y, col);
-    /* Progress indicator */
+    ui_draw_text(it->title, PP_MARGIN_L, y, col);
     if (it->view_offset_ms > 0 && it->duration_ms > 0) {
       int pct = (int)((it->view_offset_ms * 100) / it->duration_ms);
+      char buf[64];
       snprintf(buf, sizeof(buf), "Progress: %d%%", pct);
       int w = text_width_px(buf);
       ui_draw_text(buf, PP_SCREEN_W - PP_MARGIN_R - w, y, PP_COLOR_DIM);
@@ -48,24 +72,24 @@ static void home_render(pp_screen *self) {
   y += 8;
   ui_draw_rect(PP_MARGIN_L, y, PP_SCREEN_W - 2*PP_MARGIN_L, 1, PP_COLOR_DIM);
 
-  /* Sections / Libraries */
+  /* Sections */
   ui_draw_text("Libraries", PP_MARGIN_L, y + 12, PP_COLOR_FG);
   y += 38;
   for (i = 0; i < d->sections.count; i++) {
     pp_item *it = &d->sections.items[i];
-    pp_color col = (d->in_sections == 1 && d->sel - d->on_deck.count == i)
+    pp_color col = (d->in_sections == 1 && d->sel - total_top == i)
                    ? PP_COLOR_SEL : PP_COLOR_FG;
     ui_draw_text(it->title, PP_MARGIN_L + 16, y, col);
     y += PP_LINE_H;
   }
 
-  /* Footer */
-  ui_draw_text("D-pad: navigate  A: open  B: back  Select: settings",
+  ui_draw_text("D-pad: nav  A: open  Select: settings  L1: servers",
                PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
 }
 
 static void home_handle(pp_screen *self, pp_btn btn) {
   home_data_t *d = (home_data_t *)self->data;
+  if (self->loading) return;
   int total_top = d->on_deck.count;
   int total_all = total_top + d->sections.count;
 
@@ -95,12 +119,7 @@ static void home_handle(pp_screen *self, pp_btn btn) {
                d->sel - total_top < d->sections.count) {
       pp_item *it = &d->sections.items[d->sel - total_top];
       ui_pop();
-      /* Sections don't have a list model, so load children */
-      pp_list children;
-      memset(&children, 0, sizeof(children));
-      if (fake_children(NULL, it->key, &children) == 0) {
-        ui_push(screen_list_create(&children, it->title));
-      }
+      ui_push(screen_list_create_key(it->key, it->title));
     }
     break;
   case BTN_SELECT:
@@ -121,7 +140,6 @@ static void home_handle(pp_screen *self, pp_btn btn) {
 static void home_destroy(pp_screen *self) {
   home_data_t *d = (home_data_t *)self->data;
   if (d) {
-    /* Fake provider data is static — don't free items */
     d->on_deck.items = NULL; d->on_deck.count = 0;
     d->sections.items = NULL; d->sections.count = 0;
     free(d);
@@ -133,14 +151,20 @@ pp_screen *screen_home_create(void) {
   if (!s) return NULL;
   home_data_t *d = (home_data_t *)calloc(1, sizeof(home_data_t));
   if (!d) { free(s); return NULL; }
-  fake_on_deck(NULL, &d->on_deck);
-  fake_sections(NULL, &d->sections);
   d->sel = 0;
   d->in_sections = 0;
+  /* Start async loads BEFORE setting type/done */
+  d->req_ondeck.type = REQ_ON_DECK;
+  d->req_ondeck.done = 0;
+  d->req_sections.type = REQ_SECTIONS;
+  d->req_sections.done = 0;
   s->id = SCREEN_HOME;
   s->data = d;
+  s->loading = 1;
   s->render = home_render;
   s->handle_button = home_handle;
   s->destroy = home_destroy;
+  worker_submit(&d->req_ondeck);
+  worker_submit(&d->req_sections);
   return s;
 }

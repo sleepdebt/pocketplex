@@ -19,11 +19,23 @@ pp_keymap pp_default_keys[] = {
   { 0x00, BTN_NONE },
 };
 
+static int g_swap_ab = 0;
+
+void ui_set_swap_ab(int swap) { g_swap_ab = swap ? 1 : 0; }
+int  ui_is_swap_ab(void) { return g_swap_ab; }
+
 pp_btn pp_keycode_to_btn(int sdl_keycode) {
   int i;
+  pp_btn btn = BTN_NONE;
   for (i = 0; pp_default_keys[i].btn != BTN_NONE; i++) {
-    if (pp_default_keys[i].sdl_key == sdl_keycode)
-      return pp_default_keys[i].btn;
+    if (pp_default_keys[i].sdl_key == sdl_keycode) {
+      btn = pp_default_keys[i].btn;
+      break;
+    }
   }
-  return BTN_NONE;
+  if (g_swap_ab) {
+    if (btn == BTN_A) return BTN_B;
+    if (btn == BTN_B) return BTN_A;
+  }
+  return btn;
 }

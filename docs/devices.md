@@ -117,9 +117,10 @@ mpv can't read the gamepad itself (see above), so `player_mpv.c` reads evdev in 
 | Up / Down | seek +300 / −300 s |
 | X, Select | show progress bar |
 
-D-pad presses don't repeat when held (hat axes have no auto-repeat). L1/R1 do repeat, at most one seek per 500 ms
-(`PP_MPV_REPEAT_MS`), because evdev repeats at about 30 Hz and every forward seek past the cache restarts the PMS
-transcoder.
+Held buttons: measured on the SP (16:45), a ~2 s hold of R1 produced only the press (`button 309/1`) and **no
+auto-repeat events**. This controller has no evdev key repeat, and the D-pad hat axes never repeat. On controllers
+that do repeat (about 30 Hz), L1/R1 repeats are limited to one seek per 500 ms (`PP_MPV_REPEAT_MS`), because every
+forward seek past the cache restarts the PMS transcoder. On the SP that limit is just a guard.
 
 **Blocking times (for the UI loop):** `player_start` returns right away (fork/exec). `player_poll` can block up to
 **300 ms** waiting for mpv's IPC reply. `player_stop` sends `quit` and waits up to **1.5 s** for mpv to exit, then

@@ -55,6 +55,37 @@ PMS quirk: `X-Plex-Platform=Linux` makes both `/video/:/transcode/universal/deci
 return **HTTP 400**. `X-Plex-Platform=Chrome` (header and query parameter) returns 200 with
 "Direct play not available; Conversion OK".
 
+### 10-minute soak and PMS session lifetime
+
+The soak used `spike.py 600` on the SP with the player's mpv options (`--vo=sdl --hwdec=no --start=1865`, 32/16 MiB
+cache), sampled every 30 s.
+
+**Run 1 (no timeline updates, empty `X-Plex-Client-Identifier`): PMS dropped the transcode about 2 minutes in.**
+mpv's cache peaked at 275 s ahead (t=120 s), then drained linearly (95 → 65 → 35 → 5.6 s). After that came
+`http: HTTP error 404 Not Found` / `hls: Failed to open segment 295` and mpv reported `Exiting... (End of file)`
+at t≈400 s, exit code 0. Note that the player reports this as a normal finish (`finished=1`, rc 0) at the last
+position. Short tests hide this: they play from the cache.
+
+**Run 2 (client id `pocketplex-sp-test` + `/:/timeline state=playing` every 10 s, like the app will do): clean.**
+61 timeline pings were sent. PMS showed the session `throttled: true` (paused, about 6 minutes ahead), and the cache
+held steady:
+
+| t (s) | CPU % (1 core) | time-pos | cache ahead (s) | drops (vo/dec/delayed) | avsync (s) |
+|---|---|---|---|---|---|
+| 30 | 52.3 | 1889.2 | 70 | 0/0/0 | −0.000026 |
+| 120 | 69.4 | 1979.2 | 344 | 0/0/0 | −0.000235 |
+| 300 | 71.0 | 2159.3 | 345 | 0/0/0 | −0.000021 |
+| 450 | 70.4 | 2309.4 | 341 | 0/0/0 | −0.000692 |
+| 600 | 70.8 | 2459.4 | 326 | 0/0/0 | −0.000282 |
+
+Every one of the 20 samples had 0 dropped frames, |avsync| ≤ 0.71 ms, and the 600 s of position matched 600 s of wall clock.
+No 404s. Not isolated: whether the pings, the non-empty client id, or both keep the session alive. The app sends
+both anyway.
+
+`/:/timeline state=stopped time=1936084` set the item's `viewOffset` to exactly 1936084 (then restored to the
+owner's 1865674), so `player_poll` positions can be used directly as Plex resume points.
+After `transcode/universal/stop?session=…`, `/transcode/sessions` is empty.
+
 ### Buttons (evdev)
 
 The controller is `/dev/input/event1` ("Anbernic RG35XX-SP Controller", also `js0`). Measured by reading raw
@@ -131,6 +162,16 @@ I player: mpv exited (code 0) at 1936084 ms
 I pp_play: screen handed back (green) for 5 s
 sdl: 18 stale events flushed after player_stop
 ```
+
+A second port-launch run (16:20) added Up/Down (±300 s) and pause again. All of them logged and acted on, and B
+then the green screen and ES followed. The owner looked specifically for ES bleed-through, including after button
+presses, and saw **none**.
+
+**SSH-launched tests with ES in the foreground show ES bleed-through.** ES keeps drawing to the same fbdev and
+redraws when a button is pressed. During the 10-minute SSH soak, the owner saw the Ports menu behind the video.
+That's a test artifact: when port-launched, ES is suspended (verified above). So frame-quality numbers from SSH
+runs (the spike tables and the soak below) describe the player (decode, drops, sync), not what the composited
+screen looks like.
 
 The 18 stale events are the button presses the app's own SDL queue also received. The UI has to drop them after
 `player_stop` (the spec).

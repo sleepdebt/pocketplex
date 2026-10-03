@@ -3,11 +3,11 @@
  * Every request carries the client identity headers. Two PMS 1.43.3 quirks
  * are baked in (verified against the owner's server):
  *  - X-Plex-Platform must be a profile the transcoder knows; "Chrome" works,
- *    "Linux" makes /video/:/transcode/universal/* return 400.
+ *    "Linux" makes the universal transcode endpoints return 400.
  *  - JSON only comes back when Accept: application/json is sent.
  * The token goes in the X-Plex-Token header, not the URL (keeps URLs out of
  * logs; transcode URLs built for a player process are the one exception and
- * log.h redacts their "...token=" form).
+ * log.h redacts their token= query form).
  */
 #include "plex/internal.h"
 #include "log.h"
@@ -103,7 +103,7 @@ static int http_run(const char *url, const char *token, const char *method,
   out->status = status;
   if (status == 401 || status == 403) { pp_http_free(out); return PP_ERR_AUTH; }
   if (status < 200 || status >= 300) {
-    LOGD("http %s -> %ld", url, status);
+    LOGW("http %ld from GET %s", status, url);
     pp_http_free(out);
     return PP_ERR_HTTP;
   }

@@ -214,3 +214,22 @@ int pp_on_deck(const pp_server *srv, pp_list *out) {
   snprintf(url, sizeof url, "%s/library/onDeck", srv->url);
   return fetch_list(url, srv, out, 0);
 }
+
+int pp_fetch_item(const pp_server *srv, const char *rating_key, pp_item *out) {
+  if (!srv || !rating_key || !rating_key[0] || !out) return PP_ERR_ARG;
+  memset(out, 0, sizeof *out);
+  char url[512];
+  snprintf(url, sizeof url, "%s/library/metadata/%s", srv->url, rating_key);
+  pp_http_response r;
+  int rc = pp_http_get(url, srv->token, &r);
+  if (rc != PP_OK) { pp_http_free(&r); return rc; }
+  pp_list list;
+  rc = pp_parse_items(r.body, &list);
+  pp_http_free(&r);
+  if (rc != PP_OK) return rc;
+  if (list.count < 1) { pp_list_free(&list); return PP_ERR_PARSE; }
+  *out = list.items[0];
+  list.items = NULL; /* ownership moved */
+  pp_list_free(&list);
+  return 0;
+}

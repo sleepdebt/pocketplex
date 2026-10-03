@@ -1,7 +1,8 @@
 /* plex/internal.h: core internal helpers. Not part of the frozen contract.
  *
  * The parse/build functions here are pure (no network) so tests can drive them
- * from tests/fixtures/*.json. http.c/auth.c/library.c/playback.c use them.
+ * from recorded JSON under tests/fixtures. http.c/auth.c/library.c/playback.c
+ * use them.
  */
 #ifndef PP_PLEX_INTERNAL_H
 #define PP_PLEX_INTERNAL_H
@@ -26,6 +27,10 @@ int pp_parse_servers(const char *json, pp_server **out, int *count);
 /* Any MediaContainer response whose items live under "Directory" (sections)
  * or "Metadata" (section contents, children, onDeck). out is zeroed on error. */
 int pp_parse_items(const char *json, pp_list *out);
+
+/* Fetches one metadata item by ratingKey (GET /library/metadata/{rk}).
+ * Not part of the frozen contract; pp-cli needs the duration for timelines. */
+int pp_fetch_item(const pp_server *srv, const char *rating_key, pp_item *out);
 
 /* ---- playback.c: pure building ---- */
 

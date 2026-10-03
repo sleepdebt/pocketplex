@@ -276,7 +276,7 @@ static void test_build_decision_url_matches_start_params(void) {
   CHECK(strstr(dec, "directPlay=0&directStream=0") != NULL);
   CHECK(strstr(dec, "path=/library/metadata/53834") != NULL);
   CHECK(strstr(dec, "X-Plex-Token=") == NULL); /* token goes in a header */
-  char small[16];
+  char small[16] = "";
   CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "s", 640, 480, 1500, 0,
                               small, sizeof small) == PP_ERR_ARG);
   CHECK(small[0] == '\0'); /* caller buffer untouched on error */

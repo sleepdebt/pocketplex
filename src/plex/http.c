@@ -35,34 +35,41 @@ static size_t write_cb(char *ptr, size_t size, size_t nmemb, void *ud) {
   return len;
 }
 
+static struct curl_slist *appendf(struct curl_slist *h, const char *fmt, const char *a)
+    __attribute__((format(printf, 2, 3)));
+static struct curl_slist *appendf(struct curl_slist *h, const char *fmt, const char *a) {
+  char buf[256];
+  if (snprintf(buf, sizeof buf, fmt, a) >= (int)sizeof buf) return h; /* too long: skip */
+  return curl_slist_append(h, buf);
+}
+
 static struct curl_slist *build_headers(const char *token) {
-  char buf[192];
   struct curl_slist *h = NULL;
   h = curl_slist_append(h, "Accept: application/json");
-  snprintf(buf, sizeof buf, "X-Plex-Platform: %s", PP_PLATFORM);
-  h = curl_slist_append(h, buf);
+  h = appendf(h, "X-Plex-Platform: %s", PP_PLATFORM);
   h = curl_slist_append(h, "X-Plex-Platform-Version: 1.0");
   h = curl_slist_append(h, "X-Plex-Provides: controller");
-  snprintf(buf, sizeof buf, "X-Plex-Product: %s", PP_PRODUCT);
-  h = curl_slist_append(h, buf);
-  snprintf(buf, sizeof buf, "X-Plex-Version: %s", PP_VERSION);
-  h = curl_slist_append(h, buf);
-  snprintf(buf, sizeof buf, "X-Plex-Device: %s", PP_PRODUCT);
-  h = curl_slist_append(h, buf);
-  snprintf(buf, sizeof buf, "X-Plex-Device-Name: %s", PP_PRODUCT);
-  h = curl_slist_append(h, buf);
-  snprintf(buf, sizeof buf, "X-Plex-Client-Identifier: %s", g_client_id);
-  h = curl_slist_append(h, buf);
+  h = appendf(h, "X-Plex-Product: %s", PP_PRODUCT);
+  h = appendf(h, "X-Plex-Version: %s", PP_VERSION);
+  h = appendf(h, "X-Plex-Device: %s", PP_PRODUCT);
+  h = appendf(h, "X-Plex-Device-Name: %s", PP_PRODUCT);
+  h = appendf(h, "X-Plex-Client-Identifier: %s", g_client_id);
   h = curl_slist_append(h, "X-Plex-Language: en");
   if (token && token[0]) {
-    snprintf(buf, sizeof buf, "X-Plex-Token: %s", token);
-    h = curl_slist_append(h, buf);
+    /* tokens can exceed any fixed buffer: build this one dynamically */
+    size_t need = strlen("X-Plex-Token: ") + strlen(token) + 1;
+    char *buf = malloc(need);
+    if (buf) {
+      snprintf(buf, need, "X-Plex-Token: %s", token);
+      h = curl_slist_append(h, buf);
+      free(buf);
+    }
   }
   return h;
 }
 
 static int http_run(const char *url, const char *token, const char *method,
-                    pp_http_response *out) {
+                    int map_status_errors, pp_http_response *out) {
   if (!url || !out) return PP_ERR_ARG;
   memset(out, 0, sizeof *out);
 
@@ -76,7 +83,8 @@ static int http_run(const char *url, const char *token, const char *method,
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, out);
   curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
-  curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+  /* redirects stay OFF: with a custom X-Plex-Token header curl would forward
+   * the token to whatever host the redirect points at */
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 20L);
   curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
@@ -101,9 +109,11 @@ static int http_run(const char *url, const char *token, const char *method,
     return PP_ERR_NET;
   }
   out->status = status;
+  if (!map_status_errors) return PP_OK; /* caller inspects out->status */
+
   if (status == 401 || status == 403) { pp_http_free(out); return PP_ERR_AUTH; }
   if (status < 200 || status >= 300) {
-    LOGW("http %ld from GET %s", status, url);
+    LOGW("http %ld from %s %s", status, method ? method : "GET", url);
     pp_http_free(out);
     return PP_ERR_HTTP;
   }
@@ -111,11 +121,15 @@ static int http_run(const char *url, const char *token, const char *method,
 }
 
 int pp_http_get(const char *url, const char *token, pp_http_response *out) {
-  return http_run(url, token, "GET", out);
+  return http_run(url, token, "GET", 1, out);
 }
 
 int pp_http_post(const char *url, const char *token, pp_http_response *out) {
-  return http_run(url, token, "POST", out);
+  return http_run(url, token, "POST", 1, out);
+}
+
+int pp_http_get_status(const char *url, const char *token, pp_http_response *out) {
+  return http_run(url, token, "GET", 0, out);
 }
 
 void pp_http_free(pp_http_response *r) {

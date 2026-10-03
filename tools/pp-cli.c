@@ -182,8 +182,8 @@ static int cmd_login(const char *ini) {
     fprintf(stderr, "warning: no server found (%s); set server_url in %s\n",
             err_name(rc), ini);
   }
-  pp_config_save(&cfg, ini);
-  printf("saved %s\n", ini);
+  if (pp_config_save(&cfg, ini) == 0) printf("saved %s\n", ini);
+  else fprintf(stderr, "pp-cli: could not save %s\n", ini);
   return 0;
 }
 
@@ -252,7 +252,12 @@ int main(int argc, char **argv) {
 
   const char *ini = ini_path(argv[0]);
   pp_config_load(&cfg, ini);
+  int had_client_id = cfg.client_id[0] != '\0';
   pp_config_ensure_client_id(&cfg);
+  if (!had_client_id) { /* persist it: a new id per run would register a new Plex device */
+    if (pp_config_save(&cfg, ini) != 0)
+      fprintf(stderr, "pp-cli: warning: cannot write %s\n", ini);
+  }
   server_from_config();
 
   int needs_server = strcmp(argv[1], "login") != 0 && strcmp(argv[1], "servers") != 0;

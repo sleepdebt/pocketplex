@@ -1,10 +1,14 @@
 /* config/config.c: pocketplex.ini reader/writer. See config.h. */
 #include "config/config.h"
 
+#include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 
 static void copy_field(char *dst, size_t n, const char *src) {
   if (!src) src = "";
@@ -56,7 +60,7 @@ static void assign(pp_config *cfg, const char *section, const char *key, char *v
 int pp_config_load(pp_config *cfg, const char *path) {
   pp_config_defaults(cfg);
   FILE *f = fopen(path, "r");
-  if (!f) return 0; /* missing file = defaults */
+  if (!f) return (errno == ENOENT) ? 0 : -1; /* missing = defaults */
 
   char line[1024], section[64] = "";
   while (fgets(line, sizeof line, f)) {
@@ -81,26 +85,30 @@ int pp_config_load(pp_config *cfg, const char *path) {
 
 int pp_config_save(const pp_config *cfg, const char *path) {
   char tmp[512];
-  snprintf(tmp, sizeof tmp, "%s.tmp", path);
-  FILE *f = fopen(tmp, "w");
-  if (!f) return -1;
-  fprintf(f,
-          "# PocketPlex config. Copy to pocketplex.ini next to the binary.\n"
-          "# Dev shortcut: server_url + token set = PIN login and discovery are skipped.\n"
-          "\n"
-          "[plex]\n"
-          "server_url = %s\n"
-          "token = %s\n"
-          "client_id = %s\n"
-          "\n"
-          "[ui]\n"
-          "quality = %s        ; 360p | 480p\n"
-          "subtitles = %s      ; burn | off\n"
-          "swap_ab = %s\n",
-          cfg->server_url, cfg->token, cfg->client_id, cfg->quality, cfg->subtitles,
-          cfg->swap_ab ? "true" : "false");
-  if (fclose(f) != 0) return -1;
-  if (rename(tmp, path) != 0) return -1;
+  if (snprintf(tmp, sizeof tmp, "%s.tmp", path) >= (int)sizeof tmp) return -1;
+  /* 0600: the file holds the account token */
+  int fd = open(tmp, O_CREAT | O_WRONLY | O_TRUNC, 0600);
+  if (fd < 0) return -1;
+  FILE *f = fdopen(fd, "w");
+  if (!f) { close(fd); remove(tmp); return -1; }
+  int ok =
+      fprintf(f,
+              "# PocketPlex config. Copy to pocketplex.ini next to the binary.\n"
+              "# Dev shortcut: server_url + token set = PIN login and discovery are skipped.\n"
+              "\n"
+              "[plex]\n"
+              "server_url = %s\n"
+              "token = %s\n"
+              "client_id = %s\n"
+              "\n"
+              "[ui]\n"
+              "quality = %s        ; 360p | 480p\n"
+              "subtitles = %s      ; burn | off\n"
+              "swap_ab = %s\n",
+              cfg->server_url, cfg->token, cfg->client_id, cfg->quality, cfg->subtitles,
+              cfg->swap_ab ? "true" : "false") >= 0 &&
+      fclose(f) == 0;
+  if (!ok || rename(tmp, path) != 0) { remove(tmp); return -1; }
   return 0;
 }
 

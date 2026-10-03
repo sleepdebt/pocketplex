@@ -32,15 +32,24 @@ int pp_parse_items(const char *json, pp_list *out);
  * Not part of the frozen contract; pp-cli needs the duration for timelines. */
 int pp_fetch_item(const pp_server *srv, const char *rating_key, pp_item *out);
 
-/* ---- playback.c: pure building ---- */
+/* ---- playback.c: pure building / parsing ---- */
 
-/* Builds the universal-transcode start URL (HLS). path is the item key,
+/* The universal-transcode query shared by decision and start (one builder so
+ * the pre-flight check matches the real request). path is the item key,
  * e.g. "/library/metadata/1234". offset_ms is passed to PMS as whole seconds
  * (PMS returns a full-length VOD playlist; callers normally pass 0 and give
  * the resume point to the player instead). */
 int pp_build_transcode_url(const pp_server *srv, const char *path,
                            const char *session_id, int width, int height,
                            int max_kbps, long offset_ms, char *url_out, size_t n);
+int pp_build_decision_url(const pp_server *srv, const char *path,
+                          const char *session_id, int width, int height,
+                          int max_kbps, long offset_ms, char *url_out, size_t n);
+
+/* Decision response: PP_OK when the server will transcode; PP_ERR_HTTP when
+ * it refused (generalDecisionCode or transcodeDecisionCode >= 2000);
+ * PP_ERR_PARSE on unusable JSON. */
+int pp_parse_decision(const char *json);
 
 /* ---- http.c ---- */
 
@@ -57,6 +66,11 @@ typedef struct {
  * non-2xx, PP_ERR_NET on connect/timeout/TLS failure. Free with pp_http_free. */
 int pp_http_get(const char *url, const char *token, pp_http_response *out);
 int pp_http_post(const char *url, const char *token, pp_http_response *out);
+/* Like pp_http_get, but returns 0 for ANY completed HTTP exchange (status in
+ * out->status; caller frees out), so callers can treat specific statuses
+ * (404 on a stop, 404 on an expired PIN) themselves. PP_ERR_NET still means
+ * the request never completed. */
+int pp_http_get_status(const char *url, const char *token, pp_http_response *out);
 void pp_http_free(pp_http_response *r);
 
 /* The client identifier pp_init() was given ("" before pp_init). */

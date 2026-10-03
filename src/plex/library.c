@@ -15,6 +15,20 @@ static void scpy(char *dst, size_t n, const char *src) {
   snprintf(dst, n, "%s", src);
 }
 
+/* MediaContainer.totalSize (0 when absent) so paging can stop at the end. */
+static long parse_total_size(const char *json) {
+  cJSON *root = cJSON_Parse(json);
+  if (!root) return 0;
+  cJSON *mc = cJSON_GetObjectItemCaseSensitive(root, "MediaContainer");
+  long total = 0;
+  if (mc) {
+    const cJSON *t = cJSON_GetObjectItemCaseSensitive(mc, "totalSize");
+    if (cJSON_IsNumber(t)) total = (long)t->valuedouble;
+  }
+  cJSON_Delete(root);
+  return total;
+}
+
 static const char *item_string(const cJSON *node, const char *field) {
   const cJSON *v = cJSON_GetObjectItemCaseSensitive(node, field);
   if (!v) return NULL;
@@ -152,7 +166,7 @@ static int fetch_list(const char *url_first_page, const pp_server *srv, pp_list 
                       int page) {
   out->items = NULL;
   out->count = 0;
-  if (!srv || !srv->url[0] || !srv->token) return PP_ERR_ARG;
+  if (!srv || !srv->url || !srv->token) return PP_ERR_ARG;
   if (!page) {
     pp_http_response r;
     int rc = pp_http_get(url_first_page, srv->token, &r);
@@ -162,19 +176,25 @@ static int fetch_list(const char *url_first_page, const pp_server *srv, pp_list 
     return rc;
   }
 
-  /* Paged fetch: 50 at a time until the server stops giving us a full page. */
-  const int page_size = 50;
+  /* Paged fetch: 50 at a time. Stops on a short page, at the server's
+   * totalSize, or after MAX_PAGES (defensive: an endpoint that ignores the
+   * container params must not loop forever). */
+  enum { PAGE_SIZE = 50, MAX_PAGES = 400 };
   int total = 0, start = 0;
+  long total_size = -1; /* unknown until the first response */
   pp_item *all = NULL;
-  for (;;) {
+  for (int page_no = 0; page_no < MAX_PAGES; page_no++) {
     char url[1024];
-    snprintf(url, sizeof url, "%s%sX-Plex-Container-Start=%d&X-Plex-Container-Size=%d",
-             url_first_page, strchr(url_first_page, '?') ? "&" : "?", start, page_size);
+    int written = snprintf(url, sizeof url, "%s%sX-Plex-Container-Start=%d&X-Plex-Container-Size=%d",
+                           url_first_page, strchr(url_first_page, '?') ? "&" : "?",
+                           start, PAGE_SIZE);
+    if (written < 0 || (size_t)written >= sizeof url) { free(all); return PP_ERR_ARG; }
     pp_http_response r;
     int rc = pp_http_get(url, srv->token, &r);
     if (rc != PP_OK) { pp_http_free(&r); free(all); return rc; }
     pp_list part;
     rc = pp_parse_items(r.body, &part);
+    if (rc == PP_OK && total_size < 0) total_size = parse_total_size(r.body);
     pp_http_free(&r);
     if (rc != PP_OK) { free(all); return rc; }
     if (part.count == 0) { pp_list_free(&part); break; }
@@ -185,8 +205,9 @@ static int fetch_list(const char *url_first_page, const pp_server *srv, pp_list 
     total += part.count;
     int got = part.count;
     pp_list_free(&part);
-    if (got < page_size) break;
-    start += page_size;
+    if (got < PAGE_SIZE) break;
+    start += PAGE_SIZE;
+    if (total_size > 0 && start >= total_size) break;
   }
   out->items = all;
   out->count = total;
@@ -194,12 +215,14 @@ static int fetch_list(const char *url_first_page, const pp_server *srv, pp_list 
 }
 
 int pp_sections(const pp_server *srv, pp_list *out) {
+  if (!srv || !srv->url || !srv->token || !out) return PP_ERR_ARG;
   char url[512];
   snprintf(url, sizeof url, "%s/library/sections", srv->url);
   return fetch_list(url, srv, out, 0);
 }
 
 int pp_children(const pp_server *srv, const char *key, pp_list *out) {
+  if (!srv || !srv->url || !srv->token || !out) return PP_ERR_ARG;
   if (!key || !key[0]) return PP_ERR_ARG;
   char url[768];
   if (key[0] == '/')
@@ -210,16 +233,19 @@ int pp_children(const pp_server *srv, const char *key, pp_list *out) {
 }
 
 int pp_on_deck(const pp_server *srv, pp_list *out) {
+  if (!srv || !srv->url || !srv->token || !out) return PP_ERR_ARG;
   char url[512];
   snprintf(url, sizeof url, "%s/library/onDeck", srv->url);
   return fetch_list(url, srv, out, 0);
 }
 
 int pp_fetch_item(const pp_server *srv, const char *rating_key, pp_item *out) {
-  if (!srv || !rating_key || !rating_key[0] || !out) return PP_ERR_ARG;
+  if (!srv || !srv->url || !srv->token || !rating_key || !rating_key[0] || !out)
+    return PP_ERR_ARG;
   memset(out, 0, sizeof *out);
   char url[512];
-  snprintf(url, sizeof url, "%s/library/metadata/%s", srv->url, rating_key);
+  int written = snprintf(url, sizeof url, "%s/library/metadata/%s", srv->url, rating_key);
+  if (written < 0 || (size_t)written >= sizeof url) return PP_ERR_ARG;
   pp_http_response r;
   int rc = pp_http_get(url, srv->token, &r);
   if (rc != PP_OK) { pp_http_free(&r); return rc; }
@@ -228,8 +254,7 @@ int pp_fetch_item(const pp_server *srv, const char *rating_key, pp_item *out) {
   pp_http_free(&r);
   if (rc != PP_OK) return rc;
   if (list.count < 1) { pp_list_free(&list); return PP_ERR_PARSE; }
-  *out = list.items[0];
-  list.items = NULL; /* ownership moved */
+  *out = list.items[0]; /* by value: pp_item has no pointers */
   pp_list_free(&list);
   return 0;
 }

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
 #include <unistd.h>
 
 static char tmpdir[256];
@@ -132,6 +133,22 @@ static void test_long_values_are_truncated_not_overflowed(void) {
   CHECK(strlen(cfg.token) < sizeof cfg.token);
 }
 
+static void test_save_creates_private_file_no_tmp_left(void) {
+  pp_config cfg;
+  pp_config_defaults(&cfg);
+  char path[512], tmppath[520];
+  snprintf(path, sizeof path, "%s/pp_test_perm.ini", tmpdir);
+  snprintf(tmppath, sizeof tmppath, "%s.tmp", path);
+  remove(path);
+  remove(tmppath);
+  CHECK(pp_config_save(&cfg, path) == 0);
+  struct stat st;
+  CHECK(stat(path, &st) == 0);
+  CHECK((st.st_mode & 0777) == 0600); /* holds the account token */
+  CHECK(stat(tmppath, &st) != 0); /* no .tmp left behind */
+  remove(path);
+}
+
 int main(void) {
   const char *t = getenv("TMPDIR");
   snprintf(tmpdir, sizeof tmpdir, "%s", (t && *t) ? t : "/tmp");
@@ -142,5 +159,6 @@ int main(void) {
   RUN(test_saved_file_has_no_secrets_leak_of_other_keys);
   RUN(test_client_id_generated_once_and_stable);
   RUN(test_long_values_are_truncated_not_overflowed);
+  RUN(test_save_creates_private_file_no_tmp_left);
   return TEST_RESULT();
 }

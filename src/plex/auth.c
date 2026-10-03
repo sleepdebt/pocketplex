@@ -142,13 +142,17 @@ int pp_auth_pin_poll(long pin_id, char *token_out, size_t n) {
   if (!token_out || n == 0) return PP_ERR_ARG;
   token_out[0] = '\0';
   char url[128];
-  snprintf(url, sizeof url, "%s/pins/%ld", PLEX_TV, pin_id);
+  int written = snprintf(url, sizeof url, "%s/pins/%ld", PLEX_TV, pin_id);
+  if (written < 0 || (size_t)written >= sizeof url) return PP_ERR_ARG;
   pp_http_response r;
-  int rc = pp_http_get(url, NULL, &r);
-  if (rc != PP_OK) {
-    int out = (rc == PP_ERR_HTTP) ? PP_ERR_AUTH : rc; /* 404 = PIN expired */
+  int rc = pp_http_get_status(url, NULL, &r);
+  if (rc != PP_OK) { pp_http_free(&r); return rc; } /* transport failure */
+  long status = r.status;
+  if (status == 404) { pp_http_free(&r); return PP_ERR_AUTH; } /* PIN expired */
+  if (status == 401 || status == 403) { pp_http_free(&r); return PP_ERR_AUTH; }
+  if (status < 200 || status >= 300) { /* e.g. 429 rate limit, 5xx */
     pp_http_free(&r);
-    return out;
+    return PP_ERR_HTTP;
   }
   char code[8];
   long id = 0;

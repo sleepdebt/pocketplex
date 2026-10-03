@@ -241,6 +241,54 @@ static void test_build_transcode_url_errors(void) {
                                small, sizeof small) == PP_ERR_ARG);
 }
 
+/* ---------- transcode decision ---------- */
+
+static void test_parse_decision_ok(void) {
+  char *j = read_fixture("decision.json");
+  /* directPlay disabled but conversion allowed: codes 1001/1001 */
+  CHECK(pp_parse_decision(j) == PP_OK);
+  free_fixture(j);
+}
+
+static void test_parse_decision_refused(void) {
+  char *j = read_fixture("decision_refused.json");
+  CHECK(pp_parse_decision(j) == PP_ERR_HTTP);
+  free_fixture(j);
+}
+
+static void test_parse_decision_bad(void) {
+  CHECK(pp_parse_decision("not json") == PP_ERR_PARSE);
+  CHECK(pp_parse_decision(NULL) == PP_ERR_ARG);
+  /* no decision codes at all: nothing refused */
+  CHECK(pp_parse_decision("{\"MediaContainer\":{}}") == PP_OK);
+}
+
+static void test_build_decision_url_matches_start_params(void) {
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  char dec[1024], start[1024];
+  CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "sess-9",
+                              640, 480, 1500, 0, dec, sizeof dec) == 0);
+  CHECK(strstr(dec, "/video/:/transcode/universal/decision?") != NULL);
+  CHECK(strstr(dec, "subtitles=burn") != NULL);
+  CHECK(strstr(dec, "session=sess-9") != NULL);
+  CHECK(strstr(dec, "X-Plex-Platform=Chrome") != NULL);
+  CHECK(strstr(dec, "videoResolution=640x480") != NULL);
+  CHECK(strstr(dec, "directPlay=0&directStream=0") != NULL);
+  CHECK(strstr(dec, "path=/library/metadata/53834") != NULL);
+  CHECK(strstr(dec, "X-Plex-Token=") == NULL); /* token goes in a header */
+  char small[16];
+  CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "s", 640, 480, 1500, 0,
+                              small, sizeof small) == PP_ERR_ARG);
+  CHECK(small[0] == '\0'); /* caller buffer untouched on error */
+  /* start URL carries the same params plus the token */
+  CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "sess-9",
+                               640, 480, 1500, 0, start, sizeof start) == 0);
+  const char *dec_q = strchr(dec, '?'), *start_q = strchr(start, '?');
+  CHECK(dec_q && start_q);
+  size_t dec_len = strcspn(dec_q + 1, "&"); /* params up to session differ only by token */
+  CHECK(strncmp(dec_q + 1, start_q + 1, dec_len) == 0);
+}
+
 int main(void) {
   RUN(test_parse_pin_created);
   RUN(test_parse_pin_authorized);
@@ -259,5 +307,9 @@ int main(void) {
   RUN(test_build_transcode_url_offset_zero);
   RUN(test_build_transcode_url_offset_seconds);
   RUN(test_build_transcode_url_errors);
+  RUN(test_parse_decision_ok);
+  RUN(test_parse_decision_refused);
+  RUN(test_parse_decision_bad);
+  RUN(test_build_decision_url_matches_start_params);
   return TEST_RESULT();
 }

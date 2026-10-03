@@ -1,5 +1,5 @@
-/* input_map.c: keyboard → pp_btn mapping for desktop. Tested without SDL. */
-#include "ui/ui.h"
+/* input_map.c: keyboard to pp_btn mapping for desktop. Tested without SDL. */
+#include "ui/input_map.h"
 
 pp_keymap pp_default_keys[] = {
   { 0x28, BTN_DOWN },     /* SDLK_DOWN   */

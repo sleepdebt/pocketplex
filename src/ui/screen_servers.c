@@ -1,0 +1,80 @@
+/* screen_servers.c: server selection from discovered servers. */
+#include "ui.h"
+#include "ui/fake_provider.h"
+#include "log.h"
+
+#include <stdlib.h>
+#include <string.h>
+#include <stdio.h>
+
+typedef struct {
+  pp_server *servers;
+  int count;
+  int selected;
+} servers_data_t;
+
+static void servers_render(pp_screen *self) {
+  servers_data_t *d = (servers_data_t *)self->data;
+  (void)d;
+  ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
+  ui_draw_text("Servers", PP_MARGIN_L, 10, PP_COLOR_FG);
+  ui_draw_text("A: select  B: back  Menu: quit", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
+
+  int y = PP_HEADER_H + 12;
+  int i;
+  for (i = 0; i < d->count; i++) {
+    pp_color col = (i == d->selected) ? PP_COLOR_SEL : PP_COLOR_FG;
+    char buf[128];
+    snprintf(buf, sizeof(buf), "%d. %s", i + 1, d->servers[i].url);
+    ui_draw_text(buf, PP_MARGIN_L, y, col);
+    y += PP_LINE_H;
+  }
+}
+
+static void servers_handle(pp_screen *self, pp_btn btn) {
+  servers_data_t *d = (servers_data_t *)self->data;
+  switch (btn) {
+  case BTN_DOWN: if (d->selected < d->count - 1) d->selected++; break;
+  case BTN_UP:   if (d->selected > 0) d->selected--; break;
+  case BTN_A:
+    if (d->count > 0) {
+      ui_toast("Connected");
+      ui_pop();
+      ui_push(screen_home_create());
+    }
+    break;
+  case BTN_MENU:
+    ui_pop();
+    break;
+  default:
+    break;
+  }
+}
+
+static void servers_destroy(pp_screen *self) {
+  servers_data_t *d = (servers_data_t *)self->data;
+  if (d) {
+    if (d->servers) {
+      int i;
+      for (i = 0; i < d->count; i++) {
+        free(d->servers[i].url); free(d->servers[i].token); free(d->servers[i].client_id);
+      }
+      free(d->servers);
+    }
+    free(d);
+  }
+}
+
+pp_screen *screen_servers_create(void) {
+  pp_screen *s = (pp_screen *)calloc(1, sizeof(pp_screen));
+  if (!s) return NULL;
+  servers_data_t *d = (servers_data_t *)calloc(1, sizeof(servers_data_t));
+  if (!d) { free(s); return NULL; }
+  fake_servers(&d->servers, &d->count);
+  s->id = SCREEN_SERVERS;
+  s->data = d;
+  s->render = servers_render;
+  s->handle_button = servers_handle;
+  s->destroy = servers_destroy;
+  return s;
+}

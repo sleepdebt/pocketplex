@@ -1,0 +1,12 @@
+# Copy to pocketplex.ini (gitignored) next to the binary.
+# Dev shortcut: if server_url + token are set, PIN login and discovery are skipped.
+
+[plex]
+server_url = http://192.168.1.10:32400
+token =
+client_id =
+
+[ui]
+quality = 480p        ; 360p | 480p
+subtitles = burn      ; burn | off
+swap_ab = false

@@ -1,0 +1,20 @@
+# secrets / local config
+pocketplex.ini
+*.token
+.env*
+
+# build output
+build/
+dist/
+*.o
+*.a
+*.so
+*.dSYM/
+
+# agent / tooling state
+.herd/
+.swarm/
+pocketplex.log
+
+# OS
+.DS_Store

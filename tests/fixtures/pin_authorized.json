@@ -1,0 +1,11 @@
+{
+ "id": 1685211182,
+ "code": "ABCD",
+ "product": "0",
+ "trusted": false,
+ "clientIdentifier": "pocketplex-test-probe",
+ "expiresIn": 900,
+ "createdAt": "2026-10-03T19:31:37Z",
+ "expiresAt": "2026-10-03T19:46:37Z",
+ "authToken": "REDACTED"
+}

@@ -1,0 +1,367 @@
+{
+ "MediaContainer": {
+  "size": 3,
+  "allowSync": false,
+  "identifier": "com.plexapp.plugins.library",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1788052632,
+  "mixedParents": true,
+  "Metadata": [
+   {
+    "allowSync": true,
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "028cecf8-558a-40f7-8ca4-4840343c9d8b",
+    "ratingKey": "715",
+    "key": "/library/metadata/715",
+    "guid": "plex://movie/5d776827eb5d26001f1ddaba",
+    "slug": "home-alone-2-lost-in-new-york",
+    "studio": "20th Century Fox",
+    "type": "movie",
+    "title": "Home Alone 2: Lost in New York",
+    "contentRating": "PG",
+    "contentRatingAge": 10,
+    "summary": "Kevin is separated from his family again when he accidentally boards a flight to New York City during a Christmas trip to Miami. However he crosses paths with the same burglars, who now plan to rob a toy store on Christmas Eve.",
+    "rating": 3.5,
+    "audienceRating": 6.3,
+    "viewOffset": 1865674,
+    "viewCount": 1,
+    "lastViewedAt": 1765498201,
+    "year": 1992,
+    "tagline": "He's up past his bedtime in the city that never sleeps.",
+    "thumb": "/library/metadata/715/thumb/1789799997",
+    "art": "/library/metadata/715/art/1789799997",
+    "duration": 7201472,
+    "originallyAvailableAt": "1992-11-20",
+    "addedAt": 1544917107,
+    "updatedAt": 1789799997,
+    "audienceRatingImage": "rottentomatoes://image.rating.upright",
+    "primaryExtraKey": "/library/metadata/733",
+    "ratingImage": "rottentomatoes://image.rating.rotten",
+    "Media": [
+     {
+      "id": 1790,
+      "duration": 7201472,
+      "bitrate": 2194,
+      "width": 1920,
+      "height": 1040,
+      "aspectRatio": 1.85,
+      "audioChannels": 2,
+      "audioCodec": "aac",
+      "videoCodec": "h264",
+      "videoResolution": "1080",
+      "container": "mp4",
+      "videoFrameRate": "24p",
+      "optimizedForStreaming": 1,
+      "audioProfile": "lc",
+      "has64bitOffsets": false,
+      "videoProfile": "high",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 45070,
+        "key": "/library/parts/45070/1730580539/file.mp4",
+        "duration": 7201472,
+        "file": "/media/Home.Alone.2.Lost.in.New.York.1992.1080p.BluRay.x264.YIFY.mp4",
+        "size": 1974653004,
+        "audioProfile": "lc",
+        "container": "mp4",
+        "has64bitOffsets": false,
+        "optimizedForStreaming": true,
+        "videoProfile": "high"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Home Alone 2: Lost in New York",
+      "type": "coverPoster",
+      "url": "/library/metadata/715/thumb/1789799997"
+     },
+     {
+      "alt": "Home Alone 2: Lost in New York",
+      "type": "background",
+      "url": "/library/metadata/715/art/1789799997"
+     },
+     {
+      "alt": "Home Alone 2: Lost in New York",
+      "type": "clearLogo",
+      "url": "/library/metadata/715/clearLogo/1789799997"
+     },
+     {
+      "alt": "Home Alone 2: Lost in New York",
+      "type": "backgroundSquare",
+      "url": "/library/metadata/715/squareArt/1789799997"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "02314b",
+     "topRight": "335e99",
+     "bottomRight": "535352",
+     "bottomLeft": "3c3f49"
+    },
+    "Genre": [
+     {
+      "tag": "Comedy"
+     },
+     {
+      "tag": "Family"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "United States of America"
+     }
+    ],
+    "Director": [
+     {
+      "tag": "Chris Columbus"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "John Hughes"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Macaulay Culkin"
+     },
+     {
+      "tag": "Joe Pesci"
+     },
+     {
+      "tag": "Daniel Stern"
+     }
+    ]
+   },
+   {
+    "allowSync": true,
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "028cecf8-558a-40f7-8ca4-4840343c9d8b",
+    "ratingKey": "50886",
+    "key": "/library/metadata/50886",
+    "guid": "plex://movie/5d776831880197001ec929d4",
+    "slug": "gunhed",
+    "studio": "Bandai Namco Entertainment",
+    "type": "movie",
+    "title": "Gunhed",
+    "originalTitle": "ガンヘッド",
+    "contentRating": "TV-PG",
+    "summary": "In a cyberpunk future, Kyron-5 supercomputer attempts to exterminate the human race, but Gunhed mechs stop it. In 2038, five thieves break into a condemned island facility to steal Kyron's dead CPU. The place turns out to be a deathtrap.",
+    "audienceRating": 2.8,
+    "viewOffset": 3738239,
+    "lastViewedAt": 1763696769,
+    "year": 1989,
+    "tagline": "2038. Computer domination is a reality. Gunhed: man's last defence in the great robot war",
+    "thumb": "/library/metadata/50886/thumb/1784154063",
+    "art": "/library/metadata/50886/art/1784154063",
+    "duration": 6055000,
+    "originallyAvailableAt": "1989-07-22",
+    "addedAt": 1739890514,
+    "updatedAt": 1784154063,
+    "audienceRatingImage": "rottentomatoes://image.rating.spilled",
+    "Media": [
+     {
+      "id": 46370,
+      "duration": 6055000,
+      "bitrate": 13592,
+      "width": 3840,
+      "height": 2076,
+      "aspectRatio": 1.85,
+      "audioChannels": 2,
+      "audioCodec": "aac",
+      "videoCodec": "h264",
+      "videoResolution": "4k",
+      "container": "mp4",
+      "videoFrameRate": "24p",
+      "optimizedForStreaming": 1,
+      "audioProfile": "lc",
+      "has64bitOffsets": true,
+      "videoProfile": "main",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 80893,
+        "key": "/library/parts/80893/1739890271/file.mp4",
+        "duration": 6055000,
+        "file": "/media/Gunhed.mp4",
+        "size": 10287757960,
+        "audioProfile": "lc",
+        "container": "mp4",
+        "has64bitOffsets": true,
+        "optimizedForStreaming": true,
+        "videoProfile": "main"
+       }
+      ]
+     },
+     {
+      "id": 46369,
+      "duration": 6055061,
+      "bitrate": 832,
+      "width": 888,
+      "height": 480,
+      "aspectRatio": 1.85,
+      "audioChannels": 2,
+      "audioCodec": "aac",
+      "videoCodec": "h264",
+      "videoResolution": "480",
+      "container": "mp4",
+      "videoFrameRate": "24p",
+      "optimizedForStreaming": 1,
+      "audioProfile": "lc",
+      "has64bitOffsets": false,
+      "videoProfile": "constrained baseline",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 80892,
+        "key": "/library/parts/80892/1739890264/file.mp4",
+        "duration": 6055061,
+        "file": "/media/Gunhed.ia.mp4",
+        "size": 629900842,
+        "audioProfile": "lc",
+        "container": "mp4",
+        "has64bitOffsets": false,
+        "optimizedForStreaming": true,
+        "videoProfile": "constrained baseline"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Gunhed",
+      "type": "coverPoster",
+      "url": "/library/metadata/50886/thumb/1784154063"
+     },
+     {
+      "alt": "Gunhed",
+      "type": "background",
+      "url": "/library/metadata/50886/art/1784154063"
+     },
+     {
+      "alt": "Gunhed",
+      "type": "clearLogo",
+      "url": "/library/metadata/50886/clearLogo/1784154063"
+     }
+    ],
+    "UltraBlurColors": {
+     "topLeft": "20285a",
+     "topRight": "0d213d",
+     "bottomRight": "4852ae",
+     "bottomLeft": "26667f"
+    },
+    "Genre": [
+     {
+      "tag": "Action"
+     },
+     {
+      "tag": "Science Fiction"
+     }
+    ],
+    "Country": [
+     {
+      "tag": "Japan"
+     }
+    ],
+    "Director": [
+     {
+      "tag": "Masato Harada"
+     }
+    ],
+    "Writer": [
+     {
+      "tag": "James Bannon"
+     }
+    ],
+    "Role": [
+     {
+      "tag": "Masahiro Takashima"
+     },
+     {
+      "tag": "Brenda Bakke"
+     },
+     {
+      "tag": "Eugene Harada"
+     }
+    ]
+   },
+   {
+    "allowSync": true,
+    "librarySectionID": 1,
+    "librarySectionTitle": "Movies",
+    "librarySectionUUID": "028cecf8-558a-40f7-8ca4-4840343c9d8b",
+    "ratingKey": "50802",
+    "key": "/library/metadata/50802",
+    "guid": "local://50802",
+    "type": "movie",
+    "title": "No Maps For These Territories",
+    "summary": "",
+    "viewOffset": 4101000,
+    "lastViewedAt": 1740756182,
+    "year": 2000,
+    "thumb": "/library/metadata/50802/thumb/1738851970",
+    "art": "/library/metadata/50802/art/1738851970",
+    "duration": 5257658,
+    "originallyAvailableAt": "2000-01-01",
+    "addedAt": 1738851824,
+    "updatedAt": 1738851970,
+    "Media": [
+     {
+      "id": 46300,
+      "duration": 5257658,
+      "bitrate": 835,
+      "width": 610,
+      "height": 360,
+      "aspectRatio": 1.66,
+      "audioChannels": 2,
+      "audioCodec": "aac",
+      "videoCodec": "h264",
+      "videoResolution": "sd",
+      "container": "mp4",
+      "videoFrameRate": "NTSC",
+      "optimizedForStreaming": 1,
+      "audioProfile": "lc",
+      "has64bitOffsets": false,
+      "videoProfile": "constrained baseline",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 80823,
+        "key": "/library/parts/80823/1738777461/file.mp4",
+        "duration": 5257658,
+        "file": "/media/NoMapsForTheseTerritories.mp4",
+        "size": 548766880,
+        "audioProfile": "lc",
+        "container": "mp4",
+        "has64bitOffsets": false,
+        "optimizedForStreaming": true,
+        "videoProfile": "constrained baseline"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "No Maps For These Territories",
+      "type": "coverPoster",
+      "url": "/library/metadata/50802/thumb/1738851970"
+     },
+     {
+      "alt": "No Maps For These Territories",
+      "type": "background",
+      "url": "/library/metadata/50802/art/1738851970"
+     }
+    ],
+    "Director": [
+     {
+      "tag": "Mark Neale"
+     }
+    ]
+   }
+  ]
+ }
+}

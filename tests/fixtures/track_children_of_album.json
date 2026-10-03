@@ -1,0 +1,301 @@
+{
+ "MediaContainer": {
+  "size": 4,
+  "allowSync": true,
+  "art": "/library/metadata/21508/art/1790405566",
+  "grandparentRatingKey": 21508,
+  "grandparentThumb": "/library/metadata/21508/thumb/1790405566",
+  "grandparentTitle": "!!!",
+  "identifier": "com.plexapp.plugins.library",
+  "key": "21517",
+  "librarySectionID": 3,
+  "librarySectionTitle": "Music",
+  "librarySectionUUID": "ff6194e4-dcb1-461d-a072-1b4b1dd2eadf",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": 1788052632,
+  "nocache": true,
+  "parentIndex": 1,
+  "parentTitle": "Louden Up Now",
+  "parentYear": 2004,
+  "summary": "!!! could be lumped in with the other new wave dance-punk revivalists like the Rapture or Radio 4. That would be easy enough, as they all share an allegiance to the punky funk sounds of the '80s as pioneered by groups like Gang of Four, the Pop Group, Talking Heads, and others. Rather than merely lumping them in, maybe one could say they are leading the pack. Louden Up Now is easily the best record to come out of the movement; its ten tracks are filled with fervor, hooks, passion, and power. And unlike many of their peers, !!! have politics. Angry, righteous politics. Antiwar, anti-Giuliani, anti-Bush and Blair, and proud of it. It is like a blast of fresh retro air to have a band not just updating the sound but carrying over similar ideals as well. That being said, this is still a dance album. All the grooves are designed to get you moving; the funky basslines, stuttering drums, flashing percussion, and chattering guitars combine to be solid indie dancefloor material. The vocals don't get in the way of the groove; even at their spikiest, they are built into the overall sound. On \"Dear Can,\" they are even kind of sexy. The best track is the previously issued track \"Me and Giuliani Down by the School Yard (A True Story),\" but all the rest are right near it in quality. \"Hello? Is This Thing On?\" and the two-part epic \"Shit Scheisse Merde\" give it a run. Louden Up Now is a modern-day agit-pop indie dance-rock classic. If that is too narrow a slot to jam it into, then call it a modern-day indie rock classic. Or just a classic. The album also comes with an edited-for-language bonus \"clean\" disc. It would have been far more entertaining to have a bonus dub or just instrumental disc. At least this way they can sell records at Wal-Mart. ~ Tim Sendra",
+  "thumb": "/library/metadata/21517/thumb/1784278587",
+  "title1": "!!!",
+  "title2": "Louden Up Now",
+  "viewGroup": "track",
+  "viewMode": 65593,
+  "Metadata": [
+   {
+    "ratingKey": "21518",
+    "key": "/library/metadata/21518",
+    "parentRatingKey": "21517",
+    "grandparentRatingKey": "21508",
+    "guid": "plex://track/5d07cf96403c6402901fd2d2",
+    "parentGuid": "plex://album/5d07c17c403c64029084ad45",
+    "grandparentGuid": "plex://artist/5d07bc24403c6402904c4bea",
+    "parentStudio": "Warp",
+    "type": "track",
+    "title": "When the Going Gets Tough, the Tough Get Karazzee",
+    "grandparentKey": "/library/metadata/21508",
+    "parentKey": "/library/metadata/21517",
+    "grandparentTitle": "!!!",
+    "parentTitle": "Louden Up Now",
+    "summary": "",
+    "index": 1,
+    "parentIndex": 1,
+    "ratingCount": 44340,
+    "parentYear": 2004,
+    "thumb": "/library/metadata/21517/thumb/1784278587",
+    "art": "/library/metadata/21508/art/1790405566",
+    "parentThumb": "/library/metadata/21517/thumb/1784278587",
+    "grandparentThumb": "/library/metadata/21508/thumb/1790405566",
+    "grandparentArt": "/library/metadata/21508/art/1790405566",
+    "duration": 376946,
+    "addedAt": 1261710732,
+    "updatedAt": 1790405566,
+    "Media": [
+     {
+      "id": 21076,
+      "duration": 376946,
+      "bitrate": 192,
+      "audioChannels": 2,
+      "audioCodec": "mp3",
+      "container": "mp3",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 79574,
+        "key": "/library/parts/79574/1764471811/file.mp3",
+        "duration": 376946,
+        "file": "/media/01 when the going gets tough, the tough gets krazee.mp3",
+        "size": 9065411,
+        "container": "mp3",
+        "hasThumbnail": "1"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "When the Going Gets Tough, the Tough Get Karazzee",
+      "type": "coverPoster",
+      "url": "/library/metadata/21508/thumb/1790405566"
+     },
+     {
+      "alt": "When the Going Gets Tough, the Tough Get Karazzee",
+      "type": "background",
+      "url": "/library/metadata/21508/art/1790405566"
+     }
+    ],
+    "Genre": [
+     {
+      "tag": "Pop/Rock"
+     }
+    ]
+   },
+   {
+    "ratingKey": "21520",
+    "key": "/library/metadata/21520",
+    "parentRatingKey": "21517",
+    "grandparentRatingKey": "21508",
+    "guid": "plex://track/5d07cf96403c6402901fd451",
+    "parentGuid": "plex://album/5d07c17c403c64029084ad45",
+    "grandparentGuid": "plex://artist/5d07bc24403c6402904c4bea",
+    "parentStudio": "Warp",
+    "type": "track",
+    "title": "Pardon My Freedom",
+    "grandparentKey": "/library/metadata/21508",
+    "parentKey": "/library/metadata/21517",
+    "grandparentTitle": "!!!",
+    "parentTitle": "Louden Up Now",
+    "summary": "",
+    "index": 2,
+    "parentIndex": 1,
+    "ratingCount": 100117,
+    "parentYear": 2004,
+    "thumb": "/library/metadata/21517/thumb/1784278587",
+    "art": "/library/metadata/21508/art/1790405566",
+    "parentThumb": "/library/metadata/21517/thumb/1784278587",
+    "grandparentThumb": "/library/metadata/21508/thumb/1790405566",
+    "grandparentArt": "/library/metadata/21508/art/1790405566",
+    "duration": 277185,
+    "addedAt": 1261710734,
+    "updatedAt": 1790405566,
+    "Media": [
+     {
+      "id": 21078,
+      "duration": 277185,
+      "bitrate": 192,
+      "audioChannels": 2,
+      "audioCodec": "mp3",
+      "container": "mp3",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 79576,
+        "key": "/library/parts/79576/1764471798/file.mp3",
+        "duration": 277185,
+        "file": "/media/03 pardon my freedom.mp3",
+        "size": 6671585,
+        "container": "mp3",
+        "hasThumbnail": "1"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Pardon My Freedom",
+      "type": "coverPoster",
+      "url": "/library/metadata/21508/thumb/1790405566"
+     },
+     {
+      "alt": "Pardon My Freedom",
+      "type": "background",
+      "url": "/library/metadata/21508/art/1790405566"
+     }
+    ],
+    "Genre": [
+     {
+      "tag": "Pop/Rock"
+     }
+    ]
+   },
+   {
+    "ratingKey": "21519",
+    "key": "/library/metadata/21519",
+    "parentRatingKey": "21517",
+    "grandparentRatingKey": "21508",
+    "guid": "plex://track/5d07cf96403c6402901fd051",
+    "parentGuid": "plex://album/5d07c17c403c64029084ad45",
+    "grandparentGuid": "plex://artist/5d07bc24403c6402904c4bea",
+    "parentStudio": "Warp",
+    "type": "track",
+    "title": "Dear Can",
+    "grandparentKey": "/library/metadata/21508",
+    "parentKey": "/library/metadata/21517",
+    "grandparentTitle": "!!!",
+    "parentTitle": "Louden Up Now",
+    "summary": "",
+    "index": 3,
+    "parentIndex": 1,
+    "ratingCount": 72280,
+    "parentYear": 2004,
+    "thumb": "/library/metadata/21517/thumb/1784278587",
+    "art": "/library/metadata/21508/art/1790405566",
+    "parentThumb": "/library/metadata/21517/thumb/1784278587",
+    "grandparentThumb": "/library/metadata/21508/thumb/1790405566",
+    "grandparentArt": "/library/metadata/21508/art/1790405566",
+    "duration": 351137,
+    "addedAt": 1261710734,
+    "updatedAt": 1790405566,
+    "Media": [
+     {
+      "id": 21077,
+      "duration": 351137,
+      "bitrate": 192,
+      "audioChannels": 2,
+      "audioCodec": "mp3",
+      "container": "mp3",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 79575,
+        "key": "/library/parts/79575/1764471794/file.mp3",
+        "duration": 351137,
+        "file": "/media/02 dear can.mp3",
+        "size": 8446440,
+        "container": "mp3",
+        "hasThumbnail": "1"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "Dear Can",
+      "type": "coverPoster",
+      "url": "/library/metadata/21508/thumb/1790405566"
+     },
+     {
+      "alt": "Dear Can",
+      "type": "background",
+      "url": "/library/metadata/21508/art/1790405566"
+     }
+    ],
+    "Genre": [
+     {
+      "tag": "Pop/Rock"
+     }
+    ]
+   },
+   {
+    "ratingKey": "21521",
+    "key": "/library/metadata/21521",
+    "parentRatingKey": "21517",
+    "grandparentRatingKey": "21508",
+    "guid": "plex://track/5d07cf96403c6402901fd4e0",
+    "parentGuid": "plex://album/5d07c17c403c64029084ad45",
+    "grandparentGuid": "plex://artist/5d07bc24403c6402904c4bea",
+    "parentStudio": "Warp",
+    "type": "track",
+    "title": "King’s Weed",
+    "grandparentKey": "/library/metadata/21508",
+    "parentKey": "/library/metadata/21517",
+    "grandparentTitle": "!!!",
+    "parentTitle": "Louden Up Now",
+    "summary": "",
+    "index": 4,
+    "parentIndex": 1,
+    "ratingCount": 43077,
+    "parentYear": 2004,
+    "thumb": "/library/metadata/21517/thumb/1784278587",
+    "art": "/library/metadata/21508/art/1790405566",
+    "parentThumb": "/library/metadata/21517/thumb/1784278587",
+    "grandparentThumb": "/library/metadata/21508/thumb/1790405566",
+    "grandparentArt": "/library/metadata/21508/art/1790405566",
+    "duration": 78759,
+    "addedAt": 1261710734,
+    "updatedAt": 1790405566,
+    "Media": [
+     {
+      "id": 21079,
+      "duration": 78759,
+      "bitrate": 192,
+      "audioChannels": 2,
+      "audioCodec": "mp3",
+      "container": "mp3",
+      "hasVoiceActivity": false,
+      "Part": [
+       {
+        "id": 79577,
+        "key": "/library/parts/79577/1764471796/file.mp3",
+        "duration": 78759,
+        "file": "/media/04 the king's weed.mp3",
+        "size": 1909356,
+        "container": "mp3",
+        "hasThumbnail": "1"
+       }
+      ]
+     }
+    ],
+    "Image": [
+     {
+      "alt": "King’s Weed",
+      "type": "coverPoster",
+      "url": "/library/metadata/21508/thumb/1790405566"
+     },
+     {
+      "alt": "King’s Weed",
+      "type": "background",
+      "url": "/library/metadata/21508/art/1790405566"
+     }
+    ],
+    "Genre": [
+     {
+      "tag": "Pop/Rock"
+     }
+    ]
+   }
+  ]
+ }
+}

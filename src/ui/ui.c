@@ -18,6 +18,17 @@ static TTF_Font *g_font = NULL;
 static TTF_Font *g_font_bold = NULL;
 static int g_font_pt = 20;
 
+static pp_server *g_servers = NULL;
+static int g_server_count = 0;
+static pp_server *g_current_server = NULL;
+
+/* ---- Smoke scroll + max frame tracking ------------------------------------ */
+static int g_smoke_scroll = 0;
+static int g_smoke_phase = 0;
+static Uint32 g_smoke_start = 0;
+static int g_smoke_scroll_count = 0;
+static Uint32 g_max_frame_ms = 0;
+
 static pp_screen *g_stack[MAX_SCREENS];
 static int g_stack_top = -1;
 static int g_stack_count = 0;
@@ -25,10 +36,6 @@ static int g_stack_count = 0;
 static char g_toast_msg[MAX_TOAST_LEN] = {0};
 static int g_toast_ms_left = 0;
 static const int TOAST_LIFETIME_MS = 3000;
-
-static pp_server *g_servers = NULL;
-static int g_server_count = 0;
-static pp_server *g_current_server = NULL;
 
 /* ---- Text texture cache --------------------------------------------------- */
 
@@ -223,6 +230,9 @@ void ui_render_toast(void) {
   ui_draw_text(g_toast_msg, PP_MARGIN_L, PP_SCREEN_H - 36, PP_COLOR_FG);
 }
 
+void ui_set_smoke_scroll(int on) { g_smoke_scroll = on; }
+int  ui_is_smoke_scroll(void) { return g_smoke_scroll; }
+
 void ui_run(void) {
   int running = 1;
   Uint32 start_tick = SDL_GetTicks();
@@ -230,6 +240,11 @@ void ui_run(void) {
   Uint32 last_tick = start_tick;
   Uint32 fps_check = start_tick;
   int frame_count = 0;
+
+  if (g_smoke_scroll) {
+    g_smoke_start = start_tick;
+    g_smoke_phase = 0;
+  }
 
   /* Start on the Link screen if not authenticated, else Home. */
   if (g_current_server && g_current_server->token) {
@@ -240,6 +255,7 @@ void ui_run(void) {
 
   while (running && g_stack_top >= 0) {
     Uint32 now = SDL_GetTicks();
+    Uint32 frame_start = now;
     Uint32 elapsed = now - last_tick;
     last_tick = now;
     if (g_toast_ms_left > 0) {
@@ -252,9 +268,55 @@ void ui_run(void) {
     /* FPS logging every 1 s */
     frame_count++;
     if (now - fps_check >= 1000) {
-      LOGI("fps: %d (stack=%d)", frame_count, g_stack_count);
+      LOGI("fps: %d (stack=%d, loading=%d, max_frame=%u ms)",
+           frame_count, g_stack_count,
+           current_screen() ? current_screen()->loading : 0, g_max_frame_ms);
       frame_count = 0;
       fps_check = now;
+    }
+
+    /* Smoke scroll: auto-navigate through screens, building stack >= 3 */
+    if (g_smoke_scroll) {
+      pp_screen *cur = current_screen();
+      Uint32 t = now - g_smoke_start;
+      switch (g_smoke_phase) {
+      case 0: /* Start: push Servers on top of Link (stack grows) */
+        if (t >= 100) {
+          ui_push(screen_servers_create());
+          g_smoke_phase = 1;
+        }
+        break;
+      case 1: /* Servers loading -> push Home (stack grows) */
+        if (cur && !cur->loading) {
+          ui_push(screen_home_create());
+          g_smoke_phase = 2;
+        }
+        break;
+      case 2: /* Home loading -> push List with TV key (stack grows) */
+        if (cur && !cur->loading) {
+          ui_push(screen_list_create_key("tv", "TV Shows"));
+          g_smoke_phase = 3;
+        }
+        break;
+      case 3: /* List loading -> ready to scroll */
+        if (cur && !cur->loading) {
+          LOGI("smoke: reached 2000-item list, stack=%d", g_stack_count);
+          g_smoke_phase = 4;
+          g_smoke_start = now;
+        }
+        break;
+      case 4: /* Hold DOWN for 3 s on the 2000-item list */
+        if (cur && !cur->loading) {
+          if (cur->handle_button) cur->handle_button(cur, BTN_DOWN);
+          g_smoke_scroll_count++;
+        }
+        if (t >= 3000) {
+          LOGI("smoke: scrolled %d DOWN presses, stack=%d, max_frame=%u ms",
+               g_smoke_scroll_count, g_stack_count, g_max_frame_ms);
+          running = 0;
+        }
+        break;
+      }
     }
 
     pp_screen *s = current_screen();
@@ -268,8 +330,19 @@ void ui_run(void) {
 
     plat_present();
 
+    Uint32 frame_end = SDL_GetTicks();
+    Uint32 frame_ms = frame_end - frame_start;
+    if (frame_ms > g_max_frame_ms) g_max_frame_ms = frame_ms;
+    if (frame_ms > 50) {
+      LOGI("WARNING: frame time %u ms > 50 ms (loading=%d)", frame_ms, s->loading);
+    }
+
     pp_btn btn = plat_poll_button();
     if (btn == BTN_MENU) { running = 0; break; }
     if (btn != BTN_NONE && s->handle_button) s->handle_button(s, btn);
+  }
+
+  if (g_smoke_scroll) {
+    LOGI("smoke done: total max frame time = %u ms (must be <50)", g_max_frame_ms);
   }
 }

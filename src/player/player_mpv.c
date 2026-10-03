@@ -23,8 +23,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 #include <sys/socket.h>
-#include <sys/time.h>
 #include <sys/types.h>
 #include <sys/un.h>
 #include <sys/wait.h>
@@ -48,6 +48,7 @@ extern char **environ;
 #define PP_MPV_ARG_LEN  160
 #define PP_EV_KEY 1
 #define PP_EV_ABS 3
+#define PP_MPV_REPEAT_MS 500
 
 struct pp_player {
   pid_t pid;
@@ -142,10 +143,28 @@ static const char *mpv_map_event(int type, int code, int value) {
   return NULL;
 }
 
+/* Monotonic milliseconds. Not wall time: the SP has no RTC, and NTP steps the clock after Wi-Fi rejoins. */
 static long mono_ms(void) {
-  struct timeval tv;
-  gettimeofday(&tv, NULL);
-  return (long)tv.tv_sec * 1000 + tv.tv_usec / 1000;
+  struct timespec ts;
+  clock_gettime(CLOCK_MONOTONIC, &ts);
+  return (long)ts.tv_sec * 1000 + ts.tv_nsec / 1000000;
+}
+
+/* poll() timeout for a deadline, clamped to [0, timeout_ms]. */
+static int mpv_wait_left(long deadline, long now, int timeout_ms) {
+  long left = deadline - now;
+  return left <= 0 ? 0 : left > timeout_ms ? timeout_ms : (int)left;
+}
+
+/* Held buttons auto-repeat at ~30 Hz, and every seek restarts the PMS transcoder. A press (value 1)
+ * always passes; repeats (value 2) pass at most once per PP_MPV_REPEAT_MS. Device-only, like mpv_map_event. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
+static int mpv_repeat_ok(long *last_ms, int value, long now) {
+  if (value == 2 && now - *last_ms < PP_MPV_REPEAT_MS) return 0;
+  *last_ms = now;
+  return 1;
 }
 
 static int ipc_connect(const char *path) {
@@ -182,7 +201,7 @@ static int ipc_time_pos(pp_player *p, double *sec, int timeout_ms) {
   for (;;) {
     char *nl;
     struct pollfd pf;
-    long left;
+    int left;
     ssize_t r;
     while ((nl = memchr(p->rbuf, '\n', p->rlen)) != NULL) {
       int rc;
@@ -194,10 +213,9 @@ static int ipc_time_pos(pp_player *p, double *sec, int timeout_ms) {
       if (rc != 0) return rc > 0 ? 1 : 0;
     }
     if (p->rlen == sizeof p->rbuf) p->rlen = 0;   /* absurdly long line: drop it */
-    left = deadline - mono_ms();
-    if (left <= 0) return 0;
+    if ((left = mpv_wait_left(deadline, mono_ms(), timeout_ms)) == 0) return 0;
     pf.fd = p->fd; pf.events = POLLIN; pf.revents = 0;
-    if (poll(&pf, 1, (int)left) <= 0) continue;
+    if (poll(&pf, 1, left) <= 0) continue;
     r = read(p->fd, p->rbuf + p->rlen, sizeof p->rbuf - p->rlen);
     if (r <= 0) return -1;
     p->rlen += (size_t)r;
@@ -228,6 +246,7 @@ static void *input_main(void *arg) {
   pp_player *p = arg;
   struct pollfd pf[8];
   int n = 0, i, ipc = -1, id = 1000000;
+  long last_press = 0;
   DIR *d = opendir("/dev/input");
   struct dirent *e;
   while (d && (e = readdir(d)) != NULL && n < 8) {
@@ -249,11 +268,18 @@ static void *input_main(void *arg) {
       struct input_event ev[16];
       ssize_t r;
       size_t k;
+      if (pf[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {   /* device went away: drop it */
+        LOGW("player: input device closed (revents 0x%x)", (unsigned)pf[i].revents);
+        close(pf[i].fd);
+        pf[i--] = pf[--n];
+        continue;
+      }
       if (!(pf[i].revents & POLLIN)) continue;
       r = read(pf[i].fd, ev, sizeof ev);
       for (k = 0; r > 0 && k < (size_t)r / sizeof ev[0]; k++) {
         const char *cmd = mpv_map_event(ev[k].type, ev[k].code, ev[k].value);
         if (!cmd) continue;
+        if (ev[k].type == PP_EV_KEY && !mpv_repeat_ok(&last_press, ev[k].value, mono_ms())) continue;
         if (ipc < 0) ipc = ipc_connect(p->sock);
         if (ipc >= 0 && ipc_send(ipc, cmd, ++id) < 0) { close(ipc); ipc = -1; }
         LOGD("player: button %d/%d -> %s", ev[k].code, ev[k].value, cmd);

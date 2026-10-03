@@ -117,6 +117,16 @@ mpv can't read the gamepad itself (see above), so `player_mpv.c` reads evdev in 
 | Up / Down | seek +300 / −300 s |
 | X, Select | show progress bar |
 
+D-pad presses don't repeat when held (hat axes have no auto-repeat). L1/R1 do repeat, at most one seek per 500 ms
+(`PP_MPV_REPEAT_MS`), because evdev repeats at about 30 Hz and every forward seek past the cache restarts the PMS
+transcoder.
+
+**Blocking times (for the UI loop):** `player_start` returns right away (fork/exec). `player_poll` can block up to
+**300 ms** waiting for mpv's IPC reply. `player_stop` sends `quit` and waits up to **1.5 s** for mpv to exit, then
+SIGKILL plus a blocking reap. In practice it was ~1 s on the SP (log: quit at 16:21:10, exited 16:21:11).
+The UI should draw a "Stopping…" frame before calling `player_stop`. All the timeouts use `CLOCK_MONOTONIC`, so NTP
+clock steps after Wi-Fi rejoins don't stretch or skip them.
+
 On desktop, mpv's own window takes the keyboard (generated input.conf): Space/Enter pause, ←/→ ±10 s,
 PgUp/PgDn ±60 s, ↑/↓ ±300 s, Tab progress, Esc/Backspace/q quit.
 

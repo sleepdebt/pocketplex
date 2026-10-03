@@ -136,6 +136,28 @@ static void test_button_map(void) {
   CHECK(mpv_map_event(2 /* EV_REL */, 0, 1) == NULL);
 }
 
+/* poll() timeout from a deadline: never negative (EINVAL busy loop), never above the timeout. */
+static void test_wait_left(void) {
+  CHECK(mpv_wait_left(1300, 1000, 300) == 300);
+  CHECK(mpv_wait_left(1300, 1200, 300) == 100);
+  CHECK(mpv_wait_left(1300, 1300, 300) == 0);
+  CHECK(mpv_wait_left(1300, 999999, 300) == 0);      /* clock far past the deadline */
+  CHECK(mpv_wait_left(1300, -999999, 300) == 300);   /* clock far before it */
+  CHECK(mono_ms() <= mono_ms());
+}
+
+/* Held buttons auto-repeat at ~30 Hz; each seek restarts the PMS transcoder, so repeats are limited
+ * to one per PP_MPV_REPEAT_MS. Presses (value 1) always pass and restart the window. */
+static void test_repeat_limit(void) {
+  long last = 0;
+  CHECK(mpv_repeat_ok(&last, 1, 10000) == 1);          /* press */
+  CHECK(mpv_repeat_ok(&last, 2, 10033) == 0);          /* repeat 33 ms later */
+  CHECK(mpv_repeat_ok(&last, 2, 10000 + PP_MPV_REPEAT_MS - 1) == 0);
+  CHECK(mpv_repeat_ok(&last, 2, 10000 + PP_MPV_REPEAT_MS) == 1);
+  CHECK(mpv_repeat_ok(&last, 2, 10000 + PP_MPV_REPEAT_MS + 33) == 0);
+  CHECK(mpv_repeat_ok(&last, 1, 10000 + PP_MPV_REPEAT_MS + 66) == 1);  /* new press always */
+}
+
 /* ---- lifecycle against the fake ------------------------------------------------------- */
 
 static const char *self_path;
@@ -304,6 +326,8 @@ int main(int argc, char **argv) {
   RUN(test_build_args);
   RUN(test_parse_reply);
   RUN(test_button_map);
+  RUN(test_wait_left);
+  RUN(test_repeat_limit);
   RUN(test_fake_play_and_stop);
   RUN(test_fake_ends_by_itself);
   RUN(test_fake_fails_to_play);

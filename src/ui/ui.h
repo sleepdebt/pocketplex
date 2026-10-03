@@ -6,6 +6,7 @@
 
 #include "platform/platform.h"
 #include "plex/plex.h"
+#include "ui/input_map.h"
 #include <stddef.h>
 
 /* ---- Screen stack ------------------------------------------------------- */
@@ -32,9 +33,14 @@ struct pp_screen {
 
 /* Initialise SDL_ttf, push the root screen, etc. 0 = ok. */
 int  ui_init(void);
-/* Runs the event+render loop until the stack is empty (or BTN_MENU). */
+/* Runs the event+render loop until the stack is empty (or BTN_MENU).
+ * If ui_set_exit_after_ms > 0, exits after that many ms (for CI/screenshots). */
 void ui_run(void);
 void ui_quit(void);
+
+/* Auto-exit timeout (for --exit-after-ms). */
+void ui_set_exit_after_ms(long ms);
+long  ui_get_exit_after_ms(void);
 
 /* Push/pop screens on the global stack. */
 void ui_push(pp_screen *s);
@@ -64,21 +70,7 @@ int  list_view_page_up(pp_list_view *lv);
 int  list_view_page_down(pp_list_view *lv);
 void list_view_ensure_visible(pp_list_view *lv);
 
-/* ---- Input mapping (desktop keyboard → pp_btn, testable) ----------------- */
-
-typedef struct {
-  int sdl_key;    /* SDL_Keycode value */
-  pp_btn btn;
-} pp_keymap;
-
-extern pp_keymap pp_default_keys[];
-pp_btn pp_keycode_to_btn(int sdl_keycode);
-
 /* ---- Text helpers (rendering layer) -------------------------------------- */
-
-typedef struct {
-  int w, h;
-} pp_vec2;
 
 typedef struct {
   unsigned char r, g, b, a;
@@ -96,6 +88,20 @@ int  ui_draw_text(const char *str, int x, int y, pp_color color);
 void ui_fill_rect(int x, int y, int w, int h, pp_color color);
 void ui_draw_rect(int x, int y, int w, int h, pp_color color);
 void ui_draw_scrollbar(int x, int y, int h, int selected, int total);
+
+/* Text width in pixels (for truncation/ellipsis). */
+int  text_width_px(const char *str);
+
+pp_server *ui_current_server(void);
+void ui_render_toast(void);
+
+/* Screen factory functions — declared here so ui.c can create the root screen. */
+pp_screen *screen_link_create(void);
+pp_screen *screen_servers_create(void);
+pp_screen *screen_home_create(void);
+pp_screen *screen_list_create(const pp_list *items, const char *title);
+pp_screen *screen_detail_create(const pp_item *item);
+pp_screen *screen_settings_create(void);
 
 /* Layout constants for 640x480. */
 #define PP_SCREEN_W 640

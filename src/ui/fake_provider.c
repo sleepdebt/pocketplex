@@ -1,5 +1,6 @@
 /* fake_provider.c: fake Plex data matching the plex.h contract.
  * Replace each call with the real pp_* once core merges.
+ * All lists returned are heap-allocated so pp_list_free can free them.
  */
 #include "ui/fake_provider.h"
 #include "log.h"
@@ -11,17 +12,14 @@
 /* ---- Servers ------------------------------------------------------------- */
 
 int fake_servers(pp_server **out, int *count) {
-  static const char *names[] = { "Living Room Plex", NULL };
-  static const char *urls[]  = { "http://192.168.1.100:32400", NULL };
   pp_server *srv = (pp_server *)malloc(sizeof(pp_server) * 2);
   if (!srv) return PP_ERR_NOMEM;
   srv[0].url = strdup("http://192.168.1.100:32400");
-  srv[0].token = NULL; /* Not authenticated — start on Link screen */
+  srv[0].token = NULL;
   srv[0].client_id = strdup("pocketplex-device");
   srv[1].url = srv[1].token = srv[1].client_id = NULL;
   *out = srv;
   *count = 1;
-  (void)names; (void)urls;
   return 0;
 }
 
@@ -42,16 +40,13 @@ static pp_item make_section(int idx, const char *title, pp_kind kind, const char
 int fake_sections(const pp_server *srv, pp_list *out) {
   if (!out) return PP_ERR_ARG;
   (void)srv;
-  static pp_item items[5];
-  static int init = 0;
-  if (!init) {
-    items[0] = make_section(0, "Movies", PP_SECTION, "movies");
-    items[1] = make_section(1, "TV Shows", PP_SECTION, "tv");
-    items[2] = make_section(2, "Music", PP_SECTION, "music");
-    items[3] = make_section(3, "Recently Added", PP_SECTION, "recents");
-    items[4] = make_section(4, "Continue Watching", PP_SECTION, "continue");
-    init = 1;
-  }
+  pp_item *items = (pp_item *)malloc(sizeof(pp_item) * 5);
+  if (!items) return PP_ERR_NOMEM;
+  items[0] = make_section(0, "Movies", PP_SECTION, "movies");
+  items[1] = make_section(1, "TV Shows", PP_SECTION, "tv");
+  items[2] = make_section(2, "Music", PP_SECTION, "music");
+  items[3] = make_section(3, "Recently Added", PP_SECTION, "recents");
+  items[4] = make_section(4, "Continue Watching", PP_SECTION, "continue");
   out->items = items;
   out->count = 5;
   return 0;
@@ -82,7 +77,7 @@ static pp_item make_movie(const char *title, int year, const char *genre) {
   snprintf(it.rating_key, sizeof(it.rating_key), "movie_%s", title);
   snprintf(it.key, sizeof(it.key), "/library/metadata/movie_%s", title);
   snprintf(it.title, sizeof(it.title), "%s", title);
-  snprintf(it.subtitle, sizeof(it.subtitle), "%d · %s", year, genre);
+  snprintf(it.subtitle, sizeof(it.subtitle), "%d \xc2\xb7 %s", year, genre);
   it.kind = PP_MOVIE;
   it.year = year;
   it.duration_ms = 7200000;
@@ -93,75 +88,52 @@ static pp_item make_movie(const char *title, int year, const char *genre) {
   return it;
 }
 
-/* TV library: 10 shows × ~200 episodes = ~2000 items total. */
-static pp_list *tv_list = NULL;
-static pp_list *movies_list = NULL;
-
-static void build_tv_library(void) {
-  if (tv_list) return;
-  static pp_item items[2000];
-  static char titles[2000][128];
-  const char *shows[] = {
-    "The Last Stand", "Echo Point", "Nexus", "The Deep", "Solar Winds",
-    "Quantum Leap", "Shadow Fall", "Iron Will", "The Long Road", "Arcadia"
-  };
-  int idx = 0;
-  int s;
-  for (s = 0; s < 10 && idx < 2000; s++) {
-    int eps = (s == 0 || s == 1) ? 300 : 200;
-    int season = 1;
-    int ep;
-    for (ep = 1; ep <= eps && idx < 2000; ep++) {
-      snprintf(titles[idx], sizeof(titles[idx]), "%s", shows[s]);
-      items[idx] = make_episode(shows[s], season, ep, 1800000);
-      strcpy(items[idx].title, titles[idx]);
-      idx++;
-    }
-  }
-  tv_list = (pp_list *)malloc(sizeof(pp_list));
-  tv_list->items = items;
-  tv_list->count = idx;
-}
-
-static void build_movies_library(void) {
-  if (movies_list) return;
-  static pp_item items[50];
-  const char *titles[] = {
-    "Neon Horizon", "Silent Depths", "Crimson Tide", "Stoneheart",
-    "The Last Signal", "Echo Chamber", "Glass Horizon", "Velocity",
-    "The Forgotten", "Black Moon", "White Noise", "Red Shift",
-    "Frozen Sky", "Broken Circuit", "Ghost Protocol", "Solar Flare",
-    "The Edge", "Vanishing Point", "Iron Gate", "Deep Impact",
-    "The Call", "Dark Waters", "Lost Signal", "The Departure",
-    "Final Hour", "The Reckoning", "Ashen Ground", "Shattered Light",
-    "The Crossing", "Midnight Run", "Steel Heart", "The Breach",
-    "Echo Valley", "The Stand", "Northern Lights", "The Signal",
-    "Gravity", "The Shift", "Momentum", "The Collapse",
-    "Aftermath", "The Divide", "Threshold", "The Pulse",
-    "Zero Hour", "The Rift", "Blackout", "The Silence",
-    "Daylight", "The Return"
-  };
-  int i;
-  for (i = 0; i < 50; i++)
-    items[i] = make_movie(titles[i], 2020 + (i % 5), "Drama");
-  movies_list = (pp_list *)malloc(sizeof(pp_list));
-  movies_list->items = items;
-  movies_list->count = 50;
-}
-
 int fake_children(const pp_server *srv, const char *key, pp_list *out) {
   (void)srv;
   if (!key || !out) return PP_ERR_ARG;
   if (strcmp(key, "movies") == 0) {
-    build_movies_library();
-    out->items = movies_list->items;
-    out->count = movies_list->count;
+    static const char *titles[] = {
+      "Neon Horizon", "Silent Depths", "Crimson Tide", "Stoneheart",
+      "The Last Signal", "Echo Chamber", "Glass Horizon", "Velocity",
+      "The Forgotten", "Black Moon", "White Noise", "Red Shift",
+      "Frozen Sky", "Broken Circuit", "Ghost Protocol", "Solar Flare",
+      "The Edge", "Vanishing Point", "Iron Gate", "Deep Impact",
+      "The Call", "Dark Waters", "Lost Signal", "The Departure",
+      "Final Hour", "The Reckoning", "Ashen Ground", "Shattered Light",
+      "The Crossing", "Midnight Run", "Steel Heart", "The Breach",
+      "Echo Valley", "The Stand", "Northern Lights", "The Signal",
+      "Gravity", "The Shift", "Momentum", "The Collapse",
+      "Aftermath", "The Divide", "Threshold", "The Pulse",
+      "Zero Hour", "The Rift", "Blackout", "The Silence",
+      "Daylight", "The Return"
+    };
+    int n = (int)(sizeof(titles)/sizeof(titles[0]));
+    pp_item *items = (pp_item *)malloc(sizeof(pp_item) * n);
+    if (!items) return PP_ERR_NOMEM;
+    for (int i = 0; i < n; i++)
+      items[i] = make_movie(titles[i], 2020 + (i % 5), "Drama");
+    out->items = items;
+    out->count = n;
     return 0;
   }
   if (strcmp(key, "tv") == 0) {
-    build_tv_library();
-    out->items = tv_list->items;
-    out->count = tv_list->count;
+    static const char *shows[] = {
+      "The Last Stand", "Echo Point", "Nexus", "The Deep", "Solar Winds",
+      "Quantum Leap", "Shadow Fall", "Iron Will", "The Long Road", "Arcadia"
+    };
+    int idx = 0;
+    int cap = 2000;
+    pp_item *items = (pp_item *)malloc(sizeof(pp_item) * cap);
+    if (!items) return PP_ERR_NOMEM;
+    for (int s = 0; s < 10 && idx < 2000; s++) {
+      int eps = (s == 0 || s == 1) ? 300 : 200;
+      for (int ep = 1; ep <= eps && idx < 2000; ep++) {
+        items[idx] = make_episode(shows[s], 1, ep, 1800000);
+        idx++;
+      }
+    }
+    out->items = items;
+    out->count = idx;
     return 0;
   }
   out->items = NULL;
@@ -174,21 +146,18 @@ int fake_children(const pp_server *srv, const char *key, pp_list *out) {
 int fake_on_deck(const pp_server *srv, pp_list *out) {
   (void)srv;
   if (!out) return PP_ERR_ARG;
-  static pp_item items[6];
-  static int init = 0;
-  if (!init) {
-    items[0] = make_episode("The Last Stand", 1, 5, 1800000);
-    items[0].view_offset_ms = 900000; /* 15 min into 30 min */
-    items[1] = make_episode("Echo Point", 2, 3, 1800000);
-    items[1].view_offset_ms = 600000;
-    items[2] = make_movie("Neon Horizon", 2023, "Sci-Fi");
-    items[2].view_offset_ms = 3600000; /* 1 hour into 2 hour */
-    items[3] = make_episode("Nexus", 1, 8, 1800000);
-    items[3].view_offset_ms = 1200000;
-    items[4] = make_episode("Shadow Fall", 3, 2, 1800000);
-    items[5] = make_movie("Velocity", 2022, "Action");
-    init = 1;
-  }
+  pp_item *items = (pp_item *)malloc(sizeof(pp_item) * 6);
+  if (!items) return PP_ERR_NOMEM;
+  items[0] = make_episode("The Last Stand", 1, 5, 1800000);
+  items[0].view_offset_ms = 900000;
+  items[1] = make_episode("Echo Point", 2, 3, 1800000);
+  items[1].view_offset_ms = 600000;
+  items[2] = make_movie("Neon Horizon", 2023, "Sci-Fi");
+  items[2].view_offset_ms = 3600000;
+  items[3] = make_episode("Nexus", 1, 8, 1800000);
+  items[3].view_offset_ms = 1200000;
+  items[4] = make_episode("Shadow Fall", 3, 2, 1800000);
+  items[5] = make_movie("Velocity", 2022, "Action");
   out->items = items;
   out->count = 6;
   return 0;
@@ -196,11 +165,10 @@ int fake_on_deck(const pp_server *srv, pp_list *out) {
 
 /* ---- Single item (detail screen) ----------------------------------------- */
 
-static pp_item detail_item;
-
 const pp_item *fake_item(const pp_server *srv, const char *rating_key) {
   (void)srv;
   if (!rating_key) return NULL;
+  static pp_item detail_item;
   memset(&detail_item, 0, sizeof(detail_item));
   if (strncmp(rating_key, "movie_", 6) == 0) {
     detail_item = make_movie(rating_key + 6, 2023, "Sci-Fi");

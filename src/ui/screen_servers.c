@@ -15,6 +15,8 @@ typedef struct {
   int count;
   int selected;
   pp_request req;
+  Uint32 retry_at;        /* next retry time (ms) for backoff */
+  int retry_count;        /* consecutive retries for exponential backoff */
 } servers_data_t;
 
 static void servers_render(pp_screen *self) {
@@ -44,13 +46,21 @@ static void servers_render(pp_screen *self) {
         ui_push(screen_link_create());
         d->req.type = REQ_NONE;
         return;
-      } else if (d->req.status == PP_ERR_NET || d->req.status == PP_ERR_HTTP) {
+       } else if (d->req.status == PP_ERR_NET || d->req.status == PP_ERR_HTTP) {
         if (d->req.error[0]) ui_toast(d->req.error);
-        /* Retry */
+        Uint32 now = SDL_GetTicks();
+        if (now < d->retry_at) {
+          self->loading = 1;
+          return;
+        }
+        int backoff = 1000 * (1 << (d->retry_count < 4 ? d->retry_count : 4));
+        d->retry_count++;
+        d->retry_at = now + backoff;
         d->req.type = REQ_SERVERS;
         d->req.token = ui_get_auth_token();
         d->req.srv = ui_current_server();
         worker_submit(&d->req);
+        self->loading = 1;
         return;
       }
       if (d->req.error[0]) ui_toast(d->req.error);
@@ -77,7 +87,10 @@ static void servers_render(pp_screen *self) {
 
 static void servers_handle(pp_screen *self, pp_btn btn) {
   servers_data_t *d = (servers_data_t *)self->data;
-  if (self->loading) return;
+  if (self->loading) {
+    if (btn == BTN_B) ui_pop();
+    return;
+  }
   switch (btn) {
   case BTN_DOWN: if (d->selected < d->count - 1) d->selected++; break;
   case BTN_UP:   if (d->selected > 0) d->selected--; break;

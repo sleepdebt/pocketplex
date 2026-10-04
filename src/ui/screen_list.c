@@ -88,8 +88,13 @@ static void list_render(pp_screen *self) {
 
     int max_w = PP_SCREEN_W - 2 * PP_MARGIN_L - 24;
     if (text_width_px(buf) > max_w) {
-      strncpy(buf, it->title, 110);
-      buf[109] = 0;
+      int i;
+      for (i = (int)strlen(buf); i > 0; i--) {
+        buf[i] = 0;
+        if (text_width_px(buf) <= max_w - text_width_px("\xe2\x80\xa6")) break;
+      }
+      buf[i] = 0;
+      snprintf(buf + i, sizeof(buf) - i, "\xe2\x80\xa6");
     }
     ui_draw_text(buf, PP_MARGIN_L, y, col);
     y += PP_LINE_H;
@@ -111,7 +116,10 @@ static void list_render(pp_screen *self) {
 
 static void list_handle(pp_screen *self, pp_btn btn) {
   list_data_t *d = (list_data_t *)self->data;
-  if (self->loading && d->async) return;
+  if (self->loading && d->async) {
+    if (btn == BTN_B) ui_pop();
+    return;
+  }
   switch (btn) {
   case BTN_DOWN:
   case BTN_UP:

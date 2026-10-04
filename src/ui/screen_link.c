@@ -52,9 +52,11 @@ static void link_check_pin_poll(pp_screen *self) {
       pp_config cfg;
       pp_config_load(&cfg, ui_ini_path());
       snprintf(cfg.token, sizeof(cfg.token), "%s", d->req.auth_token);
-      pp_config_ensure_client_id(&cfg);
-      pp_config_save(&cfg, ui_ini_path());
-      ui_set_auth_token(cfg.token);
+       pp_config_ensure_client_id(&cfg);
+      if (pp_config_save(&cfg, ui_ini_path()) != 0)
+        ui_toast("Failed to save token");
+      else
+        ui_set_auth_token(cfg.token);
     } else if (d->req.status == 1) {
     } else {
       ui_toast(d->req.error[0] ? d->req.error : "PIN auth failed");

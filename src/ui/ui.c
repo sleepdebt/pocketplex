@@ -1,7 +1,6 @@
 /* ui.c: screen stack, font/text rendering, main event+render loop. */
 #include "ui.h"
 #include "ui/ui_platform.h"
-#include "ui/fake_provider.h"
 #include "config/config.h"
 #include "log.h"
 
@@ -18,6 +17,9 @@ static SDL_Renderer *g_ren = NULL;
 static TTF_Font *g_font = NULL;
 static TTF_Font *g_font_bold = NULL;
 static int g_font_pt = 20;
+
+TTF_Font *ui_font(void) { return g_font; }
+TTF_Font *ui_font_bold(void) { return g_font_bold ? g_font_bold : g_font; }
 
 static pp_server *g_current_server = NULL;
 static int g_server_owned = 0;  /* 1 if g_current_server was deep-copied */
@@ -45,64 +47,104 @@ static char g_toast_msg[MAX_TOAST_LEN] = {0};
 static int g_toast_ms_left = 0;
 static const int TOAST_LIFETIME_MS = 3000;
 
-/* ---- Text texture cache --------------------------------------------------- */
+/* ---- Text texture cache (bounded LRU, keyed by text+colour) ---------------- */
+
+#define CACHE_MAX 64
 
 typedef struct tex_cache {
-  char key[256];
+  char key[256];          /* text + colour hash */
   SDL_Texture *tex;
   int w, h;
   struct tex_cache *next;
 } tex_cache;
 
-static tex_cache *g_cache = NULL;
+static tex_cache *g_cache_head = NULL;
+static int g_cache_count = 0;
 
 static void cache_init(void) {
-  g_cache = NULL;
+  g_cache_head = NULL;
+  g_cache_count = 0;
 }
 
-static SDL_Texture *get_text_texture(const char *str, pp_color color) {
-  tex_cache *c;
-  for (c = g_cache; c; c = c->next) {
-    if (strcmp(c->key, str) == 0) return c->tex;
+static void cache_move_to_front(tex_cache *c) {
+  if (g_cache_head == c) return;
+  tex_cache *p = g_cache_head;
+  while (p && p->next != c) p = p->next;
+  if (p) p->next = c->next;
+  c->next = g_cache_head;
+  g_cache_head = c;
+}
+
+static void cache_evict_lru(void) {
+  if (g_cache_count < CACHE_MAX) return;
+  tex_cache *p = g_cache_head;
+  while (p && p->next && p->next->next) p = p->next;  /* find second-to-last */
+  if (!p) return;
+  tex_cache *lru = p->next;
+  if (lru) {
+    p->next = NULL;
+    SDL_DestroyTexture(lru->tex);
+    free(lru);
+    g_cache_count--;
   }
+}
+
+static SDL_Texture *get_text_texture(const char *str, pp_color color, int *w, int *h) {
+  char keybuf[260];
+  snprintf(keybuf, sizeof(keybuf), "%c%c%c%c:%s", color.r, color.g, color.b, color.a, str);
+
+  tex_cache *c;
+  for (c = g_cache_head; c; c = c->next) {
+    if (c->key[0] == keybuf[0] && c->key[1] == keybuf[1] &&
+        c->key[2] == keybuf[2] && c->key[3] == keybuf[3] &&
+        strcmp(c->key + 5, keybuf + 5) == 0) {
+      cache_move_to_front(c);
+      if (w) *w = c->w;
+      if (h) *h = c->h;
+      return c->tex;
+    }
+  }
+
   SDL_Color sdl_col = { color.r, color.g, color.b, color.a };
-  SDL_Surface *surf = TTF_RenderText_Blended(g_font, str, sdl_col);
+  SDL_Surface *surf = TTF_RenderUTF8_Blended(g_font, str, sdl_col);
   if (!surf) return NULL;
   SDL_Texture *tex = SDL_CreateTextureFromSurface(g_ren, surf);
   SDL_FreeSurface(surf);
   if (!tex) return NULL;
 
+  cache_evict_lru();
   c = (tex_cache *)malloc(sizeof(tex_cache));
   if (!c) { SDL_DestroyTexture(tex); return NULL; }
   c->tex = tex;
   SDL_QueryTexture(tex, NULL, NULL, &c->w, &c->h);
-  snprintf(c->key, sizeof(c->key), "%s", str);
-  c->next = g_cache;
-  g_cache = c;
+  snprintf(c->key, sizeof(c->key), "%s", keybuf);
+  c->next = g_cache_head;
+  g_cache_head = c;
+  g_cache_count++;
+  if (w) *w = c->w;
+  if (h) *h = c->h;
   return tex;
 }
 
 static void cache_clear(void) {
-  tex_cache *c = g_cache;
+  tex_cache *c = g_cache_head;
   while (c) {
     tex_cache *next = c->next;
     SDL_DestroyTexture(c->tex);
     free(c);
     c = next;
   }
-  g_cache = NULL;
+  g_cache_head = NULL;
+  g_cache_count = 0;
 }
 
 /* ---- Rendering primitives ------------------------------------------------- */
 
 int ui_draw_text(const char *str, int x, int y, pp_color color) {
   if (!g_ren || !g_font) return -1;
-  SDL_Texture *tex = get_text_texture(str, color);
-  if (!tex) return -1;
   int w = 0, h = 0;
-  tex_cache *c;
-  for (c = g_cache; c; c = c->next)
-    if (strcmp(c->key, str) == 0) { w = c->w; h = c->h; break; }
+  SDL_Texture *tex = get_text_texture(str, color, &w, &h);
+  if (!tex) return -1;
   SDL_SetTextureColorMod(tex, color.r, color.g, color.b);
   SDL_Rect dst = { x, y, w, h };
   SDL_RenderCopy(g_ren, tex, NULL, &dst);
@@ -135,14 +177,18 @@ void ui_draw_scrollbar(int x, int y, int h_bar, int selected, int total) {
 int text_width_px(const char *str) {
   if (!g_font || !str) return 0;
   int w = 0, h = 0;
-  TTF_SizeText(g_font, str, &w, &h);
+  TTF_SizeUTF8(g_font, str, &w, &h);
   return w;
 }
 
 /* ---- Screen stack -------------------------------------------------------- */
 
 void ui_push(pp_screen *s) {
-  if (g_stack_count >= MAX_SCREENS) return;
+  if (!s) return;
+  if (g_stack_count >= MAX_SCREENS) {
+    LOGE("ui_push: stack overflow, leaking screen");
+    return;
+  }
   g_stack[++g_stack_top] = s;
   g_stack_count = g_stack_top + 1;
 }
@@ -168,6 +214,7 @@ static void ui_finalize_pops(void) {
       g_pop_queue[kept++] = s;  /* worker still running — wait */
     } else {
       if (s->destroy) s->destroy(s);
+      free(s);
     }
   }
   g_pop_count = kept;
@@ -281,6 +328,7 @@ void ui_quit(void) {
       continue;
     }
     if (s->destroy) s->destroy(s);
+    free(s);
   }
   g_pop_count = 0;
   cache_clear();

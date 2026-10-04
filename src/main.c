@@ -53,14 +53,14 @@ int main(int argc, char **argv) {
   const char *ini = ini_path(argv[0]);
   pp_config cfg;
   pp_config_load(&cfg, ini);
-  if (!cfg.client_id[0]) pp_config_ensure_client_id(&cfg);
+  if (cfg.client_id[0] == '\0') pp_config_ensure_client_id(&cfg);
 
   if (pp_init(cfg.client_id) != PP_OK) {
     LOGE("pp_init failed");
     return 1;
   }
 
-  if (!getenv("SDL_VIDEODRIVER")) setenv("SDL_VIDEODRIVER", "dummy", 0);
+  if (smoke && !getenv("SDL_VIDEODRIVER")) setenv("SDL_VIDEODRIVER", "dummy", 0);
   int w = 0, h = 0;
   if (plat_init(&w, &h) != 0) {
     LOGE("plat_init failed");

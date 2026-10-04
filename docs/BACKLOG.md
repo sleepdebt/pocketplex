@@ -7,3 +7,8 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [x] `src/plex/playback.c:46-51,92-95,105-107`: unchecked `snprintf` truncation for the decision/timeline/scrobble URLs. Return `PP_ERR_ARG` like `pp_build_transcode_url` does.
 - [x] `src/plex/auth.c:149`: every non-2xx PIN poll maps to `PP_ERR_AUTH`. Only 404 should; 429/5xx → `PP_ERR_HTTP`/`PP_ERR_NET`.
 - [ ] Paged lists open a new curl handle per page (repeated TLS handshakes). Reuse one handle per call. (Still open after the merge.) Worst-case stall is 5 s connect + 20 s total per request, which core's spinner/timeout should account for.
+
+## core (review of a feature branch, 2026-10-04)
+- [ ] CI: actions/checkout@v4 and actions/upload-artifact@v4 run on deprecated Node 20 (forced to Node 24). Bump when newer majors are available.
+- [ ] MMP zip is untested: blocked on core (Onion glibc / libcurl availability; plan a static curl+mbedTLS sysroot).
+- [ ] `tools/pp-cli.c:116`: -Wformat-truncation warning in the cross builds.

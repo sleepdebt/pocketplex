@@ -4,6 +4,7 @@
  * (see REPORT) to turn any write-after-free into a hard failure; the heap
  * canary check below catches it without ASan too.
  */
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
@@ -141,6 +142,68 @@ static void test_edge_cases(void) {
   CHECK(worker_wait_idle(1000) == 0);
 }
 
+/* Playback requests copy the item and session; fake mode never touches the network. */
+static void test_play_requests_fake(void) {
+  unsetenv("PP_FAKE_DELAY_MS");
+  pp_item *it = calloc(1, sizeof(*it));
+  snprintf(it->rating_key, sizeof(it->rating_key), "53835");
+  char *session = strdup("0f0e0d0c-0b0a-4908-8706-050403020100");
+  pp_play_args a = { it, session, NULL, 0, 1500 };
+  pp_request *url = worker_start_play(REQ_TRANSCODE_URL, NULL, &a, 1);
+  a.state = "playing"; a.time_ms = 30000;
+  pp_request *tl = worker_start_play(REQ_TIMELINE, NULL, &a, 1);
+  pp_request *sc = worker_start_play(REQ_SCROBBLE, NULL, &a, 1);
+  a.state = "stopped";
+  pp_request *st = worker_start_play(REQ_PLAY_STOP, NULL, &a, 1);
+  free(it);                                  /* caller's copies can go right away */
+  free(session);
+  CHECK(wait_done(url, 5000) && wait_done(tl, 5000) && wait_done(sc, 5000) && wait_done(st, 5000));
+  CHECK(worker_status(url) == PP_OK);
+  CHECK(strstr(worker_url(url), "53835") != NULL);
+  CHECK(strstr(worker_url(url), "0f0e0d0c-0b0a-4908-8706-050403020100") != NULL);
+  CHECK(worker_status(tl) == PP_OK);
+  CHECK(worker_status(sc) == PP_OK);
+  CHECK(worker_status(st) == PP_OK);
+  CHECK_STR(worker_url(NULL), "");
+  worker_release(url); worker_release(tl); worker_release(sc); worker_release(st);
+  CHECK(worker_wait_idle(1000) == 0);
+}
+
+/* Real provider, closed loopback port: errors cleanly, fire-and-forget release is safe. */
+static void test_play_stop_released_in_flight(void) {
+  pp_server srv = { "http://127.0.0.1:1", "REDACTED", "test-client" };
+  pp_item it;
+  memset(&it, 0, sizeof it);
+  snprintf(it.rating_key, sizeof it.rating_key, "1");
+  snprintf(it.key, sizeof it.key, "/library/metadata/1");
+  pp_play_args a = { &it, "session", "stopped", 1000, 1500 };
+  worker_detach(worker_start_play(REQ_PLAY_STOP, &srv, &a, 0));  /* as the player screen does */
+  pp_request *r = worker_start_play(REQ_TRANSCODE_URL, &srv, &a, 0);
+  CHECK(wait_done(r, 10000));
+  CHECK(worker_status(r) < 0);
+  CHECK_STR(worker_url(r), "");
+  worker_release(r);
+  CHECK(worker_wait_idle(10000) == 0);
+}
+
+/* Fire-and-forget (timeline, scrobble, stop): detach must still run the
+ * request; release cancels it. The player screen relies on the difference. */
+static void test_detach_runs_release_cancels(void) {
+  setenv("PP_FAKE_DELAY_MS", "50", 1);
+  pp_item it;
+  memset(&it, 0, sizeof it);
+  pp_play_args a = { &it, "s", "stopped", 1000, 1500 };
+  int before = worker_ran_count();
+  worker_detach(worker_start_play(REQ_PLAY_STOP, NULL, &a, 1));
+  CHECK(worker_wait_idle(5000) == 0);
+  CHECK(worker_ran_count() == before + 1);   /* detached: ran to completion */
+  worker_release(worker_start_play(REQ_PLAY_STOP, NULL, &a, 1));
+  CHECK(worker_wait_idle(5000) == 0);
+  CHECK(worker_ran_count() == before + 1);   /* released mid-delay: skipped */
+  worker_detach(NULL);
+  unsetenv("PP_FAKE_DELAY_MS");
+}
+
 int main(void) {
   pp_init("test-client");
   RUN(test_complete_and_take);
@@ -149,6 +212,9 @@ int main(void) {
   RUN(test_release_stress);
   RUN(test_server_is_copied);
   RUN(test_edge_cases);
+  RUN(test_play_requests_fake);
+  RUN(test_play_stop_released_in_flight);
+  RUN(test_detach_runs_release_cancels);
   pp_cleanup();
   return TEST_RESULT();
 }

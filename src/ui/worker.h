@@ -25,7 +25,20 @@ typedef enum {
   REQ_ON_DECK,
   REQ_PIN_START,
   REQ_PIN_POLL,
+  REQ_TRANSCODE_URL,   /* pp_transcode_url (offset 0; resume goes to player_start) */
+  REQ_TIMELINE,        /* pp_timeline(state, time_ms) */
+  REQ_SCROBBLE,        /* pp_scrobble */
+  REQ_PLAY_STOP,       /* pp_timeline(state, time_ms) then pp_transcode_stop */
 } pp_req_type;
+
+/* Inputs for playback requests; everything is copied at submit. */
+typedef struct {
+  const pp_item *item;
+  const char *session;  /* transcode session id */
+  const char *state;    /* "playing" | "paused" | "stopped" (timeline / stop) */
+  long time_ms;         /* timeline position */
+  int max_kbps;         /* transcode bitrate */
+} pp_play_args;
 
 typedef struct pp_request pp_request;
 
@@ -36,6 +49,11 @@ typedef struct pp_request pp_request;
 pp_request *worker_start(pp_req_type type, const pp_server *srv, const char *key,
                          const char *token, long pin_id, int use_fake);
 
+/* Start a playback request (REQ_TRANSCODE_URL .. REQ_PLAY_STOP). Same
+ * ownership rules as worker_start; use_fake returns canned results. */
+pp_request *worker_start_play(pp_req_type type, const pp_server *srv,
+                              const pp_play_args *args, int use_fake);
+
 /* 1 once the worker has finished writing (acquire). NULL counts as done. The
  * accessors below may only be called once this returns 1. */
 int  worker_is_done(const pp_request *req);
@@ -45,16 +63,25 @@ const char *worker_error(const pp_request *req);    /* "" if none */
 const char *worker_pin(const pp_request *req);      /* REQ_PIN_START */
 long        worker_pin_id(const pp_request *req);   /* REQ_PIN_START */
 const char *worker_auth_token(const pp_request *req); /* REQ_PIN_POLL on success */
+const char *worker_url(const pp_request *req);      /* REQ_TRANSCODE_URL on success; holds the token, never log it */
 
 /* Move the result out of the request; the caller then owns it (pp_list_free /
  * pp_servers_free). Afterwards the request holds nothing. */
 void worker_take_list(pp_request *req, pp_list *out);
 void worker_take_servers(pp_request *req, pp_server **out, int *count);
 
-/* Drop the caller's reference. Safe on NULL, and safe while the worker is
- * still running (it is told to skip remaining work and frees on exit). The
- * caller must not touch req afterwards. */
+/* Drop the caller's reference and cancel: if the worker hasn't started the
+ * provider call yet it skips it. Safe on NULL and while the worker is still
+ * running (it frees on exit). The caller must not touch req afterwards. */
 void worker_release(pp_request *req);
+
+/* Drop the caller's reference WITHOUT cancelling: the request still runs to
+ * completion and the worker frees it. For fire-and-forget calls (timeline,
+ * scrobble, stop). Safe on NULL. */
+void worker_detach(pp_request *req);
+
+/* Requests whose provider call actually ran (not skipped by a cancel). */
+int  worker_ran_count(void);
 
 /* Number of live requests (allocated, not yet freed). */
 int  worker_live_count(void);

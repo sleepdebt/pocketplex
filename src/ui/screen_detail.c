@@ -1,5 +1,6 @@
 /* screen_detail.c: item detail — title, year, duration, summary, resume/play. */
 #include "ui.h"
+#include "ui/play_state.h"
 #include "log.h"
 
 #include <stdlib.h>
@@ -8,7 +9,33 @@
 
 typedef struct {
   pp_item item;
+  int choosing;   /* 1 while the resume / play-from-start choice is open */
+  int choice;     /* 0 = resume, 1 = from start */
 } detail_data_t;
+
+static int is_playable(pp_kind k) {
+  return k == PP_EPISODE || k == PP_MOVIE;
+}
+
+static void detail_play(detail_data_t *d, long start_ms) {
+  d->choosing = 0;
+  pp_screen *p = screen_player_create(&d->item, start_ms, &d->item);
+  if (p) ui_push(p);
+  else ui_toast("Out of memory");
+}
+
+static void draw_choice(detail_data_t *d) {
+  char resume[64], t[16];
+  play_fmt_time(d->item.view_offset_ms, t, sizeof t);
+  snprintf(resume, sizeof resume, "Resume from %s", t);
+  const char *opts[2] = { resume, "Play from start" };
+  int x = 120, y = 170, w = PP_SCREEN_W - 240, h = 2 * PP_LINE_H + 24;
+  ui_fill_rect(x, y, w, h, PP_COLOR(0x2a, 0x2a, 0x33));
+  ui_draw_rect(x, y, w, h, PP_COLOR_FG);
+  for (int i = 0; i < 2; i++)
+    ui_draw_text(opts[i], x + 16, y + 12 + i * PP_LINE_H,
+                 i == d->choice ? PP_COLOR_SEL : PP_COLOR_FG);
+}
 
 static void detail_render(pp_screen *self) {
   detail_data_t *d = (detail_data_t *)self->data;
@@ -81,21 +108,39 @@ static void detail_render(pp_screen *self) {
     y += PP_LINE_H;
   }
 
+  if (d->choosing) draw_choice(d);
+
   /* Footer button hints */
-  ui_draw_text("A: play  B: back  Y: mark watched",
+  ui_draw_text(d->choosing ? "D-pad: choose  A: play  B: cancel"
+                           : "A: play  B: back  Y: mark watched",
                PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
 }
 
 static void detail_handle(pp_screen *self, pp_btn btn) {
   detail_data_t *d = (detail_data_t *)self->data;
-  (void)d;
+  if (d->choosing) {
+    switch (btn) {
+    case BTN_UP:   d->choice = 0; break;
+    case BTN_DOWN: d->choice = 1; break;
+    case BTN_A:    detail_play(d, d->choice == 0 ? d->item.view_offset_ms : 0); break;
+    case BTN_B:    d->choosing = 0; break;
+    default: break;
+    }
+    return;
+  }
   switch (btn) {
   case BTN_B:
     ui_pop();
     break;
   case BTN_A:
-    ui_toast("Playing...");
-    LOGI("playing item %s", d->item.rating_key);
+    if (!is_playable(d->item.kind)) {
+      ui_toast("Not playable");
+    } else if (d->item.view_offset_ms > 0) {
+      d->choosing = 1;
+      d->choice = 0;
+    } else {
+      detail_play(d, 0);
+    }
     break;
   case BTN_Y:
     ui_toast("Toggled watched");

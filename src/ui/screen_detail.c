@@ -29,10 +29,9 @@ static void detail_render(pp_screen *self) {
   else
     snprintf(meta, sizeof(meta), "%d", it->year);
   if (it->duration_ms > 0) {
-    char dur[64];
     int mins = it->duration_ms / 60000;
-    snprintf(dur, sizeof(dur), " · %dh%02dm", mins / 60, mins % 60);
-    strcat(meta, dur);
+    int n = (int)strlen(meta);
+    snprintf(meta + n, sizeof(meta) - n, " \xc2\xb7 %dh%02dm", mins / 60, mins % 60);
   }
   ui_draw_text(meta, PP_MARGIN_L, y, PP_COLOR_DIM);
   y += PP_LINE_H;

@@ -67,7 +67,7 @@ static void home_render(pp_screen *self) {
   ui_draw_text("Continue Watching", PP_MARGIN_L, 52, PP_COLOR_FG);
   int y = 80;
   int i;
-  for (i = 0; i < total_top && i < 4; i++) {
+  for (i = 0; i < total_top && i < 6; i++) {
     pp_item *it = &d->on_deck.items[i];
     pp_color col = (d->in_sections == 0 && d->sel == i) ? PP_COLOR_SEL : PP_COLOR_FG;
     ui_draw_text(it->title, PP_MARGIN_L, y, col);
@@ -102,7 +102,10 @@ static void home_render(pp_screen *self) {
 
 static void home_handle(pp_screen *self, pp_btn btn) {
   home_data_t *d = (home_data_t *)self->data;
-  if (self->loading) return;
+  if (self->loading) {
+    if (btn == BTN_B) ui_pop();
+    return;
+  }
   int total_top = d->on_deck.count;
   int total_all = total_top + d->sections.count;
 

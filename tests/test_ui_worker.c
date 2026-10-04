@@ -177,13 +177,31 @@ static void test_play_stop_released_in_flight(void) {
   snprintf(it.rating_key, sizeof it.rating_key, "1");
   snprintf(it.key, sizeof it.key, "/library/metadata/1");
   pp_play_args a = { &it, "session", "stopped", 1000, 1500 };
-  worker_release(worker_start_play(REQ_PLAY_STOP, &srv, &a, 0));  /* as the player screen does */
+  worker_detach(worker_start_play(REQ_PLAY_STOP, &srv, &a, 0));  /* as the player screen does */
   pp_request *r = worker_start_play(REQ_TRANSCODE_URL, &srv, &a, 0);
   CHECK(wait_done(r, 10000));
   CHECK(worker_status(r) < 0);
   CHECK_STR(worker_url(r), "");
   worker_release(r);
   CHECK(worker_wait_idle(10000) == 0);
+}
+
+/* Fire-and-forget (timeline, scrobble, stop): detach must still run the
+ * request; release cancels it. The player screen relies on the difference. */
+static void test_detach_runs_release_cancels(void) {
+  setenv("PP_FAKE_DELAY_MS", "50", 1);
+  pp_item it;
+  memset(&it, 0, sizeof it);
+  pp_play_args a = { &it, "s", "stopped", 1000, 1500 };
+  int before = worker_ran_count();
+  worker_detach(worker_start_play(REQ_PLAY_STOP, NULL, &a, 1));
+  CHECK(worker_wait_idle(5000) == 0);
+  CHECK(worker_ran_count() == before + 1);   /* detached: ran to completion */
+  worker_release(worker_start_play(REQ_PLAY_STOP, NULL, &a, 1));
+  CHECK(worker_wait_idle(5000) == 0);
+  CHECK(worker_ran_count() == before + 1);   /* released mid-delay: skipped */
+  worker_detach(NULL);
+  unsetenv("PP_FAKE_DELAY_MS");
 }
 
 int main(void) {
@@ -196,6 +214,7 @@ int main(void) {
   RUN(test_edge_cases);
   RUN(test_play_requests_fake);
   RUN(test_play_stop_released_in_flight);
+  RUN(test_detach_runs_release_cancels);
   pp_cleanup();
   return TEST_RESULT();
 }

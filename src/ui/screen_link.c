@@ -8,63 +8,67 @@
 #include "config/config.h"
 #include "log.h"
 
+#include <SDL.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-#define PIN_POLL_MS 2000
+#define PIN_POLL_MS  2000
+#define PIN_RETRY_MS 2000
 
 typedef struct {
-  pp_request req;
-  int poll_ms;
-  int started;
+  pp_request *req;     /* owned reference: PIN start or poll in flight */
+  char pin[8];
+  long pin_id;
+  int started;         /* 1 once a PIN code is on screen */
   int linked;
+  Uint32 next_at;      /* next poll (or PIN restart) time */
 } link_data_t;
 
-static void link_cancel(pp_screen *self) {
-  link_data_t *d = (link_data_t *)self->data;
-  if (d) worker_cancel(&d->req);
+static void link_submit(link_data_t *d, pp_req_type type) {
+  worker_release(d->req);
+  d->req = worker_start(type, NULL, NULL, NULL, d->pin_id, ui_is_smoke_scroll());
 }
 
-static int link_is_busy(pp_screen *self) {
-  link_data_t *d = (link_data_t *)self->data;
-  return d && !worker_is_done(&d->req);
+static void link_save_token(link_data_t *d, const char *token) {
+  pp_config cfg;
+  pp_config_defaults(&cfg);
+  pp_config_load(&cfg, ui_ini_path());
+  snprintf(cfg.token, sizeof(cfg.token), "%s", token);
+  pp_config_ensure_client_id(&cfg);
+  if (pp_config_save(&cfg, ui_ini_path()) != 0) ui_toast("Failed to save token");
+  ui_set_auth_token(cfg.token);  /* usable this session even if the save failed */
+  memset(&cfg, 0, sizeof(cfg));
+  d->linked = 1;
 }
 
-static void link_check_pin_start(pp_screen *self) {
-  link_data_t *d = (link_data_t *)self->data;
-  if (!d->started && d->req.type == REQ_PIN_START && worker_is_done(&d->req)) {
-    d->started = 1;
-    if (d->req.status != PP_OK) {
-      snprintf(d->req.pin, sizeof(d->req.pin), "0000");
-    }
-    d->poll_ms = 0;
-    LOGI("PIN started: %s (smoke=%d)", d->req.pin, ui_is_smoke_scroll());
-  }
-}
-
-static void link_check_pin_poll(pp_screen *self) {
-  link_data_t *d = (link_data_t *)self->data;
-  if (d->req.type == REQ_PIN_POLL && worker_is_done(&d->req)) {
-    if (d->req.status == PP_OK && d->req.auth_token[0]) {
-      LOGI("PIN confirmed");
-      d->linked = 1;
-      pp_config cfg;
-      pp_config_load(&cfg, ui_ini_path());
-      snprintf(cfg.token, sizeof(cfg.token), "%s", d->req.auth_token);
-       pp_config_ensure_client_id(&cfg);
-      if (pp_config_save(&cfg, ui_ini_path()) != 0)
-        ui_toast("Failed to save token");
-      else
-        ui_set_auth_token(cfg.token);
-    } else if (d->req.status == 1) {
+/* Collect a finished request and schedule the next step. */
+static void link_collect(link_data_t *d) {
+  if (!d->req || !worker_is_done(d->req)) return;
+  int st = worker_status(d->req);
+  Uint32 now = SDL_GetTicks();
+  if (!d->started) {                       /* PIN start finished */
+    if (st == PP_OK) {
+      snprintf(d->pin, sizeof(d->pin), "%s", worker_pin(d->req));
+      d->pin_id = worker_pin_id(d->req);
+      d->started = 1;
+      LOGI("PIN started (smoke=%d)", ui_is_smoke_scroll());
     } else {
-      ui_toast(d->req.error[0] ? d->req.error : "PIN auth failed");
-      d->started = 0;
-      d->req.type = REQ_PIN_START;
-      worker_submit(&d->req);
+      ui_toast(worker_error(d->req)[0] ? worker_error(d->req) : "PIN start failed");
     }
+    d->next_at = now + (st == PP_OK ? PIN_POLL_MS : PIN_RETRY_MS);
+  } else {                                 /* PIN poll finished */
+    if (st == PP_OK && worker_auth_token(d->req)[0]) {
+      LOGI("PIN confirmed");
+      link_save_token(d, worker_auth_token(d->req));
+    } else if (st != 1) {
+      ui_toast(worker_error(d->req)[0] ? worker_error(d->req) : "PIN auth failed");
+      d->started = 0;                      /* expired or failed: get a new PIN */
+    }
+    d->next_at = now + PIN_POLL_MS;
   }
+  worker_release(d->req);
+  d->req = NULL;
 }
 
 static void link_render(pp_screen *self) {
@@ -76,7 +80,13 @@ static void link_render(pp_screen *self) {
   ui_draw_text("1. Open plex.tv/link on your phone", PP_MARGIN_L, 110, PP_COLOR_FG);
   ui_draw_text("2. Enter this code:", PP_MARGIN_L, 140, PP_COLOR_FG);
 
-  link_check_pin_start(self);
+  link_collect(d);
+
+  /* Nothing in flight: start a PIN, or poll the current one (not in smoke). */
+  if (!d->req && !d->linked && SDL_TICKS_PASSED(SDL_GetTicks(), d->next_at)) {
+    if (!d->started) link_submit(d, REQ_PIN_START);
+    else if (!ui_is_smoke_scroll()) link_submit(d, REQ_PIN_POLL);
+  }
 
   if (!d->started) {
     ui_draw_text("Starting...", PP_MARGIN_L, 180, PP_COLOR_DIM);
@@ -84,22 +94,7 @@ static void link_render(pp_screen *self) {
     return;
   }
 
-  ui_draw_text(d->req.pin, cx - 30, 180, PP_COLOR(0xff, 0xff, 0x00));
-
-   if (!ui_is_smoke_scroll()) {
-     d->poll_ms += 16;
-     if (d->poll_ms >= PIN_POLL_MS) {
-       d->poll_ms = 0;
-       if (!worker_is_done(&d->req)) {
-         /* Previous poll still in flight — back off, don't submit. */
-         d->poll_ms = PIN_POLL_MS;
-       } else {
-         d->req.type = REQ_PIN_POLL;
-         worker_submit(&d->req);
-       }
-     }
-     link_check_pin_poll(self);
-   }
+  ui_draw_text(d->pin, cx - 30, 180, PP_COLOR(0xff, 0xff, 0x00));
 
   if (d->linked) {
     ui_draw_text("Linked!", cx - 40, 240, PP_COLOR(0x00, 0xff, 0x00));
@@ -136,7 +131,9 @@ static void link_handle(pp_screen *self, pp_btn btn) {
 }
 
 static void link_destroy(pp_screen *self) {
-  free(self->data);
+  link_data_t *d = (link_data_t *)self->data;
+  if (d) worker_release(d->req);  /* a still-running worker frees it on exit */
+  free(d);
 }
 
 pp_screen *screen_link_create(void) {
@@ -147,15 +144,10 @@ pp_screen *screen_link_create(void) {
 
   s->id = SCREEN_LINK;
   s->data = d;
-   s->render = link_render;
-   s->handle_button = link_handle;
-   s->cancel = link_cancel;
-   s->is_busy = link_is_busy;
-   s->destroy = link_destroy;
+  s->render = link_render;
+  s->handle_button = link_handle;
+  s->destroy = link_destroy;
 
-  d->req.type = REQ_PIN_START;
-  d->req.done = 0;
-  worker_submit(&d->req);
-
+  link_submit(d, REQ_PIN_START);
   return s;
 }

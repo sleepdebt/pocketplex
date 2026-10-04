@@ -6,6 +6,8 @@
 #include "ui/worker.h"
 #include "log.h"
 
+#include <SDL.h>
+
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
@@ -14,10 +16,16 @@ typedef struct {
   pp_server *servers;     /* discovered servers (owned by this screen) */
   int count;
   int selected;
-  pp_request req;
+  pp_request *req;        /* owned reference; NULL when idle */
   Uint32 retry_at;        /* next retry time (ms) for backoff */
   int retry_count;        /* consecutive retries for exponential backoff */
+  int retry_pending;      /* 1 while waiting for retry_at */
 } servers_data_t;
+
+static void servers_submit(servers_data_t *d) {
+  d->req = worker_start(REQ_SERVERS, NULL, NULL, ui_get_auth_token(), 0,
+                        ui_is_smoke_scroll());
+}
 
 static void servers_render(pp_screen *self) {
   servers_data_t *d = (servers_data_t *)self->data;
@@ -26,7 +34,7 @@ static void servers_render(pp_screen *self) {
   ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   /* Check async result */
-  if (d->req.type == REQ_SERVERS && !worker_is_done(&d->req)) {
+  if (d->req && !worker_is_done(d->req)) {
     self->loading = 1;
     ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
     g_spinner_frame++;
@@ -34,38 +42,38 @@ static void servers_render(pp_screen *self) {
   }
 
   /* Worker completed */
-  if (d->req.type == REQ_SERVERS && worker_is_done(&d->req) && !d->servers) {
-    if (d->req.status == PP_OK && d->req.servers) {
-      d->servers = d->req.servers;
-      d->count = d->req.server_count;
-    } else {
-      /* Error handling: retry on NET/HTTP, relink on AUTH */
-      if (d->req.status == PP_ERR_AUTH) {
-        ui_toast("Auth expired — relink");
-        ui_pop();
-        ui_push(screen_link_create());
-        d->req.type = REQ_NONE;
-        return;
-       } else if (d->req.status == PP_ERR_NET || d->req.status == PP_ERR_HTTP) {
-        if (d->req.error[0]) ui_toast(d->req.error);
-        Uint32 now = SDL_GetTicks();
-        if (now < d->retry_at) {
-          self->loading = 1;
-          return;
-        }
-        int backoff = 1000 * (1 << (d->retry_count < 4 ? d->retry_count : 4));
-        d->retry_count++;
-        d->retry_at = now + backoff;
-        d->req.type = REQ_SERVERS;
-        d->req.token = ui_get_auth_token();
-        d->req.srv = ui_current_server();
-        worker_submit(&d->req);
-        self->loading = 1;
-        return;
-      }
-      if (d->req.error[0]) ui_toast(d->req.error);
-      d->req.type = REQ_NONE;
+  if (d->req) {
+    int st = worker_status(d->req);
+    if (st == PP_OK) {
+      worker_take_servers(d->req, &d->servers, &d->count);
+      d->retry_count = 0;
+    } else if (worker_error(d->req)[0]) {
+      ui_toast(worker_error(d->req));
     }
+    worker_release(d->req);
+    d->req = NULL;
+    if (st == PP_ERR_AUTH) {
+      ui_pop();
+      ui_push(screen_link_create());
+      return;
+    }
+    if (st == PP_ERR_NET || st == PP_ERR_HTTP) {
+      /* Exponential backoff: 1, 2, 4, 8, 16 s. */
+      int backoff = 1000 * (1 << (d->retry_count < 4 ? d->retry_count : 4));
+      d->retry_count++;
+      d->retry_at = SDL_GetTicks() + (Uint32)backoff;
+      d->retry_pending = 1;
+    }
+  }
+
+  if (d->retry_pending) {
+    self->loading = 1;
+    if (SDL_TICKS_PASSED(SDL_GetTicks(), d->retry_at)) {
+      d->retry_pending = 0;
+      servers_submit(d);
+    }
+    ui_draw_text("Retrying...  B: back", PP_MARGIN_L, PP_SCREEN_H / 2, PP_COLOR_DIM);
+    return;
   }
   self->loading = 0;
 
@@ -74,7 +82,7 @@ static void servers_render(pp_screen *self) {
   for (i = 0; i < d->count; i++) {
     pp_color col = (i == d->selected) ? PP_COLOR_SEL : PP_COLOR_FG;
     char buf[128];
-    snprintf(buf, sizeof(buf), "%s", d->servers[i].url);
+    snprintf(buf, sizeof(buf), "%s", d->servers[i].url ? d->servers[i].url : "(no url)");
     ui_draw_text(buf, PP_MARGIN_L, y, col);
     y += PP_LINE_H;
   }
@@ -119,18 +127,10 @@ static void servers_handle(pp_screen *self, pp_btn btn) {
   }
 }
 
-static void servers_cancel(pp_screen *self) {
+static void servers_destroy(pp_screen *self) {
   servers_data_t *d = (servers_data_t *)self->data;
-  if (d) worker_cancel(&d->req);
-}
-
-static int servers_is_busy(pp_screen *self) {
-  servers_data_t *d = (servers_data_t *)self->data;
-  return d && !worker_is_done(&d->req);
-}
-
-static void servers_destroy(pp_screen *self) {  servers_data_t *d = (servers_data_t *)self->data;
   if (d) {
+    worker_release(d->req);  /* a still-running worker frees it on exit */
     pp_servers_free(d->servers, d->count);
     free(d);
   }
@@ -142,18 +142,12 @@ pp_screen *screen_servers_create(void) {
   servers_data_t *d = (servers_data_t *)calloc(1, sizeof(servers_data_t));
   if (!d) { free(s); return NULL; }
 
-  d->req.type = REQ_SERVERS;
-  d->req.token = ui_get_auth_token();
-  d->req.srv = ui_current_server();
-  d->req.done = 0;
   s->id = SCREEN_SERVERS;
   s->data = d;
   s->loading = 1;
-   s->render = servers_render;
-   s->handle_button = servers_handle;
-   s->cancel = servers_cancel;
-   s->is_busy = servers_is_busy;
-   s->destroy = servers_destroy;
-  worker_submit(&d->req);
+  s->render = servers_render;
+  s->handle_button = servers_handle;
+  s->destroy = servers_destroy;
+  servers_submit(d);
   return s;
 }

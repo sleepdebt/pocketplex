@@ -2,6 +2,7 @@
 #include "ui.h"
 #include "ui/ui_platform.h"
 #include "config/config.h"
+#include "ui/worker.h"
 #include "log.h"
 
 #include <SDL.h>
@@ -21,8 +22,7 @@ static int g_font_pt = 20;
 TTF_Font *ui_font(void) { return g_font; }
 TTF_Font *ui_font_bold(void) { return g_font_bold ? g_font_bold : g_font; }
 
-static pp_server *g_current_server = NULL;
-static int g_server_owned = 0;  /* 1 if g_current_server was deep-copied */
+static pp_server *g_current_server = NULL;  /* owned deep copy */
 static char g_auth_token[256] = {0};
 static char g_ini_path[512] = {0};
 
@@ -38,21 +38,24 @@ static pp_screen *g_stack[MAX_SCREENS];
 static int g_stack_top = -1;
 static int g_stack_count = 0;
 
-/* Deferred pop queue: screens are freed at end-of-frame to avoid
- * use-after-free with in-flight worker threads. */
-static pp_screen *g_pop_queue[MAX_SCREENS];
+/* Deferred pop queue: popped screens are destroyed at end of frame, so a
+ * handler can still read its own data after calling ui_pop(). Workers never
+ * need the screen alive: each request is refcounted (see worker.h). */
+static pp_screen *g_pop_queue[2 * MAX_SCREENS];
 static int g_pop_count = 0;
 
 static char g_toast_msg[MAX_TOAST_LEN] = {0};
 static int g_toast_ms_left = 0;
 static const int TOAST_LIFETIME_MS = 3000;
 
-/* ---- Text texture cache (bounded LRU, keyed by text+colour) ---------------- */
+/* ---- Text texture cache (bounded LRU, keyed by text) --------------------- */
+/* Text is rendered once in white; ui_draw_text applies the colour with colour
+ * and alpha mod, so a row changing colour (selection) reuses its texture. */
 
 #define CACHE_MAX 64
 
 typedef struct tex_cache {
-  char key[256];          /* text + colour hash */
+  char *key;              /* owned copy of the text */
   SDL_Texture *tex;
   int w, h;
   struct tex_cache *next;
@@ -61,68 +64,57 @@ typedef struct tex_cache {
 static tex_cache *g_cache_head = NULL;
 static int g_cache_count = 0;
 
-static void cache_init(void) {
-  g_cache_head = NULL;
-  g_cache_count = 0;
+static void cache_entry_free(tex_cache *c) {
+  SDL_DestroyTexture(c->tex);
+  free(c->key);
+  free(c);
 }
 
-static void cache_move_to_front(tex_cache *c) {
-  if (g_cache_head == c) return;
-  tex_cache *p = g_cache_head;
-  while (p && p->next != c) p = p->next;
-  if (p) p->next = c->next;
+static void cache_move_to_front(tex_cache *prev, tex_cache *c) {
+  if (!prev) return;  /* already the head */
+  prev->next = c->next;
   c->next = g_cache_head;
   g_cache_head = c;
 }
 
 static void cache_evict_lru(void) {
-  if (g_cache_count < CACHE_MAX) return;
-  tex_cache *p = g_cache_head;
-  while (p && p->next && p->next->next) p = p->next;  /* find second-to-last */
-  if (!p) return;
-  tex_cache *lru = p->next;
-  if (lru) {
-    p->next = NULL;
-    SDL_DestroyTexture(lru->tex);
-    free(lru);
-    g_cache_count--;
-  }
+  if (g_cache_count < CACHE_MAX || !g_cache_head) return;
+  tex_cache *prev = NULL, *c = g_cache_head;
+  while (c->next) { prev = c; c = c->next; }
+  if (prev) prev->next = NULL; else g_cache_head = NULL;
+  cache_entry_free(c);
+  g_cache_count--;
 }
 
-static SDL_Texture *get_text_texture(const char *str, pp_color color, int *w, int *h) {
-  char keybuf[260];
-  snprintf(keybuf, sizeof(keybuf), "%c%c%c%c:%s", color.r, color.g, color.b, color.a, str);
-
-  tex_cache *c;
-  for (c = g_cache_head; c; c = c->next) {
-    if (c->key[0] == keybuf[0] && c->key[1] == keybuf[1] &&
-        c->key[2] == keybuf[2] && c->key[3] == keybuf[3] &&
-        strcmp(c->key + 5, keybuf + 5) == 0) {
-      cache_move_to_front(c);
-      if (w) *w = c->w;
-      if (h) *h = c->h;
+static SDL_Texture *get_text_texture(const char *str, int *w, int *h) {
+  tex_cache *prev = NULL, *c;
+  for (c = g_cache_head; c; prev = c, c = c->next) {
+    if (strcmp(c->key, str) == 0) {
+      cache_move_to_front(prev, c);
+      *w = c->w;
+      *h = c->h;
       return c->tex;
     }
   }
 
-  SDL_Color sdl_col = { color.r, color.g, color.b, color.a };
-  SDL_Surface *surf = TTF_RenderUTF8_Blended(g_font, str, sdl_col);
+  SDL_Color white = { 0xff, 0xff, 0xff, 0xff };
+  SDL_Surface *surf = TTF_RenderUTF8_Blended(g_font, str, white);
   if (!surf) return NULL;
   SDL_Texture *tex = SDL_CreateTextureFromSurface(g_ren, surf);
   SDL_FreeSurface(surf);
   if (!tex) return NULL;
 
   cache_evict_lru();
-  c = (tex_cache *)malloc(sizeof(tex_cache));
-  if (!c) { SDL_DestroyTexture(tex); return NULL; }
+  c = (tex_cache *)calloc(1, sizeof(tex_cache));
+  if (c) c->key = strdup(str);
+  if (!c || !c->key) { free(c); SDL_DestroyTexture(tex); return NULL; }
   c->tex = tex;
   SDL_QueryTexture(tex, NULL, NULL, &c->w, &c->h);
-  snprintf(c->key, sizeof(c->key), "%s", keybuf);
   c->next = g_cache_head;
   g_cache_head = c;
   g_cache_count++;
-  if (w) *w = c->w;
-  if (h) *h = c->h;
+  *w = c->w;
+  *h = c->h;
   return tex;
 }
 
@@ -130,8 +122,7 @@ static void cache_clear(void) {
   tex_cache *c = g_cache_head;
   while (c) {
     tex_cache *next = c->next;
-    SDL_DestroyTexture(c->tex);
-    free(c);
+    cache_entry_free(c);
     c = next;
   }
   g_cache_head = NULL;
@@ -143,9 +134,11 @@ static void cache_clear(void) {
 int ui_draw_text(const char *str, int x, int y, pp_color color) {
   if (!g_ren || !g_font) return -1;
   int w = 0, h = 0;
-  SDL_Texture *tex = get_text_texture(str, color, &w, &h);
+  if (!str || !str[0]) return 0;
+  SDL_Texture *tex = get_text_texture(str, &w, &h);
   if (!tex) return -1;
   SDL_SetTextureColorMod(tex, color.r, color.g, color.b);
+  SDL_SetTextureAlphaMod(tex, color.a);
   SDL_Rect dst = { x, y, w, h };
   SDL_RenderCopy(g_ren, tex, NULL, &dst);
   return 0;
@@ -199,25 +192,23 @@ void ui_pop(void) {
   g_stack[g_stack_top] = NULL;
   g_stack_top--;
   if (g_stack_top < 0) g_stack_top = -1;
-  if (s && g_pop_count < MAX_SCREENS) g_pop_queue[g_pop_count++] = s;
+  g_stack_count = g_stack_top + 1;
+  if (!s) return;
+  if (g_pop_count < (int)(sizeof(g_pop_queue) / sizeof(g_pop_queue[0])))
+    g_pop_queue[g_pop_count++] = s;
+  else
+    LOGE("ui_pop: pop queue full, leaking screen");
 }
 
-/* Cancel and free deferred screens. Called at end of frame.
- * Screens whose workers are still in-flight are kept alive for another frame. */
+/* Destroy screens popped this frame. Called at end of frame. */
 static void ui_finalize_pops(void) {
-  int i, kept = 0;
+  int i;
   for (i = 0; i < g_pop_count; i++) {
     pp_screen *s = g_pop_queue[i];
-    if (!s) continue;
-    if (s->cancel) s->cancel(s);
-    if (s->is_busy && s->is_busy(s)) {
-      g_pop_queue[kept++] = s;  /* worker still running — wait */
-    } else {
-      if (s->destroy) s->destroy(s);
-      free(s);
-    }
+    if (s->destroy) s->destroy(s);
+    free(s);
   }
-  g_pop_count = kept;
+  g_pop_count = 0;
 }
 
 static pp_screen *current_screen(void) {
@@ -262,7 +253,6 @@ int ui_init(void) {
   g_ren = plat_renderer();
   if (!g_ren) { LOGE("no renderer"); return -1; }
   if (font_load() != 0) return -1;
-  cache_init();
   return 0;
 }
 
@@ -271,31 +261,39 @@ void ui_set_ini_path(const char *path) {
 }
 const char *ui_ini_path(void) { return g_ini_path[0] ? g_ini_path : "pocketplex.ini"; }
 
+static void server_free(pp_server *srv) {
+  if (!srv) return;
+  free(srv->url);
+  if (srv->token) memset(srv->token, 0, strlen(srv->token));
+  free(srv->token);
+  free(srv->client_id);
+  free(srv);
+}
+
 void ui_set_server(pp_server *srv) {
-  if (g_server_owned && g_current_server) {
-    pp_servers_free(g_current_server, 1);
-    g_current_server = NULL;
-    g_server_owned = 0;
-  }
-  if (srv) {
-    pp_server *copy = (pp_server *)calloc(1, sizeof(pp_server));
-    if (copy) {
-      copy->url = srv->url ? strdup(srv->url) : NULL;
-      copy->token = srv->token ? strdup(srv->token) : NULL;
-      copy->client_id = srv->client_id ? strdup(srv->client_id) : NULL;
-      g_current_server = copy;
-      g_server_owned = 1;
-    }
-  } else {
-    g_current_server = NULL;
-    g_server_owned = 0;
-  }
+  server_free(g_current_server);
+  g_current_server = NULL;
+  if (!srv) return;
+  pp_server *copy = (pp_server *)calloc(1, sizeof(pp_server));
+  if (!copy) return;
+  copy->url = srv->url ? strdup(srv->url) : NULL;
+  copy->token = srv->token ? strdup(srv->token) : NULL;
+  copy->client_id = srv->client_id ? strdup(srv->client_id) : NULL;
+  g_current_server = copy;
 }
 
 void ui_set_auth_token(const char *token) {
   if (token) snprintf(g_auth_token, sizeof(g_auth_token), "%s", token);
+  else memset(g_auth_token, 0, sizeof(g_auth_token));
 }
 const char *ui_get_auth_token(void) { return g_auth_token[0] ? g_auth_token : NULL; }
+
+void ui_sign_out(void) {
+  ui_set_auth_token(NULL);
+  ui_set_server(NULL);
+  while (g_stack_top >= 0) ui_pop();
+  ui_push(screen_link_create());
+}
 
 void ui_push_screen(pp_screen_id id) {
   pp_screen *s = NULL;
@@ -318,28 +316,26 @@ pp_server *ui_current_server(void) {
 
 void ui_quit(void) {
   while (g_stack_top >= 0) ui_pop();
-  /* Flush any remaining deferred pops */
-  for (int i = 0; i < g_pop_count; i++) {
-    pp_screen *s = g_pop_queue[i];
-    if (!s) continue;
-    if (s->cancel) s->cancel(s);
-    if (s->is_busy && s->is_busy(s)) {
-      /* Worker still running at shutdown — leak is acceptable here. */
-      continue;
-    }
-    if (s->destroy) s->destroy(s);
-    free(s);
-  }
-  g_pop_count = 0;
+  ui_finalize_pops();
+  /* Released requests are freed by their workers when they finish; give any
+   * still blocked in the network a moment so nothing is left at exit. */
+  if (worker_wait_idle(3000) != 0)
+    LOGW("ui_quit: %d request(s) still in flight at exit", worker_live_count());
   cache_clear();
-  if (g_server_owned && g_current_server) {
-    pp_servers_free(g_current_server, 1);
-    g_current_server = NULL;
-    g_server_owned = 0;
-  }
+  ui_set_server(NULL);
+  ui_set_auth_token(NULL);
   if (g_font_bold && g_font_bold != g_font) TTF_CloseFont(g_font_bold);
   if (g_font) TTF_CloseFont(g_font);
   g_font = g_font_bold = NULL;
+}
+
+int g_spinner_frame = 0;
+
+void ui_draw_spinner(int x, int y, int frame) {
+  const char spinner[] = "|/-\\";
+  char buf[16];
+  snprintf(buf, sizeof(buf), "Loading %c", spinner[frame % 4]);
+  ui_draw_text(buf, x, y, PP_COLOR_FG);
 }
 
 void ui_render_toast(void) {
@@ -481,7 +477,7 @@ void ui_run(void) {
         }
         break;
       case 4: /* Wait for Detail, log, exit */
-        if (t >= 200) {
+        if (cur && t >= 200) {
           LOGI("walk: Level 4 — Episode");
           if (cur->log_titles) cur->log_titles(cur, 1);
           LOGI("walk: complete — Library → Show → Season → Episode");
@@ -513,7 +509,7 @@ void ui_run(void) {
     if (btn == BTN_MENU) { running = 0; break; }
     if (btn != BTN_NONE && s->handle_button) s->handle_button(s, btn);
 
-    /* Flush deferred pops: cancel workers, free screens whose workers are done. */
+    /* Destroy screens popped this frame. */
     ui_finalize_pops();
   }
 

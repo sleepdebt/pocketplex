@@ -29,9 +29,7 @@ struct pp_screen {
   void (*render)(pp_screen *self);
   void (*handle_button)(pp_screen *self, pp_btn);
   void (*log_titles)(pp_screen *self, int n);  /* optional: log first n titles */
-  void (*cancel)(pp_screen *self);             /* cancel in-flight workers */
-  int (*is_busy)(pp_screen *self);              /* 1 if a worker is still in-flight */
-  void (*destroy)(pp_screen *self);
+  void (*destroy)(pp_screen *self);  /* must release (worker_release) its requests */
   void *data;
 };
 
@@ -61,14 +59,17 @@ void ui_push(pp_screen *s);
 void ui_push_screen(pp_screen_id id);
 void ui_pop(void);
 
-/* Set the current server (from config or discovery). The pointer is stored
- * by reference; the caller retains ownership and lifetime. */
+/* Set the current server (from config or discovery). The server is deep-copied;
+ * the caller keeps ownership of srv. NULL clears it. In-flight requests hold
+ * their own copies, so replacing it never affects a running worker. */
 void ui_set_server(pp_server *srv);
 pp_server *ui_current_server(void);
 
 /* Auth token from PIN flow (used by Servers screen for discovery). */
 void  ui_set_auth_token(const char *token);
-const char *ui_get_auth_token(void);
+const char *ui_get_auth_token(void);   /* NULL if signed out */
+/* Sign out: clear the token and current server, reset the stack to Link. */
+void  ui_sign_out(void);
 
 /* INI path for config save after PIN auth. */
 void  ui_set_ini_path(const char *path);
@@ -120,8 +121,11 @@ void ui_draw_scrollbar(int x, int y, int h, int selected, int total);
 /* Text width in pixels (for truncation/ellipsis). */
 int  text_width_px(const char *str);
 
-pp_server *ui_current_server(void);
 void ui_render_toast(void);
+
+/* Spinner shown while a request is pending; frame advances once per render. */
+void ui_draw_spinner(int x, int y, int frame);
+extern int g_spinner_frame;
 
 /* Screen factory functions — declared here so ui.c can create the root screen. */
 pp_screen *screen_link_create(void);

@@ -34,7 +34,8 @@ static int format_if_fits(char *out, size_t n, const char *fmt, ...) {
  * the request the player will actually make. */
 static int build_transcode_query(const char *path, const char *session_id,
                                  int width, int height, int max_kbps,
-                                 long offset_ms, char *out, size_t n) {
+                                 long offset_ms, int burn_subtitles,
+                                 char *out, size_t n) {
   return format_if_fits(out, n,
       "?path=%s"
       "&mediaIndex=0&partIndex=0"
@@ -44,19 +45,21 @@ static int build_transcode_query(const char *path, const char *session_id,
       "&videoResolution=%dx%d"
       "&X-Plex-Platform=Chrome"
       "&directPlay=0&directStream=0"
-      "&subtitles=burn"
+      "&subtitles=%s"
       "&session=%s",
-      path, offset_ms / 1000, max_kbps, width, height, session_id);
+      path, offset_ms / 1000, max_kbps, width, height,
+      burn_subtitles ? "burn" : "none", session_id);
 }
 
 int pp_build_transcode_url(const pp_server *srv, const char *path,
                            const char *session_id, int width, int height,
-                           int max_kbps, long offset_ms, char *url_out, size_t n) {
+                           int max_kbps, long offset_ms, int burn_subtitles,
+                           char *url_out, size_t n) {
   if (!srv || !srv->url || !path || !session_id || !url_out || !srv->token)
     return PP_ERR_ARG;
   char query[512];
   int rc = build_transcode_query(path, session_id, width, height, max_kbps,
-                                 offset_ms, query, sizeof query);
+                                 offset_ms, burn_subtitles, query, sizeof query);
   if (rc != PP_OK) return rc;
   return format_if_fits(url_out, n,
                         "%s/video/:/transcode/universal/start.m3u8%s&X-Plex-Token=%s",
@@ -65,12 +68,13 @@ int pp_build_transcode_url(const pp_server *srv, const char *path,
 
 int pp_build_decision_url(const pp_server *srv, const char *path,
                           const char *session_id, int width, int height,
-                          int max_kbps, long offset_ms, char *url_out, size_t n) {
+                          int max_kbps, long offset_ms, int burn_subtitles,
+                          char *url_out, size_t n) {
   if (!srv || !srv->url || !path || !session_id || !url_out)
     return PP_ERR_ARG;
   char query[512];
   int rc = build_transcode_query(path, session_id, width, height, max_kbps,
-                                 offset_ms, query, sizeof query);
+                                 offset_ms, burn_subtitles, query, sizeof query);
   if (rc != PP_OK) return rc;
   return format_if_fits(url_out, n, "%s/video/:/transcode/universal/decision%s",
                         srv->url, query);
@@ -97,10 +101,10 @@ int pp_parse_decision(const char *json) {
  * reports with HTTP 200. */
 static int transcode_decision(const pp_server *srv, const char *path,
                               const char *session_id, int width, int height,
-                              int max_kbps, long offset_ms) {
+                              int max_kbps, long offset_ms, int burn_subtitles) {
   char url[1024];
   int rc = pp_build_decision_url(srv, path, session_id, width, height, max_kbps,
-                                 offset_ms, url, sizeof url);
+                                 offset_ms, burn_subtitles, url, sizeof url);
   if (rc != PP_OK) return rc;
   pp_http_response r;
   rc = pp_http_get(url, srv->token, &r);
@@ -110,19 +114,29 @@ static int transcode_decision(const pp_server *srv, const char *path,
   return rc;
 }
 
-int pp_transcode_url(const pp_server *srv, const pp_item *item, const char *session_id,
-                     int width, int height, int max_kbps, long offset_ms,
-                     char *url_out, size_t n) {
+int pp_transcode_url_ex(const pp_server *srv, const pp_item *item,
+                        const char *session_id, int width, int height,
+                        int max_kbps, long offset_ms, int burn_subtitles,
+                        char *url_out, size_t n) {
   if (!srv || !srv->url || !srv->token) return PP_ERR_ARG;
   if (!item || item->rating_key[0] == '\0') return PP_ERR_ARG;
   char path[64];
   snprintf(path, sizeof path, "/library/metadata/%s", item->rating_key);
 
-  int rc = transcode_decision(srv, path, session_id, width, height, max_kbps, offset_ms);
+  int rc = transcode_decision(srv, path, session_id, width, height, max_kbps,
+                              offset_ms, burn_subtitles);
   if (rc != PP_OK) return rc;
 
   return pp_build_transcode_url(srv, path, session_id, width, height, max_kbps,
-                                offset_ms, url_out, n);
+                                offset_ms, burn_subtitles, url_out, n);
+}
+
+int pp_transcode_url(const pp_server *srv, const pp_item *item, const char *session_id,
+                     int width, int height, int max_kbps, long offset_ms,
+                     char *url_out, size_t n) {
+  return pp_transcode_url_ex(srv, item, session_id, width, height, max_kbps,
+                             offset_ms, 1 /* owner Q4: subtitles on by default */,
+                             url_out, n);
 }
 
 int pp_transcode_stop(const pp_server *srv, const char *session_id) {

@@ -14,10 +14,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Install host build deps
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends \
-              build-essential pkg-config libsdl2-dev libsdl2-ttf-dev libcurl4-openssl-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            build-essential pkg-config libsdl2-dev libsdl2-ttf-dev libcurl4-openssl-dev
       - name: Build + test
-        run: make clean && make && make test
+        run: |
+          make clean && make && make test
       - name: Upload desktop binary
         uses: actions/upload-artifact@v4
         with:
@@ -34,21 +37,25 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Build SP PortMaster zip
-        run: make docker-sp
+        run: |
+          make docker-sp
       - name: Upload SP artifact
         uses: actions/upload-artifact@v4
         with:
           name: pocketplex-sp-zip
           path: dist/pocketplex-sp.zip
 
+  # MMP zip is NOT verified on hardware (no MMP device in this workspace;
+  # blocked on core, §9 Q1). The artifact is labelled "untested" accordingly.
   mmp:
     runs-on: ubuntu-22.04
     steps:
       - uses: actions/checkout@v4
-      - name: Build MMP Onion zip
-        run: make docker-mmp
-      - name: Upload MMP artifact
+      - name: Build MMP Onion zip (UNTESTED on device)
+        run: |
+          make docker-mmp
+      - name: Upload MMP artifact (untested)
         uses: actions/upload-artifact@v4
         with:
-          name: pocketplex-mmp-zip
+          name: pocketplex-mmp-zip-untested
           path: dist/pocketplex-mmp.zip

@@ -1,0 +1,412 @@
+{
+ "MediaContainer": {
+  "size": 1,
+  "allowSync": "1",
+  "directPlayDecisionCode": 3000,
+  "directPlayDecisionText": "App cannot direct play this item. Direct play is disabled.",
+  "generalDecisionCode": 1001,
+  "generalDecisionText": "Direct play not available; Conversion OK.",
+  "identifier": "com.plexapp.plugins.library",
+  "librarySectionID": "2",
+  "librarySectionTitle": "TV Shows",
+  "librarySectionUUID": "f732a3ec-ef75-4fba-8e24-66196159c94b",
+  "mediaTagPrefix": "/system/bundle/media/flags/",
+  "mediaTagVersion": "1788052632",
+  "resourceSession": "",
+  "transcodeDecisionCode": 1001,
+  "transcodeDecisionText": "Direct play not available; Conversion OK.",
+  "Metadata": [
+   {
+    "addedAt": 1769831600,
+    "art": "/library/metadata/53833/art/1769831425",
+    "audienceRating": 7.3,
+    "audienceRatingImage": "themoviedb://image.rating",
+    "chapterSource": "media",
+    "contentRating": "TV-MA",
+    "duration": 2867871,
+    "grandparentArt": "/library/metadata/53782/art/1790926366",
+    "grandparentGuid": "plex://show/5d9c0869e98e47001eb0ee17",
+    "grandparentKey": "/library/metadata/53782",
+    "grandparentRatingKey": "53782",
+    "grandparentSlug": "the-americans-2013",
+    "grandparentTheme": "/library/metadata/53782/theme/1790926366",
+    "grandparentThumb": "/library/metadata/53782/thumb/1790926366",
+    "grandparentTitle": "The Americans (2013)",
+    "guid": "plex://episode/5d9c122d0aaccd001f913b48",
+    "index": 2,
+    "key": "/library/metadata/53835",
+    "lastViewedAt": 1791153334,
+    "librarySectionID": "2",
+    "librarySectionKey": "/library/sections/2",
+    "librarySectionTitle": "TV Shows",
+    "originallyAvailableAt": "2013-02-06",
+    "parentGuid": "plex://season/602e674e66dfdb002c0a0499",
+    "parentIndex": 1,
+    "parentKey": "/library/metadata/53833",
+    "parentRatingKey": "53833",
+    "parentThumb": "/library/metadata/53833/thumb/1769831425",
+    "parentTitle": "Season 1",
+    "ratingKey": "53835",
+    "summary": "When Philip and Elizabeth are given an urgent task to plant a bug in Defense Secretary Caspar Weinberger's office, they risk exposure when an unwilling maid of the Weinberger home refuses to cooperate. Stan closes in on a member of the Soviet Rezidentura in an effort to uncover the identities of deep cover Directorate S operatives.",
+    "thumb": "/library/metadata/53835/thumb/1769846948",
+    "title": "The Clock",
+    "titleSort": "Clock",
+    "type": "episode",
+    "updatedAt": 1769846948,
+    "viewCount": 3,
+    "viewOffset": 113950,
+    "year": 2013,
+    "Media": [
+     {
+      "hasVoiceActivity": "0",
+      "id": "49162",
+      "videoProfile": "main 10",
+      "audioChannels": 2,
+      "audioCodec": "aac",
+      "bitrate": 1377,
+      "container": "mpegts",
+      "duration": 2867871,
+      "height": 360,
+      "protocol": "hls",
+      "videoCodec": "h264",
+      "videoFrameRate": "24p",
+      "videoResolution": "SD",
+      "width": 640,
+      "selected": true,
+      "Part": [
+       {
+        "deepAnalysisVersion": "6",
+        "id": "83733",
+        "requiredBandwidths": "39166,36884,32100,24206,16889,16889,16889,16889",
+        "videoProfile": "main 10",
+        "bitrate": 1377,
+        "container": "mpegts",
+        "duration": 2867871,
+        "height": 360,
+        "protocol": "hls",
+        "width": 640,
+        "decision": "transcode",
+        "selected": true,
+        "Stream": [
+         {
+          "bitDepth": 8,
+          "bitrate": 1224,
+          "codec": "h264",
+          "default": true,
+          "displayTitle": "1080p",
+          "extendedDisplayTitle": "Encoded by DrainedDay for TAoE using Shinguru V2.8 (1080p HEVC Main 10)",
+          "frameRate": 23.97599983215332,
+          "height": 360,
+          "id": "116263",
+          "language": "English",
+          "languageCode": "eng",
+          "languageTag": "en",
+          "requiredBandwidths": "38526,36244,31461,23566,16113,16113,16113,16113",
+          "streamType": 1,
+          "width": 640,
+          "decision": "transcode",
+          "location": "segments-av"
+         },
+         {
+          "bitrate": 153,
+          "bitrateMode": "cbr",
+          "channels": 2,
+          "codec": "aac",
+          "default": true,
+          "displayTitle": "English (AC3 5.1)",
+          "extendedDisplayTitle": " (English AC3 5.1)",
+          "id": "116264",
+          "language": "English",
+          "languageCode": "eng",
+          "languageTag": "en",
+          "requiredBandwidths": "640,640,640,640,640,640,640,640",
+          "selected": true,
+          "streamType": 2,
+          "decision": "transcode",
+          "location": "segments-av"
+         }
+        ]
+       }
+      ]
+     }
+    ],
+    "UltraBlurColors": [
+     {
+      "bottomLeft": "633113",
+      "bottomRight": "512303",
+      "topLeft": "472210",
+      "topRight": "44191a"
+     }
+    ],
+    "Rating": [
+     {
+      "image": "imdb://image.rating",
+      "type": "audience",
+      "value": "8.0"
+     },
+     {
+      "image": "themoviedb://image.rating",
+      "type": "audience",
+      "value": "7.3"
+     }
+    ],
+    "Director": [
+     {
+      "filter": "director=137341",
+      "id": "137341",
+      "tag": "Adam Arkin",
+      "tagKey": "5d77683261141d001fb14e5b",
+      "thumb": "https://metadata-static.plex.tv/a/people/a5e524746d80cc54d2dd67fa40f25306.jpg"
+     }
+    ],
+    "Writer": [
+     {
+      "filter": "writer=137021",
+      "id": "137021",
+      "tag": "Joe Weisberg",
+      "tagKey": "5e16362f316a39003ef7fd2e",
+      "thumb": "https://metadata-static.plex.tv/c/people/c485d87ddb0f44018271bfea52a53328.jpg"
+     }
+    ],
+    "Role": [
+     {
+      "filter": "actor=136844",
+      "id": "136844",
+      "role": "Elizabeth Jennings",
+      "tag": "Keri Russell",
+      "tagKey": "5d7768296f4521001ea99777",
+      "thumb": "https://metadata-static.plex.tv/8/people/827b5c14490c8e7e1af67710543b3c7a.jpg"
+     },
+     {
+      "filter": "actor=136845",
+      "id": "136845",
+      "role": "Phillip Jennings",
+      "tag": "Matthew Rhys",
+      "tagKey": "5d776838f54112001f5bdcdb",
+      "thumb": "https://metadata-static.plex.tv/d/people/d9089a67b4ad883fbed892e27aeddc51.jpg"
+     },
+     {
+      "filter": "actor=136846",
+      "id": "136846",
+      "role": "Paige Jennings",
+      "tag": "Holly Taylor",
+      "tagKey": "5d776a44594b2b001e6b7cc8",
+      "thumb": "https://metadata-static.plex.tv/people/5d776a44594b2b001e6b7cc8.jpg"
+     },
+     {
+      "filter": "actor=136847",
+      "id": "136847",
+      "role": "Henry Jennings",
+      "tag": "Keidrich Sellati",
+      "tagKey": "5d776ad151dd69001fe28b6e",
+      "thumb": "https://metadata-static.plex.tv/e/people/e872f36b2aa82df6d9c9c27230217816.jpg"
+     },
+     {
+      "filter": "actor=136852",
+      "id": "136852",
+      "role": "Sandra Beeman",
+      "tag": "Susan Misner",
+      "tagKey": "5d77682aeb5d26001f1de2c1",
+      "thumb": "https://metadata-static.plex.tv/1/people/1527a4efd480afbb91a4f8640d616b0e.jpg"
+     },
+     {
+      "filter": "actor=136848",
+      "id": "136848",
+      "role": "Stan Beeman",
+      "tag": "Noah Emmerich",
+      "tagKey": "5d77682a54c0f0001f302284",
+      "thumb": "https://metadata-static.plex.tv/5/people/5d1ea8704313f093bf43898f190e027e.jpg"
+     },
+     {
+      "filter": "actor=136849",
+      "id": "136849",
+      "role": "Arkady Ivanovich Zotov",
+      "tag": "Lev Gorn",
+      "tagKey": "5d77683a4de0ee001fccc8f3",
+      "thumb": "https://metadata-static.plex.tv/b/people/b26d5855b1340b217e3f0f5fde3a9e59.jpg"
+     },
+     {
+      "filter": "actor=136851",
+      "id": "136851",
+      "role": "Nina Krilova",
+      "tag": "Annet Mahendru",
+      "tagKey": "5d77690b51dd69001fe141fc",
+      "thumb": "https://metadata-static.plex.tv/f/people/f7e331a7707bdfb614b7c66e99992243.jpg"
+     },
+     {
+      "filter": "actor=8634",
+      "id": "8634",
+      "role": "Frank Gaad",
+      "tag": "Richard Thomas",
+      "tagKey": "5d77682a151a60001f24b60d",
+      "thumb": "https://metadata-static.plex.tv/7/people/7dcfb125561b73ce0cb49af35c818b0e.jpg"
+     },
+     {
+      "filter": "actor=136931",
+      "id": "136931",
+      "role": "Viola Johnson",
+      "tag": "Tonye Patano",
+      "tagKey": "5d776831151a60001f24d056",
+      "thumb": "https://metadata-static.plex.tv/b/people/b2d37aa9fee9e479d08dc9dfa48b92db.jpg"
+     },
+     {
+      "filter": "actor=136903",
+      "id": "136903",
+      "role": "Celia Gerard / Annelise",
+      "tag": "Gillian Alexy",
+      "tagKey": "5d776d33ad5437001f7cfd9f",
+      "thumb": "https://metadata-static.plex.tv/8/people/8d3ce08b3103c935341594b98a5aee07.jpg"
+     },
+     {
+      "filter": "actor=136933",
+      "id": "136933",
+      "role": "Mrs. Weinberger",
+      "tag": "Meg Gibson",
+      "tagKey": "5d7768333c3c2a001fbcd9bf",
+      "thumb": "https://metadata-static.plex.tv/people/5d7768333c3c2a001fbcd9bf.jpg"
+     },
+     {
+      "filter": "actor=136981",
+      "id": "136981",
+      "role": "Clark",
+      "tag": "James Andrew O'Connor",
+      "tagKey": "5d776867fb0d55001f50f851",
+      "thumb": "https://metadata-static.plex.tv/people/5d776867fb0d55001f50f851.jpg"
+     },
+     {
+      "filter": "actor=136874",
+      "id": "136874",
+      "role": "Vasili Nikolaevich",
+      "tag": "Peter Von Berg",
+      "tagKey": "5d776832880197001ec92ad4",
+      "thumb": "https://metadata-static.plex.tv/3/people/30c3d0cdab0fd1b66db8a3902406019a.jpg"
+     },
+     {
+      "filter": "actor=137342",
+      "id": "137342",
+      "role": "Grayson",
+      "tag": "Grantham Coleman",
+      "tagKey": "5e164293316a39003ef8c565",
+      "thumb": "https://metadata-static.plex.tv/1/people/1cfbd8933994665954452e379d787768.jpg"
+     },
+     {
+      "filter": "actor=137343",
+      "id": "137343",
+      "role": "Barb",
+      "tag": "Marisa Redanty",
+      "tagKey": "5d7769e551dd69001fe1d46f",
+      "thumb": "https://metadata-static.plex.tv/e/people/eebc0d108f8a2d40eef8fcc89ab6d39e.jpg"
+     },
+     {
+      "filter": "actor=137344",
+      "id": "137344",
+      "role": "Albert",
+      "tag": "David S. Lomax",
+      "tagKey": "5d7768a21999bc0020dcbdef",
+      "thumb": "https://metadata-static.plex.tv/b/people/b6e270f9edf7080a13860aede3aa210c.jpg"
+     },
+     {
+      "filter": "actor=137345",
+      "id": "137345",
+      "role": "Deputy Undersecretary of Defense",
+      "tag": "Mark Zeisler",
+      "tagKey": "5d77682c151a60001f24be85",
+      "thumb": "https://metadata-static.plex.tv/0/people/051cbc22d647beb10cd202eec6a44b83.jpg"
+     },
+     {
+      "filter": "actor=137346",
+      "id": "137346",
+      "role": "Man in Group",
+      "tag": "Henry Stram",
+      "tagKey": "5d776827103a2d001f564651",
+      "thumb": "https://metadata-static.plex.tv/f/people/fd2d17d5ab4bc540ab82cf6e8f2c216e.jpg"
+     },
+     {
+      "filter": "actor=137347",
+      "id": "137347",
+      "role": "Security Officer",
+      "tag": "Michael Kennealy",
+      "tagKey": "5d776a3d7a53e9001e6feb9f",
+      "thumb": "https://metadata-static.plex.tv/e/people/e2dba2d1fe5dd1e17511d7db8d0e7b11.jpg"
+     },
+     {
+      "filter": "actor=137348",
+      "id": "137348",
+      "role": "Miss Radensky",
+      "tag": "Alice Spivak",
+      "tagKey": "5d776836eb5d26001f1e0f8f",
+      "thumb": "https://metadata-static.plex.tv/a/people/a57b68cc42bc37c0cd059c4a5ec0da31.jpg"
+     },
+     {
+      "filter": "actor=137349",
+      "id": "137349",
+      "role": "Babysitter Carla",
+      "tag": "Maggie Hood",
+      "tagKey": "5f40276602101b0040f519df",
+      "thumb": "https://metadata-static.plex.tv/b/people/bcd044a0317f7b6138de87944236af91.jpg"
+     },
+     {
+      "filter": "actor=136893",
+      "id": "136893",
+      "role": "Vlad",
+      "tag": "Vitaly Benko",
+      "tagKey": "5e16375f1493cd003f0ddf2d",
+      "thumb": "https://metadata-static.plex.tv/2/people/2d5c978e2320731caaf6825faecaed7f.jpg"
+     },
+     {
+      "filter": "actor=136878",
+      "id": "136878",
+      "role": "Chris Amador",
+      "tag": "Maximiliano Hernández",
+      "tagKey": "5d776835961905001eb93e83",
+      "thumb": "https://metadata-static.plex.tv/5/people/579278c6c8516c6de2f698fb44ae8f94.jpg"
+     },
+     {
+      "filter": "actor=90181",
+      "id": "90181",
+      "role": "Stavos",
+      "tag": "Anthony Arkin",
+      "tagKey": "5d776885ebdf2200209c1481",
+      "thumb": "https://metadata-static.plex.tv/9/people/9a749d2e68f7ad810a7bc4a470f9f369.jpg"
+     },
+     {
+      "filter": "actor=136971",
+      "id": "136971",
+      "role": "FBI Guy #1",
+      "tag": "Gregory Abbey",
+      "tagKey": "5d776a6596b655001fdedb48",
+      "thumb": "https://metadata-static.plex.tv/6/people/66520e18831e6405ac1601c6d7bec3cf.jpg"
+     },
+     {
+      "filter": "actor=137350",
+      "id": "137350",
+      "role": "Second Man in Group",
+      "tag": "Steve Belanger",
+      "tagKey": "5f3ff0c35a76a80042d0f724"
+     }
+    ],
+    "Producer": [
+     {
+      "filter": "producer=137337",
+      "id": "137337",
+      "tag": "Adam Arkin",
+      "tagKey": "5d77683261141d001fb14e5b",
+      "thumb": "https://metadata-static.plex.tv/a/people/a5e524746d80cc54d2dd67fa40f25306.jpg"
+     },
+     {
+      "filter": "producer=137035",
+      "id": "137035",
+      "tag": "Mitch Engel",
+      "tagKey": "5d7768397e9a3c0020c6d8ff"
+     },
+     {
+      "filter": "producer=137027",
+      "id": "137027",
+      "tag": "Mary Rae Thewlis",
+      "tagKey": "5f3fb74402101b0040eb4036"
+     }
+    ]
+   }
+  ]
+ }
+}

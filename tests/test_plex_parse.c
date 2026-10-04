@@ -206,7 +206,7 @@ static void test_build_transcode_url_offset_zero(void) {
   pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
   char url[1024];
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "sess-1",
-                               640, 480, 1500, 0, url, sizeof url) == 0);
+                               640, 480, 1500, 0, 1, url, sizeof url) == 0);
   CHECK_STR(url,
     "http://192.0.2.10:32400/video/:/transcode/universal/start.m3u8"
     "?path=/library/metadata/53834"
@@ -222,11 +222,21 @@ static void test_build_transcode_url_offset_zero(void) {
     "&X-Plex-Token=tok123");
 }
 
+static void test_build_transcode_url_subtitles_off(void) {
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  char url[1024];
+  CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "sess-2",
+                               640, 480, 1500, 0, 0, url, sizeof url) == 0);
+  CHECK(strstr(url, "&subtitles=none&") != NULL);
+  CHECK(strstr(url, "subtitles=burn") == NULL);
+  CHECK(strstr(url, "&session=sess-2&X-Plex-Token=tok123") != NULL);
+}
+
 static void test_build_transcode_url_offset_seconds(void) {
   pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
   char url[1024];
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "s2",
-                               640, 360, 750, 90500, url, sizeof url) == 0);
+                               640, 360, 750, 90500, 1, url, sizeof url) == 0);
   CHECK(strstr(url, "offset=90") != NULL);   /* 90500 ms -> 90 s */
   CHECK(strstr(url, "videoResolution=640x360") != NULL);
   CHECK(strstr(url, "maxVideoBitrate=750") != NULL);
@@ -234,10 +244,10 @@ static void test_build_transcode_url_offset_seconds(void) {
 
 static void test_build_transcode_url_errors(void) {
   pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
-  char small[32];
-  CHECK(pp_build_transcode_url(&srv, "/library/metadata/1", "s", 640, 480, 1500, 0,
+  char small[32] = "";
+  CHECK(pp_build_transcode_url(&srv, "/library/metadata/1", "s", 640, 480, 1500, 0, 1,
                                small, sizeof small) == PP_ERR_ARG);
-  CHECK(pp_build_transcode_url(NULL, "/library/metadata/1", "s", 640, 480, 1500, 0,
+  CHECK(pp_build_transcode_url(NULL, "/library/metadata/1", "s", 640, 480, 1500, 0, 1,
                                small, sizeof small) == PP_ERR_ARG);
 }
 
@@ -246,6 +256,14 @@ static void test_build_transcode_url_errors(void) {
 static void test_parse_decision_ok(void) {
   char *j = read_fixture("decision.json");
   /* directPlay disabled but conversion allowed: codes 1001/1001 */
+  CHECK(pp_parse_decision(j) == PP_OK);
+  free_fixture(j);
+}
+
+static void test_parse_decision_subtitles_none_fixture(void) {
+  /* real PMS 1.43.3 decision response for subtitles=none on 53835 (HEVC
+   * source with 4 embedded PGS subtitle streams): accepted, codes 1001 */
+  char *j = read_fixture("decision_subtitles_none.json");
   CHECK(pp_parse_decision(j) == PP_OK);
   free_fixture(j);
 }
@@ -267,7 +285,7 @@ static void test_build_decision_url_matches_start_params(void) {
   pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
   char dec[1024], start[1024];
   CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "sess-9",
-                              640, 480, 1500, 0, dec, sizeof dec) == 0);
+                              640, 480, 1500, 0, 1, dec, sizeof dec) == 0);
   CHECK(strstr(dec, "/video/:/transcode/universal/decision?") != NULL);
   CHECK(strstr(dec, "subtitles=burn") != NULL);
   CHECK(strstr(dec, "session=sess-9") != NULL);
@@ -277,12 +295,17 @@ static void test_build_decision_url_matches_start_params(void) {
   CHECK(strstr(dec, "path=/library/metadata/53834") != NULL);
   CHECK(strstr(dec, "X-Plex-Token=") == NULL); /* token goes in a header */
   char small[16] = "";
-  CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "s", 640, 480, 1500, 0,
+  CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "s", 640, 480, 1500, 0, 1,
                               small, sizeof small) == PP_ERR_ARG);
   CHECK(small[0] == '\0'); /* caller buffer untouched on error */
+  /* subtitles flag reaches the decision URL too */
+  CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "sess-9",
+                              640, 480, 1500, 0, 0, dec, sizeof dec) == 0);
+  CHECK(strstr(dec, "subtitles=none") != NULL);
+  CHECK(strstr(dec, "subtitles=burn") == NULL);
   /* start URL carries the same params plus the token */
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "sess-9",
-                               640, 480, 1500, 0, start, sizeof start) == 0);
+                               640, 480, 1500, 0, 1, start, sizeof start) == 0);
   const char *dec_q = strchr(dec, '?'), *start_q = strchr(start, '?');
   CHECK(dec_q && start_q);
   size_t dec_len = strcspn(dec_q + 1, "&"); /* params up to session differ only by token */
@@ -305,9 +328,11 @@ int main(void) {
   RUN(test_parse_items_bad);
   RUN(test_list_free_null_safe);
   RUN(test_build_transcode_url_offset_zero);
+  RUN(test_build_transcode_url_subtitles_off);
   RUN(test_build_transcode_url_offset_seconds);
   RUN(test_build_transcode_url_errors);
   RUN(test_parse_decision_ok);
+  RUN(test_parse_decision_subtitles_none_fixture);
   RUN(test_parse_decision_refused);
   RUN(test_parse_decision_bad);
   RUN(test_build_decision_url_matches_start_params);

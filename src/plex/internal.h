@@ -38,13 +38,17 @@ int pp_fetch_item(const pp_server *srv, const char *rating_key, pp_item *out);
  * the pre-flight check matches the real request). path is the item key,
  * e.g. "/library/metadata/1234". offset_ms is passed to PMS as whole seconds
  * (PMS returns a full-length VOD playlist; callers normally pass 0 and give
- * the resume point to the player instead). */
+ * the resume point to the player instead). burn_subtitles 1 = subtitles=burn
+ * (verified), 0 = subtitles=none (PlexKodiConnect's documented no-burn value,
+ * accepted by PMS 1.43.3: see tests/fixtures/decision_subtitles_none.json). */
 int pp_build_transcode_url(const pp_server *srv, const char *path,
                            const char *session_id, int width, int height,
-                           int max_kbps, long offset_ms, char *url_out, size_t n);
+                           int max_kbps, long offset_ms, int burn_subtitles,
+                           char *url_out, size_t n);
 int pp_build_decision_url(const pp_server *srv, const char *path,
                           const char *session_id, int width, int height,
-                          int max_kbps, long offset_ms, char *url_out, size_t n);
+                          int max_kbps, long offset_ms, int burn_subtitles,
+                          char *url_out, size_t n);
 
 /* Decision response: PP_OK when the server will transcode; PP_ERR_HTTP when
  * it refused (generalDecisionCode or transcodeDecisionCode >= 2000);

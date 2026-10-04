@@ -12,3 +12,11 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] CI: actions/checkout@v4 and actions/upload-artifact@v4 run on deprecated Node 20 (forced to Node 24). Bump when newer majors are available.
 - [ ] MMP zip is untested: blocked on core (Onion glibc / libcurl availability; plan a static curl+mbedTLS sysroot).
 - [ ] `tools/pp-cli.c:116`: -Wformat-truncation warning in the cross builds.
+
+## core (peer review of a feature branch, 2026-10-04)
+- [ ] `src/ui/ui.c:181-184`: ui_push at the 16-screen cap leaks the screen object. Destroy and free it instead.
+- [ ] `src/main.c:112` + `src/ui/ui.c:322`: skip pp_cleanup() when worker_live_count() > 0 after worker_wait_idle times out (exit-path race with curl teardown).
+- [ ] `src/platform/sdl2.c:134-136`: plat_suspend_hook never fires on_resume. Hook SDL foreground/resume events during SP bring-up.
+- [ ] `src/ui/screen_detail.c:96-98`: A on Detail is a toast stub. Wire up player_start + pp_transcode_url (offset 0 + start_ms) with a resume / play-from-start choice.
+- [ ] `src/ui/fake_provider.c:17-19`: unchecked strdup (smoke/test path).
+- [ ] `.clangd` at the repo root: decide and add on main if wanted.

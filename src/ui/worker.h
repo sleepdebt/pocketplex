@@ -1,12 +1,21 @@
 /* ui/worker.h: async worker thread for provider calls.
  * Routes fake_provider/plex calls off the main thread so the UI never
- * blocks >50 ms. While a request is pending, draw ui_draw_spinner().
+ * blocks >50 ms. No SDL here (CORE module), so it is unit-testable under ASan.
+ *
+ * Ownership: a request is a heap object with two references, one held by the
+ * caller and one by the worker thread. The caller never frees it directly; it
+ * calls worker_release(). Whoever drops the last reference frees the request
+ * and any results that were not taken. So a screen can be destroyed at any
+ * time, even with its worker still blocked inside curl: the worker keeps
+ * writing into memory it still owns and frees it when it finishes.
+ *
+ * Inputs (server, key, token) are deep-copied at submit, so the worker never
+ * reads UI state (e.g. the current server) that the UI may free or replace.
  */
 #ifndef PP_WORKER_H
 #define PP_WORKER_H
 
-#include "ui.h"
-#include <SDL.h>
+#include "plex/plex.h"
 
 typedef enum {
   REQ_NONE,
@@ -18,42 +27,38 @@ typedef enum {
   REQ_PIN_POLL,
 } pp_req_type;
 
-/* Request context: the UI submits one of these, then polls for done. */
-typedef struct {
-  pp_req_type type;
-  const char *key;          /* for REQ_CHILDREN */
-  const pp_server *srv;     /* server for real plex.h calls (NULL for smoke) */
-  const char *token;        /* for REQ_SERVERS (pp_discover_servers) */
-  int use_fake;             /* 1 = use fake_provider (smoke/tests only) */
-  pp_list  result;          /* filled by worker on completion */
-  pp_server *servers;       /* filled by REQ_SERVERS */
-  int      server_count;
-  char     pin[8];          /* filled by REQ_PIN_START (PLEX_PIN_SIZE) */
-  long     pin_id;          /* filled by REQ_PIN_START */
-  char     auth_token[256]; /* filled by REQ_PIN_POLL on success */
-  int      done;            /* 1 when the worker has finished (atomic store) */
-  int      cancelled;       /* set by main thread to stop worker writes */
-  int      status;          /* 0 = ok, <0 = pp_err code, 1 = PIN pending */
-  char     error[128];      /* human-readable error for toast */
-} pp_request;
+typedef struct pp_request pp_request;
 
-/* Submit a request to the worker. Returns 0 if accepted (only one
- * in-flight at a time; the previous request must be collected first). */
-int  worker_submit(pp_request *req);
+/* Start a request on a new detached thread. srv/key/token may be NULL and are
+ * copied. pin_id is the input for REQ_PIN_POLL. use_fake = 1 dispatches to
+ * fake_provider (smoke/tests). Returns NULL only if out of memory; a thread
+ * creation failure returns a request that is already done with PP_ERR_NOMEM. */
+pp_request *worker_start(pp_req_type type, const pp_server *srv, const char *key,
+                         const char *token, long pin_id, int use_fake);
 
-/* Returns 1 if the request's worker has finished (req->done == 1).
- * Uses SDL atomic read for thread safety on aarch64. */
+/* 1 once the worker has finished writing (acquire). NULL counts as done. The
+ * accessors below may only be called once this returns 1. */
 int  worker_is_done(const pp_request *req);
 
-/* Mark a request as cancelled. The worker will stop writing to it
- * but may still be running. Call before freeing a request whose worker
- * might still be in-flight. */
-void worker_cancel(pp_request *req);
+int         worker_status(const pp_request *req);   /* PP_OK, <0 pp_err, 1 = PIN pending; NULL -> PP_ERR_NOMEM */
+const char *worker_error(const pp_request *req);    /* "" if none */
+const char *worker_pin(const pp_request *req);      /* REQ_PIN_START */
+long        worker_pin_id(const pp_request *req);   /* REQ_PIN_START */
+const char *worker_auth_token(const pp_request *req); /* REQ_PIN_POLL on success */
 
-/* Draw a simple spinner at (x,y). Call while a request is pending. */
-void ui_draw_spinner(int x, int y, int frame);
+/* Move the result out of the request; the caller then owns it (pp_list_free /
+ * pp_servers_free). Afterwards the request holds nothing. */
+void worker_take_list(pp_request *req, pp_list *out);
+void worker_take_servers(pp_request *req, pp_server **out, int *count);
 
-/* Current spinner animation frame (incremented each render). */
-extern int g_spinner_frame;
+/* Drop the caller's reference. Safe on NULL, and safe while the worker is
+ * still running (it is told to skip remaining work and frees on exit). The
+ * caller must not touch req afterwards. */
+void worker_release(pp_request *req);
+
+/* Number of live requests (allocated, not yet freed). */
+int  worker_live_count(void);
+/* Wait up to timeout_ms for every request to be freed. 0 = idle, -1 = timeout. */
+int  worker_wait_idle(int timeout_ms);
 
 #endif /* PP_WORKER_H */

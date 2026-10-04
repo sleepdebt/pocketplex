@@ -44,6 +44,10 @@ static void settings_render(pp_screen *self) {
                PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
 }
 
+static int settings_save(settings_data_t *d) {
+  return pp_config_save(&d->cfg, ui_ini_path()) == 0;
+}
+
 static void settings_handle(pp_screen *self, pp_btn btn) {
   settings_data_t *d = (settings_data_t *)self->data;
   int count = 3;
@@ -54,19 +58,17 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
     if (d->sel == 0) {
       int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
       snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", is_480 ? "360p" : "480p");
-      pp_config_save(&d->cfg, ui_ini_path());
-      ui_toast(d->cfg.quality);
+      ui_toast(settings_save(d) ? d->cfg.quality : "Failed to save settings");
     } else if (d->sel == 1) {
       int burn = (strcmp(d->cfg.subtitles, "burn") == 0);
       snprintf(d->cfg.subtitles, sizeof(d->cfg.subtitles), "%s", burn ? "off" : "burn");
-      pp_config_save(&d->cfg, ui_ini_path());
-      ui_toast(d->cfg.subtitles[0] == 'b' ? "Subtitles on" : "Subtitles off");
+      if (!settings_save(d)) ui_toast("Failed to save settings");
+      else ui_toast(d->cfg.subtitles[0] == 'b' ? "Subtitles on" : "Subtitles off");
     } else if (d->sel == 2) {
-      d->cfg.token[0] = '\0';
-      pp_config_save(&d->cfg, ui_ini_path());
-      ui_set_auth_token(NULL);
-      ui_toast("Signed out");
-      ui_pop();
+      memset(d->cfg.token, 0, sizeof(d->cfg.token));
+      int saved = settings_save(d);
+      ui_sign_out();  /* clears the session and resets the stack to Link */
+      ui_toast(saved ? "Signed out" : "Signed out (failed to save)");
     }
     break;
   case BTN_B:
@@ -81,12 +83,9 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
 }
 
 static void settings_destroy(pp_screen *self) {
-  free(self->data);
-}
-
-static int settings_is_busy(pp_screen *self) {
-  (void)self;
-  return 0;
+  settings_data_t *d = (settings_data_t *)self->data;
+  if (d) memset(&d->cfg, 0, sizeof(d->cfg));  /* holds the token */
+  free(d);
 }
 
 pp_screen *screen_settings_create(void) {
@@ -101,7 +100,6 @@ pp_screen *screen_settings_create(void) {
   s->data = d;
   s->render = settings_render;
   s->handle_button = settings_handle;
-  s->is_busy = settings_is_busy;
   s->destroy = settings_destroy;
   return s;
 }

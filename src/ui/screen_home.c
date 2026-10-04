@@ -12,13 +12,24 @@
 typedef struct {
   pp_list on_deck;     /* continue-watching items */
   pp_list sections;    /* library roots */
-  pp_request req_ondeck;
-  pp_request req_sections;
+  pp_request *req_ondeck;   /* owned references; NULL once collected */
+  pp_request *req_sections;
   int ondeck_loaded;   /* 1 after on_deck request completed + processed */
   int sections_loaded; /* 1 after sections request completed + processed */
+  int auth_failed;     /* relink already triggered */
   int sel;             /* 0..on_deck.count: -1 means in sections area */
   int in_sections;     /* 0 = on-deck row, 1 = sections row */
 } home_data_t;
+
+/* Take a finished request's list (or toast its error) and drop the request. */
+static void home_collect(home_data_t *d, pp_request **req, pp_list *out) {
+  int st = worker_status(*req);
+  if (st == PP_OK) worker_take_list(*req, out);
+  else if (st == PP_ERR_AUTH) { if (!d->auth_failed) d->auth_failed = 1; }
+  else if (worker_error(*req)[0]) ui_toast(worker_error(*req));
+  worker_release(*req);
+  *req = NULL;
+}
 
 static void home_render(pp_screen *self) {
   home_data_t *d = (home_data_t *)self->data;
@@ -29,27 +40,20 @@ static void home_render(pp_screen *self) {
   ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   /* Process completed requests */
-  if (!d->ondeck_loaded && worker_is_done(&d->req_ondeck)) {
-    if (d->req_ondeck.status == PP_OK) d->on_deck = d->req_ondeck.result;
-    else {
-      if (d->req_ondeck.status == PP_ERR_AUTH) {
-        ui_toast("Auth expired — relink");
-        ui_pop();
-        ui_push(screen_link_create());
-      } else if (d->req_ondeck.error[0]) ui_toast(d->req_ondeck.error);
-    }
+  if (!d->ondeck_loaded && worker_is_done(d->req_ondeck)) {
+    home_collect(d, &d->req_ondeck, &d->on_deck);
     d->ondeck_loaded = 1;
   }
-  if (!d->sections_loaded && worker_is_done(&d->req_sections)) {
-    if (d->req_sections.status == PP_OK) d->sections = d->req_sections.result;
-    else {
-      if (d->req_sections.status == PP_ERR_AUTH) {
-        ui_toast("Auth expired — relink");
-        ui_pop();
-        ui_push(screen_link_create());
-      } else if (d->req_sections.error[0]) ui_toast(d->req_sections.error);
-    }
+  if (!d->sections_loaded && worker_is_done(d->req_sections)) {
+    home_collect(d, &d->req_sections, &d->sections);
     d->sections_loaded = 1;
+  }
+  if (d->auth_failed == 1) {
+    d->auth_failed = 2;
+    ui_toast("Auth expired — relink");
+    ui_pop();
+    ui_push(screen_link_create());
+    return;
   }
 
   /* Still loading? */
@@ -153,22 +157,11 @@ static void home_handle(pp_screen *self, pp_btn btn) {
   }
 }
 
-static void home_cancel(pp_screen *self) {
-  home_data_t *d = (home_data_t *)self->data;
-  if (d) {
-    if (d->req_ondeck.type != REQ_NONE) worker_cancel(&d->req_ondeck);
-    if (d->req_sections.type != REQ_NONE) worker_cancel(&d->req_sections);
-  }
-}
-
-static int home_is_busy(pp_screen *self) {
-  home_data_t *d = (home_data_t *)self->data;
-  return d && (!d->ondeck_loaded || !d->sections_loaded);
-}
-
 static void home_destroy(pp_screen *self) {
   home_data_t *d = (home_data_t *)self->data;
   if (d) {
+    worker_release(d->req_ondeck);   /* running workers free them on exit */
+    worker_release(d->req_sections);
     pp_list_free(&d->on_deck);
     pp_list_free(&d->sections);
     free(d);
@@ -192,23 +185,15 @@ pp_screen *screen_home_create(void) {
   if (!d) { free(s); return NULL; }
   d->sel = 0;
   d->in_sections = 0;
-  /* Start async loads BEFORE setting type/done */
-  d->req_ondeck.type = REQ_ON_DECK;
-  d->req_ondeck.srv = ui_current_server();
-  d->req_ondeck.done = 0;
-  d->req_sections.type = REQ_SECTIONS;
-  d->req_sections.srv = ui_current_server();
-  d->req_sections.done = 0;
   s->id = SCREEN_HOME;
   s->data = d;
   s->loading = 1;
-   s->render = home_render;
-   s->handle_button = home_handle;
-   s->cancel = home_cancel;
-   s->is_busy = home_is_busy;
-   s->destroy = home_destroy;
+  s->render = home_render;
+  s->handle_button = home_handle;
+  s->destroy = home_destroy;
   s->log_titles = home_log_titles;
-  worker_submit(&d->req_ondeck);
-  worker_submit(&d->req_sections);
+  int fake = ui_is_smoke_scroll();
+  d->req_ondeck = worker_start(REQ_ON_DECK, ui_current_server(), NULL, NULL, 0, fake);
+  d->req_sections = worker_start(REQ_SECTIONS, ui_current_server(), NULL, NULL, 0, fake);
   return s;
 }

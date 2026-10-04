@@ -24,6 +24,7 @@ typedef struct {
   const char *key;          /* for REQ_CHILDREN */
   const pp_server *srv;     /* server for real plex.h calls (NULL for smoke) */
   const char *token;        /* for REQ_SERVERS (pp_discover_servers) */
+  int use_fake;             /* 1 = use fake_provider (smoke/tests only) */
   pp_list  result;          /* filled by worker on completion */
   pp_server *servers;       /* filled by REQ_SERVERS */
   int      server_count;

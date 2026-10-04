@@ -31,8 +31,8 @@ static int worker_thread(void *arg) {
   int delay = fake_delay_ms();
   if (delay > 0) SDL_Delay(delay);
 
-  /* Smoke scroll / tests use the fake provider; production uses plex.h. */
-  if (ui_is_smoke_scroll() || !req->srv) {
+  /* Smoke-scroll mode uses the fake provider; production uses plex.h. */
+  if (req->use_fake) {
     switch (req->type) {
     case REQ_SERVERS:
       req->status = fake_servers(&req->servers, &req->server_count);
@@ -105,6 +105,7 @@ int worker_submit(pp_request *req) {
   req->done = 0;
   req->status = 0;
   req->error[0] = '\0';
+  req->use_fake = ui_is_smoke_scroll() ? 1 : 0;
   SDL_Thread *t = SDL_CreateThread(worker_thread, "pp-worker", req);
   if (!t) {
     req->done = 1;

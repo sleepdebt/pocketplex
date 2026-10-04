@@ -7,6 +7,18 @@
 #include "platform/platform.h"
 #include <stddef.h>
 
+/* SDL_Keycode values for common keys, used by both CORE (tests, no SDL)
+ * and APP (with SDL). Mirrors SDLK_* from SDL_keycode.h. */
+#define PP_SDLK_DOWN       0x40000051
+#define PP_SDLK_UP         0x40000052
+#define PP_SDLK_LEFT       0x40000050
+#define PP_SDLK_RIGHT      0x4000004F
+#define PP_SDLK_PAGEUP     0x4000004B
+#define PP_SDLK_PAGEDOWN   0x4000004E
+#define PP_SDLK_RETURN     0x0D
+#define PP_SDLK_BACKSPACE  0x08
+#define PP_SDLK_ESCAPE     0x1B
+
 typedef struct {
   int sdl_key;    /* SDL_Keycode value */
   pp_btn btn;

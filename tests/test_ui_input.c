@@ -2,27 +2,27 @@
 #include "ui/ui.h"
 
 static void test_arrow_keys_map_to_dpad(void) {
-  CHECK(pp_keycode_to_btn(0x28) == BTN_DOWN);   /* SDLK_DOWN */
-  CHECK(pp_keycode_to_btn(0x26) == BTN_UP);      /* SDLK_UP */
-  CHECK(pp_keycode_to_btn(0x25) == BTN_LEFT);    /* SDLK_LEFT */
-  CHECK(pp_keycode_to_btn(0x27) == BTN_RIGHT);   /* SDLK_RIGHT */
+  CHECK(pp_keycode_to_btn(PP_SDLK_DOWN) == BTN_DOWN);
+  CHECK(pp_keycode_to_btn(PP_SDLK_UP) == BTN_UP);
+  CHECK(pp_keycode_to_btn(PP_SDLK_LEFT) == BTN_LEFT);
+  CHECK(pp_keycode_to_btn(PP_SDLK_RIGHT) == BTN_RIGHT);
 }
 
 static void test_enter_is_a(void) {
-  CHECK(pp_keycode_to_btn(0x0D) == BTN_A);       /* SDLK_RETURN */
+  CHECK(pp_keycode_to_btn(PP_SDLK_RETURN) == BTN_A);
 }
 
 static void test_backspace_is_b(void) {
-  CHECK(pp_keycode_to_btn(0x08) == BTN_B);       /* SDLK_BACKSPACE */
+  CHECK(pp_keycode_to_btn(PP_SDLK_BACKSPACE) == BTN_B);
 }
 
 static void test_page_keys_are_l1_r1(void) {
-  CHECK(pp_keycode_to_btn(0x21) == BTN_L1);      /* SDLK_PAGEUP */
-  CHECK(pp_keycode_to_btn(0x22) == BTN_R1);      /* SDLK_PAGEDOWN */
+  CHECK(pp_keycode_to_btn(PP_SDLK_PAGEUP) == BTN_L1);
+  CHECK(pp_keycode_to_btn(PP_SDLK_PAGEDOWN) == BTN_R1);
 }
 
 static void test_escape_is_menu(void) {
-  CHECK(pp_keycode_to_btn(0x1B) == BTN_MENU);    /* SDLK_ESCAPE */
+  CHECK(pp_keycode_to_btn(PP_SDLK_ESCAPE) == BTN_MENU);
 }
 
 static void test_unknown_key_is_none(void) {
@@ -41,18 +41,18 @@ static void test_default_keys_table_terminates(void) {
 
 static void test_swap_ab_swaps_enter_and_backspace(void) {
   ui_set_swap_ab(0);
-  CHECK(pp_keycode_to_btn(0x0D) == BTN_A);  /* RETURN */
-  CHECK(pp_keycode_to_btn(0x08) == BTN_B);  /* BACKSPACE */
+  CHECK(pp_keycode_to_btn(PP_SDLK_RETURN) == BTN_A);
+  CHECK(pp_keycode_to_btn(PP_SDLK_BACKSPACE) == BTN_B);
   ui_set_swap_ab(1);
-  CHECK(pp_keycode_to_btn(0x0D) == BTN_B);
-  CHECK(pp_keycode_to_btn(0x08) == BTN_A);
+  CHECK(pp_keycode_to_btn(PP_SDLK_RETURN) == BTN_B);
+  CHECK(pp_keycode_to_btn(PP_SDLK_BACKSPACE) == BTN_A);
   ui_set_swap_ab(0);
 }
 
 static void test_swap_ab_does_not_affect_other_buttons(void) {
   ui_set_swap_ab(1);
-  CHECK(pp_keycode_to_btn(0x28) == BTN_DOWN);
-  CHECK(pp_keycode_to_btn(0x1B) == BTN_MENU);
+  CHECK(pp_keycode_to_btn(PP_SDLK_DOWN) == BTN_DOWN);
+  CHECK(pp_keycode_to_btn(PP_SDLK_ESCAPE) == BTN_MENU);
   ui_set_swap_ab(0);
 }
 

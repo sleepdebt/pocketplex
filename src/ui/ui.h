@@ -18,6 +18,7 @@ typedef enum {
   SCREEN_LIST,
   SCREEN_DETAIL,
   SCREEN_SETTINGS,
+  SCREEN_PLAYER,
   SCREEN_TOAST,
   SCREEN_COUNT
 } pp_screen_id;
@@ -26,6 +27,8 @@ typedef struct pp_screen pp_screen;
 struct pp_screen {
   pp_screen_id id;
   int loading;       /* 1 while an async request is pending */
+  int no_present;    /* 1 while an external player owns the display: render() is
+                        still called each frame but the UI neither clears nor presents */
   void (*render)(pp_screen *self);
   void (*handle_button)(pp_screen *self, pp_btn);
   void (*log_titles)(pp_screen *self, int n);  /* optional: log first n titles */
@@ -38,7 +41,9 @@ int  ui_init(void);
 /* Runs the event+render loop until the stack is empty (or BTN_MENU).
  * If ui_set_exit_after_ms > 0, exits after that many ms (for CI/screenshots). */
 void ui_run(void);
-void ui_quit(void);
+/* Tears down the stack and waits briefly for in-flight requests.
+ * Returns 0 if every request finished, -1 if some are still running. */
+int  ui_quit(void);
 
 /* Auto-exit timeout (for --exit-after-ms). */
 void ui_set_exit_after_ms(long ms);
@@ -53,6 +58,12 @@ int  ui_is_smoke_scroll(void);
  * logging each level's first titles to prove the walk-through matches pp-cli. */
 void ui_set_smoke_walk(int on);
 int  ui_is_smoke_walk(void);
+
+/* Smoke play mode: open the item list at key, play the first item from the
+ * start for play_ms, then exit (real server; evidence for playback). */
+void ui_set_smoke_play(const char *key, long play_ms);
+const char *ui_smoke_play_key(void);
+long ui_smoke_play_ms(void);   /* 0 when not in smoke play */
 
 /* Push/pop screens on the global stack. */
 void ui_push(pp_screen *s);
@@ -135,6 +146,8 @@ pp_screen *screen_list_create(const pp_list *items, const char *title);
 pp_screen *screen_list_create_key(const char *key, const char *title);
 pp_screen *screen_detail_create(const pp_item *item);
 pp_screen *screen_settings_create(void);
+/* Plays item via pp_transcode_url + player_start, resuming at start_ms. */
+pp_screen *screen_player_create(const pp_item *item, long start_ms);
 
 /* Layout constants for 640x480. */
 #define PP_SCREEN_W 640

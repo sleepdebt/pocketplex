@@ -18,6 +18,12 @@ int fake_servers(pp_server **out, int *count) {
   srv[0].token = NULL;
   srv[0].client_id = strdup("pocketplex-device");
   srv[1].url = srv[1].token = srv[1].client_id = NULL;
+  if (!srv[0].url || !srv[0].client_id) {
+    free(srv[0].url);
+    free(srv[0].client_id);
+    free(srv);
+    return PP_ERR_NOMEM;
+  }
   *out = srv;
   *count = 1;
   return 0;

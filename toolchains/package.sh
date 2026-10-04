@@ -1,3 +1,4 @@
+#!/bin/bash
 # toolchains/package.sh.
 # Assembles a device release zip from a built binary + assets + a packaging template.
 #   usage: package.sh <platform> <binary> <zip_out>
@@ -16,9 +17,10 @@ sp)
   # PortMaster port layout (see packaging/portmaster and devices.md "SP access").
   # ES discovers ports from /userdata/roms/ports/*.sh; the launcher is PocketPlex.sh
   # and the binary folder is /userdata/roms/ports/pocketplex/.
-  mkdir -p "$staging/pocketplex"
+  mkdir -p "$staging/pocketplex/assets"
   cp "$bin" "$staging/pocketplex/PocketPlex"
-  cp -r "$root/assets/font" "$staging/pocketplex/assets" 2>/dev/null || cp -r "$root/assets" "$staging/pocketplex/assets"
+  # Preserve the whole assets/ tree (assets/font/...) into pocketplex/assets/.
+  cp -a "$root/assets/." "$staging/pocketplex/assets/" 2>/dev/null || true
   find "$staging/pocketplex/assets" -name .gitkeep -delete 2>/dev/null || true
   # ES discovers ports from /userdata/roms/ports/*.sh (top level); the binary and
   # PortMaster metadata live in the sibling pocketplex/ folder (see netsurf on device).
@@ -33,9 +35,9 @@ sp)
 mmp)
   # Onion app layout (see packaging/onion and docs/devices.md "MMP").
   # Onion reads /mnt/SDCARD/App/<dir>/config.json (flat "key: value"), runs "launch".
-  mkdir -p "$staging/App/PocketPlex"
+  mkdir -p "$staging/App/PocketPlex/assets"
   cp "$bin" "$staging/App/PocketPlex/PocketPlex"
-  cp -r "$root/assets/font" "$staging/App/PocketPlex/assets" 2>/dev/null || cp -r "$root/assets" "$staging/App/PocketPlex/assets"
+  cp -a "$root/assets/." "$staging/App/PocketPlex/assets/" 2>/dev/null || true
   find "$staging/App/PocketPlex/assets" -name .gitkeep -delete 2>/dev/null || true
   cp "$root/packaging/onion/launch.sh"   "$staging/App/PocketPlex/launch.sh"
   cp "$root/packaging/onion/config.json"  "$staging/App/PocketPlex/config.json"

@@ -3,7 +3,7 @@
   "name": "pocketplex.zip",
   "items": [
     "PocketPlex.sh",
-    "PocketPlex"
+    "pocketplex/PocketPlex"
   ],
   "items_opt": [],
   "attr": {

@@ -14,18 +14,25 @@ typedef enum {
   REQ_SECTIONS,
   REQ_CHILDREN,
   REQ_ON_DECK,
+  REQ_PIN_START,
+  REQ_PIN_POLL,
 } pp_req_type;
 
 /* Request context: the UI submits one of these, then polls for done. */
 typedef struct {
   pp_req_type type;
   const char *key;          /* for REQ_CHILDREN */
+  const pp_server *srv;     /* server for real plex.h calls (NULL for smoke) */
+  const char *token;        /* for REQ_SERVERS (pp_discover_servers) */
   pp_list  result;          /* filled by worker on completion */
   pp_server *servers;       /* filled by REQ_SERVERS */
   int      server_count;
+  char     pin[8];          /* filled by REQ_PIN_START (PLEX_PIN_SIZE) */
+  long     pin_id;          /* filled by REQ_PIN_START */
+  char     auth_token[256]; /* filled by REQ_PIN_POLL on success */
   int      done;            /* 1 when the worker has finished */
-  int      status;          /* 0 = ok, <0 = error */
-  char     error[128];
+  int      status;          /* 0 = ok, <0 = pp_err code, 1 = PIN pending */
+  char     error[128];      /* human-readable error for toast */
 } pp_request;
 
 /* Submit a request to the worker. Returns 0 if accepted (only one

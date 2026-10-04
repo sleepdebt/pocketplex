@@ -50,7 +50,21 @@ int  ui_is_smoke_scroll(void);
 
 /* Push/pop screens on the global stack. */
 void ui_push(pp_screen *s);
+void ui_push_screen(pp_screen_id id);
 void ui_pop(void);
+
+/* Set the current server (from config or discovery). The pointer is stored
+ * by reference; the caller retains ownership and lifetime. */
+void ui_set_server(pp_server *srv);
+pp_server *ui_current_server(void);
+
+/* Auth token from PIN flow (used by Servers screen for discovery). */
+void  ui_set_auth_token(const char *token);
+const char *ui_get_auth_token(void);
+
+/* INI path for config save after PIN auth. */
+void  ui_set_ini_path(const char *path);
+const char *ui_ini_path(void);
 
 /* Toast a one-line message that auto-clears after a few seconds. */
 void ui_toast(const char *msg);

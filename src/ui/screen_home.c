@@ -150,6 +150,19 @@ static void home_handle(pp_screen *self, pp_btn btn) {
   }
 }
 
+static void home_cancel(pp_screen *self) {
+  home_data_t *d = (home_data_t *)self->data;
+  if (d) {
+    if (d->req_ondeck.type != REQ_NONE) worker_cancel(&d->req_ondeck);
+    if (d->req_sections.type != REQ_NONE) worker_cancel(&d->req_sections);
+  }
+}
+
+static int home_is_busy(pp_screen *self) {
+  home_data_t *d = (home_data_t *)self->data;
+  return d && (!d->ondeck_loaded || !d->sections_loaded);
+}
+
 static void home_destroy(pp_screen *self) {
   home_data_t *d = (home_data_t *)self->data;
   if (d) {
@@ -186,9 +199,11 @@ pp_screen *screen_home_create(void) {
   s->id = SCREEN_HOME;
   s->data = d;
   s->loading = 1;
-  s->render = home_render;
-  s->handle_button = home_handle;
-  s->destroy = home_destroy;
+   s->render = home_render;
+   s->handle_button = home_handle;
+   s->cancel = home_cancel;
+   s->is_busy = home_is_busy;
+   s->destroy = home_destroy;
   s->log_titles = home_log_titles;
   worker_submit(&d->req_ondeck);
   worker_submit(&d->req_sections);

@@ -28,6 +28,8 @@ static void set_error(pp_request *req, const char *msg) {
 
 static int worker_thread(void *arg) {
   pp_request *req = (pp_request *)arg;
+  if (req->cancelled) { req->done = 1; return 0; }
+
   int delay = fake_delay_ms();
   if (delay > 0) SDL_Delay(delay);
 
@@ -87,17 +89,23 @@ static int worker_thread(void *arg) {
   }
 
   if (req->status != PP_OK) {
-    switch (req->status) {
-    case PP_ERR_AUTH:  set_error(req, "Authentication failed (relink)"); break;
-    case PP_ERR_NET:   set_error(req, "Network error (retry)"); break;
-    case PP_ERR_HTTP:  set_error(req, "Server error (retry)"); break;
-    case PP_ERR_PARSE: set_error(req, "Parse error"); break;
-    case PP_ERR_NOMEM: set_error(req, "Out of memory"); break;
-    default:           set_error(req, "Request failed"); break;
+    if (!req->cancelled) {
+      switch (req->status) {
+      case PP_ERR_AUTH:  set_error(req, "Authentication failed (relink)"); break;
+      case PP_ERR_NET:   set_error(req, "Network error (retry)"); break;
+      case PP_ERR_HTTP:  set_error(req, "Server error (retry)"); break;
+      case PP_ERR_PARSE: set_error(req, "Parse error"); break;
+      case PP_ERR_NOMEM: set_error(req, "Out of memory"); break;
+      default:           set_error(req, "Request failed"); break;
+      }
     }
   }
   req->done = 1;
   return 0;
+}
+
+void worker_cancel(pp_request *req) {
+  if (req) req->cancelled = 1;
 }
 
 int worker_submit(pp_request *req) {

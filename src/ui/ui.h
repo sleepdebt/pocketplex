@@ -29,6 +29,8 @@ struct pp_screen {
   void (*render)(pp_screen *self);
   void (*handle_button)(pp_screen *self, pp_btn);
   void (*log_titles)(pp_screen *self, int n);  /* optional: log first n titles */
+  void (*cancel)(pp_screen *self);             /* cancel in-flight workers */
+  int (*is_busy)(pp_screen *self);              /* 1 if a worker is still in-flight */
   void (*destroy)(pp_screen *self);
   void *data;
 };

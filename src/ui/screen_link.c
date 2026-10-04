@@ -21,6 +21,16 @@ typedef struct {
   int linked;
 } link_data_t;
 
+static void link_cancel(pp_screen *self) {
+  link_data_t *d = (link_data_t *)self->data;
+  if (d) worker_cancel(&d->req);
+}
+
+static int link_is_busy(pp_screen *self) {
+  link_data_t *d = (link_data_t *)self->data;
+  return d && !d->req.done;
+}
+
 static void link_check_pin_start(pp_screen *self) {
   link_data_t *d = (link_data_t *)self->data;
   if (!d->started && d->req.type == REQ_PIN_START && d->req.done) {
@@ -75,16 +85,24 @@ static void link_render(pp_screen *self) {
 
   ui_draw_text(d->req.pin, cx - 30, 180, PP_COLOR(0xff, 0xff, 0x00));
 
-  if (!ui_is_smoke_scroll()) {
-    d->poll_ms += 16;
-    if (d->poll_ms >= PIN_POLL_MS) {
-      d->poll_ms = 0;
-      d->req.type = REQ_PIN_POLL;
-      d->req.done = 0;
-      worker_submit(&d->req);
-    }
-    link_check_pin_poll(self);
-  }
+   if (!ui_is_smoke_scroll()) {
+     d->poll_ms += 16;
+     if (d->poll_ms >= PIN_POLL_MS) {
+       d->poll_ms = 0;
+       if (!d->req.done) {
+         /* Previous poll still in flight — back off, don't submit. */
+         d->poll_ms = PIN_POLL_MS;
+       } else {
+         d->req.type = REQ_PIN_POLL;
+         d->req.done = 0;
+         d->req.cancelled = 0;
+         d->req.status = 0;
+         d->req.error[0] = '\0';
+         worker_submit(&d->req);
+       }
+     }
+     link_check_pin_poll(self);
+   }
 
   if (d->linked) {
     ui_draw_text("Linked!", cx - 40, 240, PP_COLOR(0x00, 0xff, 0x00));
@@ -132,9 +150,11 @@ pp_screen *screen_link_create(void) {
 
   s->id = SCREEN_LINK;
   s->data = d;
-  s->render = link_render;
-  s->handle_button = link_handle;
-  s->destroy = link_destroy;
+   s->render = link_render;
+   s->handle_button = link_handle;
+   s->cancel = link_cancel;
+   s->is_busy = link_is_busy;
+   s->destroy = link_destroy;
 
   d->req.type = REQ_PIN_START;
   d->req.done = 0;

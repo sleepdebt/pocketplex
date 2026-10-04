@@ -76,6 +76,11 @@ static void settings_destroy(pp_screen *self) {
   free(self->data);
 }
 
+static int settings_is_busy(pp_screen *self) {
+  (void)self;
+  return 0;  /* no async work */
+}
+
 pp_screen *screen_settings_create(void) {
   pp_screen *s = (pp_screen *)calloc(1, sizeof(pp_screen));
   if (!s) return NULL;
@@ -85,8 +90,9 @@ pp_screen *screen_settings_create(void) {
   d->sel = 0;
   s->id = SCREEN_SETTINGS;
   s->data = d;
-  s->render = settings_render;
-  s->handle_button = settings_handle;
-  s->destroy = settings_destroy;
+   s->render = settings_render;
+   s->handle_button = settings_handle;
+   s->is_busy = settings_is_busy;
+   s->destroy = settings_destroy;
   return s;
 }

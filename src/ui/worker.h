@@ -32,6 +32,7 @@ typedef struct {
   long     pin_id;          /* filled by REQ_PIN_START */
   char     auth_token[256]; /* filled by REQ_PIN_POLL on success */
   int      done;            /* 1 when the worker has finished */
+  int      cancelled;       /* set by main thread to stop worker writes */
   int      status;          /* 0 = ok, <0 = pp_err code, 1 = PIN pending */
   char     error[128];      /* human-readable error for toast */
 } pp_request;
@@ -42,6 +43,11 @@ int  worker_submit(pp_request *req);
 
 /* Returns 1 if the request's worker has finished (req->done == 1). */
 int  worker_check(pp_request *req);
+
+/* Mark a request as cancelled. The worker will stop writing to it
+ * but may still be running. Call before freeing a request whose worker
+ * might still be in-flight. */
+void worker_cancel(pp_request *req);
 
 /* Draw a simple spinner at (x,y). Call while a request is pending. */
 void ui_draw_spinner(int x, int y, int frame);

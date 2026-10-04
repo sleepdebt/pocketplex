@@ -565,7 +565,8 @@ void ui_run(void) {
         }
         if (cur && cur->id == SCREEN_DETAIL && g_smoke_play_saw_player) {
           if (g_play_result == 1) {
-            LOGI("play: back on Detail, done");
+            LOGI("play: back on Detail (max_frame=%u ms), done", g_max_frame_ms);
+            if (cur->log_titles) cur->log_titles(cur, 1);  /* shows the refreshed resume */
             running = 0;
           } else {
             running = smoke_fail("player screen closed without playing");

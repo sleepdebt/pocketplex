@@ -54,6 +54,11 @@ int  pp_on_deck(const pp_server*, pp_list *out);
 int  pp_transcode_url(const pp_server*, const pp_item*, const char *session_id,
                       int width, int height, int max_kbps, long offset_ms,
                       char *url_out, size_t n);
+/* Same as pp_transcode_url, which is pp_transcode_url_ex(..., burn_subtitles = 1, ...).
+ * burn_subtitles = 0 asks PMS for no subtitles. (Added 2026-10-04, owner decision on Q4.) */
+int  pp_transcode_url_ex(const pp_server*, const pp_item*, const char *session_id,
+                         int width, int height, int max_kbps, long offset_ms,
+                         int burn_subtitles, char *url_out, size_t n);
 /* Ends the PMS transcode for session_id. Call on player exit (and from an atexit handler). */
 int  pp_transcode_stop(const pp_server*, const char *session_id);
 

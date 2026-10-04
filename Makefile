@@ -95,18 +95,43 @@ ifeq ($(DOCKER),)
 endif
 
 DIST ?= dist
-.PHONY: docker-sp docker-mmp
+# Run containers as the invoking user (no root-owned artifacts in dist/) and build
+# into a throwaway dir (/tmp/pp-build) so the host build/ (shared across lanes)
+# is never wiped by `make clean` inside the image.
+ID_U ?= $(shell id -u)
+ID_G ?= $(shell id -g)
+.PHONY: docker-sp docker-mmp inspect-sp inspect-mmp
 docker-sp:
 	@mkdir -p $(DIST)
 	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
 	$(DOCKER) build -t pocketplex:sp -f toolchains/Dockerfile.sp .
-	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:sp \
-	  sh -c 'make clean && make PLATFORM=sp && sh /src/toolchains/package.sh sp build/pocketplex dist/pocketplex-sp.zip'
+	$(DOCKER) run --rm -u $(ID_U):$(ID_G) -v $(CURDIR):/src -w /src pocketplex:sp \
+	  sh -c 'make clean BUILD=/tmp/pp-build && make PLATFORM=sp BUILD=/tmp/pp-build \
+	  && sh /src/toolchains/package.sh sp /tmp/pp-build/pocketplex dist/pocketplex-sp.zip'
 docker-mmp:
 	@mkdir -p $(DIST)
 	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
 	$(DOCKER) build -t pocketplex:mmp -f toolchains/Dockerfile.mmp .
+	$(DOCKER) run --rm -u $(ID_U):$(ID_G) -v $(CURDIR):/src -w /src pocketplex:mmp \
+	  sh -c 'make clean BUILD=/tmp/pp-build && make PLATFORM=mmp BUILD=/tmp/pp-build \
+	  && sh /src/toolchains/package.sh mmp /tmp/pp-build/pocketplex dist/pocketplex-mmp.zip'
+
+# Diagnostic: build in the image and print the real NEEDED list,
+# interpreter, and the SDL2/SDL2_ttf/curl versions the cross toolchain sees.
+# Read-only on the host (builds into /tmp/i); no device access required.
+inspect-sp:
+	$(DOCKER) build -t pocketplex:sp -f toolchains/Dockerfile.sp .
+	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:sp \
+	  sh -c 'make clean BUILD=/tmp/i >/dev/null && make PLATFORM=sp BUILD=/tmp/i >/dev/null \
+	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
+	  PKG_CONFIG_LIBDIR=/usr/lib/aarch64-linux-gnu/pkgconfig:/usr/share/pkgconfig pkg-config --modversion sdl2 SDL2_ttf libcurl && \
+	  file /tmp/i/pocketplex'
+inspect-mmp:
+	$(DOCKER) build -t pocketplex:mmp -f toolchains/Dockerfile.mmp .
 	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:mmp \
-	  sh -c 'make clean && make PLATFORM=mmp && sh /src/toolchains/package.sh mmp build/pocketplex dist/pocketplex-mmp.zip'
+	  sh -c 'make clean BUILD=/tmp/i >/dev/null && make PLATFORM=mmp BUILD=/tmp/i >/dev/null \
+	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
+	  PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig pkg-config --modversion sdl2 SDL2_ttf libcurl && \
+	  file /tmp/i/pocketplex'
 
 -include $(CORE_OBJS:.o=.d) $(APP_OBJS:.o=.d) $(patsubst %.c,$(OBJ)/%.d,$(TEST_SRCS) $(TOOL_SRCS))

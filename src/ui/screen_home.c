@@ -29,7 +29,7 @@ static void home_render(pp_screen *self) {
   ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   /* Process completed requests */
-  if (!d->ondeck_loaded && d->req_ondeck.done) {
+  if (!d->ondeck_loaded && worker_is_done(&d->req_ondeck)) {
     if (d->req_ondeck.status == PP_OK) d->on_deck = d->req_ondeck.result;
     else {
       if (d->req_ondeck.status == PP_ERR_AUTH) {
@@ -40,7 +40,7 @@ static void home_render(pp_screen *self) {
     }
     d->ondeck_loaded = 1;
   }
-  if (!d->sections_loaded && d->req_sections.done) {
+  if (!d->sections_loaded && worker_is_done(&d->req_sections)) {
     if (d->req_sections.status == PP_OK) d->sections = d->req_sections.result;
     else {
       if (d->req_sections.status == PP_ERR_AUTH) {
@@ -166,8 +166,8 @@ static int home_is_busy(pp_screen *self) {
 static void home_destroy(pp_screen *self) {
   home_data_t *d = (home_data_t *)self->data;
   if (d) {
-    d->on_deck.items = NULL; d->on_deck.count = 0;
-    d->sections.items = NULL; d->sections.count = 0;
+    pp_list_free(&d->on_deck);
+    pp_list_free(&d->sections);
     free(d);
   }
 }

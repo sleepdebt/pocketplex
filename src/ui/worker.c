@@ -28,7 +28,7 @@ static void set_error(pp_request *req, const char *msg) {
 
 static int worker_thread(void *arg) {
   pp_request *req = (pp_request *)arg;
-  if (req->cancelled) { req->done = 1; return 0; }
+  if (__atomic_load_n(&req->cancelled, __ATOMIC_ACQUIRE)) { __atomic_store_n(&req->done, 1, __ATOMIC_RELEASE); return 0; }
 
   int delay = fake_delay_ms();
   if (delay > 0) SDL_Delay(delay);
@@ -89,7 +89,7 @@ static int worker_thread(void *arg) {
   }
 
   if (req->status != PP_OK) {
-    if (!req->cancelled) {
+    if (!__atomic_load_n(&req->cancelled, __ATOMIC_ACQUIRE)) {
       switch (req->status) {
       case PP_ERR_AUTH:  set_error(req, "Authentication failed (relink)"); break;
       case PP_ERR_NET:   set_error(req, "Network error (retry)"); break;
@@ -100,23 +100,27 @@ static int worker_thread(void *arg) {
       }
     }
   }
-  req->done = 1;
+  __atomic_store_n(&req->done, 1, __ATOMIC_RELEASE);
   return 0;
 }
 
 void worker_cancel(pp_request *req) {
-  if (req) req->cancelled = 1;
+  if (req) {
+    __atomic_store_n(&req->cancelled, 1, __ATOMIC_RELEASE);
+    __atomic_store_n(&req->done, 1, __ATOMIC_RELEASE);
+  }
 }
 
 int worker_submit(pp_request *req) {
   if (!req || req->type == REQ_NONE) return -1;
-  req->done = 0;
+  __atomic_store_n(&req->done, 0, __ATOMIC_RELEASE);
   req->status = 0;
   req->error[0] = '\0';
+  req->cancelled = 0;
   req->use_fake = ui_is_smoke_scroll() ? 1 : 0;
   SDL_Thread *t = SDL_CreateThread(worker_thread, "pp-worker", req);
   if (!t) {
-    req->done = 1;
+    __atomic_store_n(&req->done, 1, __ATOMIC_RELEASE);
     req->status = PP_ERR_NOMEM;
     set_error(req, "Thread creation failed");
     return -1;
@@ -125,9 +129,13 @@ int worker_submit(pp_request *req) {
   return 0;
 }
 
+int worker_is_done(const pp_request *req) {
+  if (!req) return 1;
+  return __atomic_load_n(&req->done, __ATOMIC_ACQUIRE);
+}
+
 int worker_check(pp_request *req) {
-  if (!req) return 0;
-  return req->done;
+  return worker_is_done(req);
 }
 
 void ui_draw_spinner(int x, int y, int frame) {

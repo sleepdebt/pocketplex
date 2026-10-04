@@ -24,7 +24,7 @@ static void servers_render(pp_screen *self) {
   ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   /* Check async result */
-  if (d->req.type == REQ_SERVERS && !d->req.done) {
+  if (d->req.type == REQ_SERVERS && !worker_is_done(&d->req)) {
     self->loading = 1;
     ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
     g_spinner_frame++;
@@ -32,7 +32,7 @@ static void servers_render(pp_screen *self) {
   }
 
   /* Worker completed */
-  if (d->req.type == REQ_SERVERS && d->req.done && !d->servers) {
+  if (d->req.type == REQ_SERVERS && worker_is_done(&d->req) && !d->servers) {
     if (d->req.status == PP_OK && d->req.servers) {
       d->servers = d->req.servers;
       d->count = d->req.server_count;
@@ -42,7 +42,6 @@ static void servers_render(pp_screen *self) {
         ui_toast("Auth expired — relink");
         ui_pop();
         ui_push(screen_link_create());
-        d->req.done = 0;
         d->req.type = REQ_NONE;
         return;
       } else if (d->req.status == PP_ERR_NET || d->req.status == PP_ERR_HTTP) {
@@ -51,7 +50,6 @@ static void servers_render(pp_screen *self) {
         d->req.type = REQ_SERVERS;
         d->req.token = ui_get_auth_token();
         d->req.srv = ui_current_server();
-        d->req.done = 0;
         worker_submit(&d->req);
         return;
       }
@@ -115,7 +113,7 @@ static void servers_cancel(pp_screen *self) {
 
 static int servers_is_busy(pp_screen *self) {
   servers_data_t *d = (servers_data_t *)self->data;
-  return d && !d->req.done;
+  return d && !worker_is_done(&d->req);
 }
 
 static void servers_destroy(pp_screen *self) {  servers_data_t *d = (servers_data_t *)self->data;

@@ -31,7 +31,7 @@ typedef struct {
   char     pin[8];          /* filled by REQ_PIN_START (PLEX_PIN_SIZE) */
   long     pin_id;          /* filled by REQ_PIN_START */
   char     auth_token[256]; /* filled by REQ_PIN_POLL on success */
-  int      done;            /* 1 when the worker has finished */
+  int      done;            /* 1 when the worker has finished (atomic store) */
   int      cancelled;       /* set by main thread to stop worker writes */
   int      status;          /* 0 = ok, <0 = pp_err code, 1 = PIN pending */
   char     error[128];      /* human-readable error for toast */
@@ -41,8 +41,9 @@ typedef struct {
  * in-flight at a time; the previous request must be collected first). */
 int  worker_submit(pp_request *req);
 
-/* Returns 1 if the request's worker has finished (req->done == 1). */
-int  worker_check(pp_request *req);
+/* Returns 1 if the request's worker has finished (req->done == 1).
+ * Uses SDL atomic read for thread safety on aarch64. */
+int  worker_is_done(const pp_request *req);
 
 /* Mark a request as cancelled. The worker will stop writing to it
  * but may still be running. Call before freeing a request whose worker

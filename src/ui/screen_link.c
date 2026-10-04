@@ -28,12 +28,12 @@ static void link_cancel(pp_screen *self) {
 
 static int link_is_busy(pp_screen *self) {
   link_data_t *d = (link_data_t *)self->data;
-  return d && !d->req.done;
+  return d && !worker_is_done(&d->req);
 }
 
 static void link_check_pin_start(pp_screen *self) {
   link_data_t *d = (link_data_t *)self->data;
-  if (!d->started && d->req.type == REQ_PIN_START && d->req.done) {
+  if (!d->started && d->req.type == REQ_PIN_START && worker_is_done(&d->req)) {
     d->started = 1;
     if (d->req.status != PP_OK) {
       snprintf(d->req.pin, sizeof(d->req.pin), "0000");
@@ -45,7 +45,7 @@ static void link_check_pin_start(pp_screen *self) {
 
 static void link_check_pin_poll(pp_screen *self) {
   link_data_t *d = (link_data_t *)self->data;
-  if (d->req.type == REQ_PIN_POLL && d->req.done) {
+  if (d->req.type == REQ_PIN_POLL && worker_is_done(&d->req)) {
     if (d->req.status == PP_OK && d->req.auth_token[0]) {
       LOGI("PIN confirmed");
       d->linked = 1;
@@ -60,7 +60,6 @@ static void link_check_pin_poll(pp_screen *self) {
       ui_toast(d->req.error[0] ? d->req.error : "PIN auth failed");
       d->started = 0;
       d->req.type = REQ_PIN_START;
-      d->req.done = 0;
       worker_submit(&d->req);
     }
   }
@@ -89,15 +88,11 @@ static void link_render(pp_screen *self) {
      d->poll_ms += 16;
      if (d->poll_ms >= PIN_POLL_MS) {
        d->poll_ms = 0;
-       if (!d->req.done) {
+       if (!worker_is_done(&d->req)) {
          /* Previous poll still in flight — back off, don't submit. */
          d->poll_ms = PIN_POLL_MS;
        } else {
          d->req.type = REQ_PIN_POLL;
-         d->req.done = 0;
-         d->req.cancelled = 0;
-         d->req.status = 0;
-         d->req.error[0] = '\0';
          worker_submit(&d->req);
        }
      }

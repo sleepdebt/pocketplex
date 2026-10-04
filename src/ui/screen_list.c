@@ -30,7 +30,7 @@ static void list_render(pp_screen *self) {
   list_data_t *d = (list_data_t *)self->data;
 
   /* Check for async completion */
-  if (d->async && !d->req.done) {
+  if (d->async && !worker_is_done(&d->req)) {
     self->loading = 1;
     ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
     ui_draw_text(d->title, PP_MARGIN_L, 10, PP_COLOR_FG);
@@ -38,7 +38,7 @@ static void list_render(pp_screen *self) {
     ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
     g_spinner_frame++;
     return;
-  } else if (d->async && d->req.done) {
+  } else if (d->async && worker_is_done(&d->req)) {
     if (d->req.status == PP_OK) {
       d->model.items = d->req.result.items;
       d->model.count = d->req.result.count;
@@ -54,8 +54,7 @@ static void list_render(pp_screen *self) {
         d->error_shown = 1;
         /* Retry the request */
         d->req.srv = ui_current_server();
-        d->req.done = 0;
-        d->req.status = 0;
+        d->req.cancelled = 0;
         worker_submit(&d->req);
         return;
       }
@@ -156,13 +155,13 @@ static void list_cancel(pp_screen *self) {
 
 static int list_is_busy(pp_screen *self) {
   list_data_t *d = (list_data_t *)self->data;
-  return d && d->async && !d->req.done;
+  return d && d->async && !worker_is_done(&d->req);
 }
 
 static void list_destroy(pp_screen *self) {
   list_data_t *d = (list_data_t *)self->data;
   if (d) {
-    if (d->async && d->req.status == PP_OK) pp_list_free(&d->req.result);
+    if (d->req.type == REQ_CHILDREN && d->req.status == PP_OK) pp_list_free(&d->req.result);
     d->model.items = NULL; d->model.count = 0;
     free(d);
   }

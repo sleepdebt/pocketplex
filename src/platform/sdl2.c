@@ -20,7 +20,8 @@ SDL_Renderer *plat_renderer(void) { return g_ren; }
 SDL_Window *plat_window(void) { return g_win; }
 
 int plat_init(int *w, int *h) {
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER) != 0) {
+  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER |
+               SDL_INIT_GAMECONTROLLER) != 0) {
     LOGE("SDL_Init: %s", SDL_GetError());
     return -1;
   }
@@ -68,7 +69,6 @@ pp_btn plat_poll_button(void) {
       g_quit_requested = 1;
       return BTN_MENU;
     case SDL_KEYDOWN:
-      if (ev.key.repeat) return BTN_NONE;
       return pp_keycode_to_btn(ev.key.keysym.sym);
     case SDL_CONTROLLERDEVICEADDED:
       SDL_GameControllerOpen(ev.cdevice.which);
@@ -108,8 +108,8 @@ void plat_suspend_hook(void (*on_resume)(void)) {
 }
 
 void plat_quit(void) {
-  if (g_win) { SDL_DestroyWindow(g_win); g_win = NULL; }
   if (g_ren) { SDL_DestroyRenderer(g_ren); g_ren = NULL; }
+  if (g_win) { SDL_DestroyWindow(g_win); g_win = NULL; }
   TTF_Quit();
   SDL_Quit();
   LOGI("platform shut down");

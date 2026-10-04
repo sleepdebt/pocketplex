@@ -36,6 +36,11 @@ static pp_screen *g_stack[MAX_SCREENS];
 static int g_stack_top = -1;
 static int g_stack_count = 0;
 
+/* Deferred pop queue: screens are freed at end-of-frame to avoid
+ * use-after-free with in-flight worker threads. */
+static pp_screen *g_pop_queue[MAX_SCREENS];
+static int g_pop_count = 0;
+
 static char g_toast_msg[MAX_TOAST_LEN] = {0};
 static int g_toast_ms_left = 0;
 static const int TOAST_LIFETIME_MS = 3000;
@@ -145,10 +150,27 @@ void ui_push(pp_screen *s) {
 void ui_pop(void) {
   if (g_stack_top < 0) return;
   pp_screen *s = g_stack[g_stack_top];
-  if (s && s->destroy) s->destroy(s);
   g_stack[g_stack_top] = NULL;
   g_stack_top--;
   if (g_stack_top < 0) g_stack_top = -1;
+  if (s && g_pop_count < MAX_SCREENS) g_pop_queue[g_pop_count++] = s;
+}
+
+/* Cancel and free deferred screens. Called at end of frame.
+ * Screens whose workers are still in-flight are kept alive for another frame. */
+static void ui_finalize_pops(void) {
+  int i, kept = 0;
+  for (i = 0; i < g_pop_count; i++) {
+    pp_screen *s = g_pop_queue[i];
+    if (!s) continue;
+    if (s->cancel) s->cancel(s);
+    if (s->is_busy && s->is_busy(s)) {
+      g_pop_queue[kept++] = s;  /* worker still running — wait */
+    } else {
+      if (s->destroy) s->destroy(s);
+    }
+  }
+  g_pop_count = kept;
 }
 
 static pp_screen *current_screen(void) {
@@ -249,6 +271,18 @@ pp_server *ui_current_server(void) {
 
 void ui_quit(void) {
   while (g_stack_top >= 0) ui_pop();
+  /* Flush any remaining deferred pops */
+  for (int i = 0; i < g_pop_count; i++) {
+    pp_screen *s = g_pop_queue[i];
+    if (!s) continue;
+    if (s->cancel) s->cancel(s);
+    if (s->is_busy && s->is_busy(s)) {
+      /* Worker still running at shutdown — leak is acceptable here. */
+      continue;
+    }
+    if (s->destroy) s->destroy(s);
+  }
+  g_pop_count = 0;
   cache_clear();
   if (g_server_owned && g_current_server) {
     pp_servers_free(g_current_server, 1);
@@ -430,6 +464,9 @@ void ui_run(void) {
     pp_btn btn = plat_poll_button();
     if (btn == BTN_MENU) { running = 0; break; }
     if (btn != BTN_NONE && s->handle_button) s->handle_button(s, btn);
+
+    /* Flush deferred pops: cancel workers, free screens whose workers are done. */
+    ui_finalize_pops();
   }
 
   if (g_smoke_scroll) {

@@ -108,8 +108,17 @@ static void servers_handle(pp_screen *self, pp_btn btn) {
   }
 }
 
-static void servers_destroy(pp_screen *self) {
+static void servers_cancel(pp_screen *self) {
   servers_data_t *d = (servers_data_t *)self->data;
+  if (d) worker_cancel(&d->req);
+}
+
+static int servers_is_busy(pp_screen *self) {
+  servers_data_t *d = (servers_data_t *)self->data;
+  return d && !d->req.done;
+}
+
+static void servers_destroy(pp_screen *self) {  servers_data_t *d = (servers_data_t *)self->data;
   if (d) {
     pp_servers_free(d->servers, d->count);
     free(d);
@@ -129,9 +138,11 @@ pp_screen *screen_servers_create(void) {
   s->id = SCREEN_SERVERS;
   s->data = d;
   s->loading = 1;
-  s->render = servers_render;
-  s->handle_button = servers_handle;
-  s->destroy = servers_destroy;
+   s->render = servers_render;
+   s->handle_button = servers_handle;
+   s->cancel = servers_cancel;
+   s->is_busy = servers_is_busy;
+   s->destroy = servers_destroy;
   worker_submit(&d->req);
   return s;
 }

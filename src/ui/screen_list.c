@@ -15,6 +15,7 @@ typedef struct {
   pp_list_model model;
   pp_list_view  view;
   pp_request req;
+  char key_buf[256];  /* deep copy of req.key to survive screen pops */
   char title[128];
   int async;
   int error_shown;
@@ -148,6 +149,16 @@ static void list_handle(pp_screen *self, pp_btn btn) {
   }
 }
 
+static void list_cancel(pp_screen *self) {
+  list_data_t *d = (list_data_t *)self->data;
+  if (d) worker_cancel(&d->req);
+}
+
+static int list_is_busy(pp_screen *self) {
+  list_data_t *d = (list_data_t *)self->data;
+  return d && d->async && !d->req.done;
+}
+
 static void list_destroy(pp_screen *self) {
   list_data_t *d = (list_data_t *)self->data;
   if (d) {
@@ -176,11 +187,13 @@ pp_screen *screen_list_create(const pp_list *items, const char *title) {
   list_view_init(&d->view, &d->model, PP_VISIBLE);
   s->id = SCREEN_LIST;
   s->data = d;
-  s->render = list_render;
-  s->handle_button = list_handle;
-  s->destroy = list_destroy;
-  s->log_titles = list_log_titles;
-  return s;
+   s->render = list_render;
+   s->handle_button = list_handle;
+   s->cancel = list_cancel;
+   s->is_busy = list_is_busy;
+   s->destroy = list_destroy;
+   s->log_titles = list_log_titles;
+   return s;
 }
 
 pp_screen *screen_list_create_key(const char *key, const char *title) {
@@ -191,17 +204,22 @@ pp_screen *screen_list_create_key(const char *key, const char *title) {
   if (title) snprintf(d->title, sizeof(d->title), "%s", title);
   d->async = 1;
   d->req.type = REQ_CHILDREN;
-  d->req.key = key;
+  if (key) {
+    snprintf(d->key_buf, sizeof(d->key_buf), "%s", key);
+    d->req.key = d->key_buf;
+  }
   d->req.srv = ui_current_server();
   d->req.done = 0;
   list_view_init(&d->view, &d->model, PP_VISIBLE);
   s->id = SCREEN_LIST;
   s->data = d;
   s->loading = 1;
-  s->render = list_render;
-  s->handle_button = list_handle;
-  s->destroy = list_destroy;
-  s->log_titles = list_log_titles;
-  worker_submit(&d->req);
-  return s;
+   s->render = list_render;
+   s->handle_button = list_handle;
+   s->cancel = list_cancel;
+   s->is_busy = list_is_busy;
+   s->destroy = list_destroy;
+   s->log_titles = list_log_titles;
+   worker_submit(&d->req);
+   return s;
 }

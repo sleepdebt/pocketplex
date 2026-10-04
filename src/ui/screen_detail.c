@@ -118,6 +118,11 @@ static void detail_destroy(pp_screen *self) {
   free(self->data);
 }
 
+static int detail_is_busy(pp_screen *self) {
+  (void)self;
+  return 0;
+}
+
 static void detail_log_titles(pp_screen *self, int n) {
   detail_data_t *d = (detail_data_t *)self->data;
   (void)n;
@@ -137,7 +142,8 @@ pp_screen *screen_detail_create(const pp_item *item) {
   s->data = d;
   s->render = detail_render;
   s->handle_button = detail_handle;
-  s->destroy = detail_destroy;
+   s->destroy = detail_destroy;
+   s->is_busy = detail_is_busy;
   s->log_titles = detail_log_titles;
   return s;
 }

@@ -5,4 +5,6 @@
 cd "$(dirname "$0")"
 mkdir -p conf
 export XDG_DATA_HOME="$PWD/conf"
+# Config/token next to the binary (the spec D6); export it so app/pp-cli agree.
+export POCKETPLEX_INI="$PWD/pocketplex.ini"
 exec ./PocketPlex

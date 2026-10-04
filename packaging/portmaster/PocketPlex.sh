@@ -32,10 +32,15 @@ mkdir -p "$CONFDIR"
 cd "$GAMEDIR"
 
 export XDG_DATA_HOME="$CONFDIR"
+# Config/token lives next to the binary (the spec D6); export makes it explicit.
+export POCKETPLEX_INI="$GAMEDIR/pocketplex.ini"
 export LD_LIBRARY_PATH="$GAMEDIR/libs.${DEVICE_ARCH}:$LD_LIBRARY_PATH"
 export SDL_GAMECONTROLLERCONFIG="$sdl_controllerconfig"
 
 # Hand this terminal to mpv during playback; it draws to the same fbdev.
+# Capture the exit code, always run PortMaster cleanup, then propagate the code.
+set +e
 ./PocketPlex
-
+rc=$?
 pm_finish
+exit "$rc"

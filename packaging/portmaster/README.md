@@ -8,8 +8,10 @@ In PortMaster: search for "PocketPlex", install, then launch from the Ports menu
 
 ### First run
 
-The app reads `pocketplex.ini` from its port folder (`.../ports/pocketplex/conf/`). Copy
-`pocketplex.ini.example` to `pocketplex.ini` and fill in your PMS `server_url` and `token`.
+The app reads `pocketplex.ini` from next to the binary, in the port folder
+(`/userdata/roms/ports/pocketplex/pocketplex.ini`; the launcher also exports `POCKETPLEX_INI`
+to this path). Copy `pocketplex.ini.example` to `pocketplex.ini` there and fill in your PMS
+`server_url` and `token`.
 If `token` is empty, PocketPlex will print a 4-digit PIN and you enter it at
 **plex.tv/link** on your phone (see the spec).
 

@@ -5,9 +5,10 @@ Drop the `App/PocketPlex/` folder from the zip onto the root of the SD card
 
 ### First run
 
-The app reads `pocketplex.ini` from `./conf/`. Copy `pocketplex.ini.example`
-next to `launch.sh` and set your PMS `server_url` and `token` (or leave `token`
-blank and use the PIN flow at plex.tv/link).
+The app reads `pocketplex.ini` next to `launch.sh` (i.e. `./pocketplex.ini`; the
+launcher also exports `POCKETPLEX_INI` to that path). Copy `pocketplex.ini.example`
+there and set your PMS `server_url` and `token` (or leave `token` blank and use
+the PIN flow at plex.tv/link).
 
 ### PMS settings (required)
 

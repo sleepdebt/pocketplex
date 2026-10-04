@@ -20,3 +20,5 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] `src/ui/screen_detail.c:96-98`: A on Detail is a toast stub. Wire up player_start + pp_transcode_url (offset 0 + start_ms) with a resume / play-from-start choice.
 - [ ] `src/ui/fake_provider.c:17-19`: unchecked strdup (smoke/test path).
 - [ ] `.clangd` at the repo root: decide and add on main if wanted.
+- [ ] MMP zip links libcurl.so.4 dynamically; amended D2 says static curl+mbedTLS on the MMP.
+- [ ] -Wformat-truncation in cross builds: src/ui/screen_list.c:114/116, src/ui/screen_detail.c:28 and tools/pp-cli.c:116.

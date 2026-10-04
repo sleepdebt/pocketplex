@@ -2,6 +2,7 @@
 #include "ui.h"
 #include "ui/ui_platform.h"
 #include "ui/fake_provider.h"
+#include "config/config.h"
 #include "log.h"
 
 #include <SDL.h>
@@ -18,9 +19,9 @@ static TTF_Font *g_font = NULL;
 static TTF_Font *g_font_bold = NULL;
 static int g_font_pt = 20;
 
-static pp_server *g_servers = NULL;
-static int g_server_count = 0;
 static pp_server *g_current_server = NULL;
+static char g_auth_token[256] = {0};
+static char g_ini_path[512] = {0};
 
 /* ---- Smoke scroll + max frame tracking ------------------------------------ */
 static int g_smoke_scroll = 0;
@@ -191,12 +192,38 @@ int ui_init(void) {
   if (!g_ren) { LOGE("no renderer"); return -1; }
   if (font_load() != 0) return -1;
   cache_init();
-
-  /* Discover fake servers for the home/servers flow. */
-  if (fake_servers(&g_servers, &g_server_count) == 0 && g_server_count > 0)
-    g_current_server = &g_servers[0];
-
   return 0;
+}
+
+void ui_set_ini_path(const char *path) {
+  if (path) snprintf(g_ini_path, sizeof(g_ini_path), "%s", path);
+}
+const char *ui_ini_path(void) { return g_ini_path[0] ? g_ini_path : "pocketplex.ini"; }
+
+void ui_set_server(pp_server *srv) { g_current_server = srv; }
+
+void ui_set_auth_token(const char *token) {
+  if (token) snprintf(g_auth_token, sizeof(g_auth_token), "%s", token);
+}
+const char *ui_get_auth_token(void) { return g_auth_token[0] ? g_auth_token : NULL; }
+
+void ui_push_screen(pp_screen_id id) {
+  pp_screen *s = NULL;
+  switch (id) {
+  case SCREEN_LINK:     s = screen_link_create(); break;
+  case SCREEN_SERVERS:  s = screen_servers_create(); break;
+  case SCREEN_HOME:     s = screen_home_create(); break;
+  case SCREEN_SETTINGS: s = screen_settings_create(); break;
+  case SCREEN_DETAIL:
+  case SCREEN_LIST:     s = screen_list_create_key(NULL, "Library"); break;
+  case SCREEN_TOAST:
+  case SCREEN_COUNT:    break;
+  }
+  if (s) ui_push(s);
+}
+
+pp_server *ui_current_server(void) {
+  return g_current_server;
 }
 
 void ui_quit(void) {
@@ -205,22 +232,6 @@ void ui_quit(void) {
   if (g_font_bold && g_font_bold != g_font) TTF_CloseFont(g_font_bold);
   if (g_font) TTF_CloseFont(g_font);
   g_font = g_font_bold = NULL;
-  if (g_servers) {
-    int i;
-    for (i = 0; i < g_server_count; i++) {
-      free(g_servers[i].url);
-      free(g_servers[i].token);
-      free(g_servers[i].client_id);
-    }
-    free(g_servers);
-    g_servers = NULL;
-    g_server_count = 0;
-    g_current_server = NULL;
-  }
-}
-
-pp_server *ui_current_server(void) {
-  return g_current_server;
 }
 
 void ui_render_toast(void) {
@@ -246,13 +257,7 @@ void ui_run(void) {
     g_smoke_phase = 0;
   }
 
-  /* Start on the Link screen if not authenticated, else Home. */
-  if (g_current_server && g_current_server->token) {
-    ui_push(screen_home_create());
-  } else {
-    ui_push(screen_link_create());
-  }
-
+  /* Initial screen is pushed by main.c (Link or Home). */
   while (running && g_stack_top >= 0) {
     Uint32 now = SDL_GetTicks();
     Uint32 frame_start = now;

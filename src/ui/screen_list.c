@@ -1,22 +1,29 @@
 /* screen_list.c: generic paged list with scrollbar, built for 2000-item perf.
  * Supports both preloaded data and async key-based loading via worker thread.
+ * In production, calls pp_children (via worker) with the real plex.h server.
+ * In smoke mode, the worker dispatches to fake_provider.
  */
 #include "ui.h"
-#include "ui/fake_provider.h"
 #include "ui/worker.h"
+#include "plex/plex.h"
 #include "log.h"
 
 #include <stdlib.h>
 #include <string.h>
-#include <stdio.h>
 
 typedef struct {
-  pp_list_model model;   /* items to display */
+  pp_list_model model;
   pp_list_view  view;
+  pp_request req;
   char title[128];
-  pp_request req;        /* for async key-based loading */
-  int async;            /* 1 if loaded via worker */
+  int async;
+  int error_shown;
 } list_data_t;
+
+static int is_container(pp_kind k) {
+  return k == PP_SECTION || k == PP_SHOW || k == PP_SEASON ||
+         k == PP_ARTIST || k == PP_ALBUM || k == PP_DIR;
+}
 
 static void list_render(pp_screen *self) {
   list_data_t *d = (list_data_t *)self->data;
@@ -24,14 +31,33 @@ static void list_render(pp_screen *self) {
   /* Check for async completion */
   if (d->async && !d->req.done) {
     self->loading = 1;
+    ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
     ui_draw_text(d->title, PP_MARGIN_L, 10, PP_COLOR_FG);
+    ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
     ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
     g_spinner_frame++;
     return;
   } else if (d->async && d->req.done) {
-    if (d->req.status == 0) {
+    if (d->req.status == PP_OK) {
       d->model.items = d->req.result.items;
       d->model.count = d->req.result.count;
+    } else {
+      if (d->req.status == PP_ERR_AUTH) {
+        ui_toast("Auth expired — relink");
+        ui_pop();
+        ui_push(screen_link_create());
+        d->async = 0;
+        return;
+      } else if (!d->error_shown) {
+        if (d->req.error[0]) ui_toast(d->req.error);
+        d->error_shown = 1;
+        /* Retry the request */
+        d->req.srv = ui_current_server();
+        d->req.done = 0;
+        d->req.status = 0;
+        worker_submit(&d->req);
+        return;
+      }
     }
     self->loading = 0;
     d->async = 0;
@@ -48,8 +74,8 @@ static void list_render(pp_screen *self) {
   int body_top = PP_HEADER_H + 8;
   int body_h = PP_SCREEN_H - PP_HEADER_H - PP_FOOTER_H - 16;
   int y = body_top;
-  int i;
   int visible = d->view.visible_count;
+  int i;
   for (i = d->view.scroll_top;
        i < d->view.scroll_top + visible && i < d->model.count; i++) {
     pp_item *it = &d->model.items[i];
@@ -85,7 +111,7 @@ static void list_render(pp_screen *self) {
 
 static void list_handle(pp_screen *self, pp_btn btn) {
   list_data_t *d = (list_data_t *)self->data;
-  if (self->loading && d->async) return; /* ignore input while loading */
+  if (self->loading && d->async) return;
   switch (btn) {
   case BTN_DOWN:
   case BTN_UP:
@@ -96,12 +122,10 @@ static void list_handle(pp_screen *self, pp_btn btn) {
   case BTN_A:
     if (d->model.count > 0) {
       pp_item *it = &d->model.items[d->view.selected];
-      pp_list children;
-      memset(&children, 0, sizeof(children));
-      if (fake_children(NULL, it->key, &children) == 0 && children.count > 0) {
-        ui_push(screen_list_create(&children, it->title));
+      ui_pop();
+      if (is_container(it->kind) && it->key[0]) {
+        ui_push(screen_list_create_key(it->key, it->title));
       } else {
-        ui_pop();
         ui_push(screen_detail_create(it));
       }
     }
@@ -127,6 +151,7 @@ static void list_handle(pp_screen *self, pp_btn btn) {
 static void list_destroy(pp_screen *self) {
   list_data_t *d = (list_data_t *)self->data;
   if (d) {
+    if (d->async && d->req.status == PP_OK) pp_list_free(&d->req.result);
     d->model.items = NULL; d->model.count = 0;
     free(d);
   }
@@ -154,10 +179,11 @@ pp_screen *screen_list_create_key(const char *key, const char *title) {
   if (!s) return NULL;
   list_data_t *d = (list_data_t *)calloc(1, sizeof(list_data_t));
   if (!d) { free(s); return NULL; }
-  if (key) snprintf(d->title, sizeof(d->title), "%s", title ? title : key);
+  if (title) snprintf(d->title, sizeof(d->title), "%s", title);
   d->async = 1;
   d->req.type = REQ_CHILDREN;
   d->req.key = key;
+  d->req.srv = ui_current_server();
   d->req.done = 0;
   list_view_init(&d->view, &d->model, PP_VISIBLE);
   s->id = SCREEN_LIST;

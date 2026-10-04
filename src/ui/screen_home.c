@@ -2,7 +2,6 @@
  * Loads data via worker thread; shows spinner while pending.
  */
 #include "ui.h"
-#include "ui/fake_provider.h"
 #include "ui/worker.h"
 #include "log.h"
 
@@ -31,11 +30,25 @@ static void home_render(pp_screen *self) {
 
   /* Process completed requests */
   if (!d->ondeck_loaded && d->req_ondeck.done) {
-    if (d->req_ondeck.status == 0) d->on_deck = d->req_ondeck.result;
+    if (d->req_ondeck.status == PP_OK) d->on_deck = d->req_ondeck.result;
+    else {
+      if (d->req_ondeck.status == PP_ERR_AUTH) {
+        ui_toast("Auth expired — relink");
+        ui_pop();
+        ui_push(screen_link_create());
+      } else if (d->req_ondeck.error[0]) ui_toast(d->req_ondeck.error);
+    }
     d->ondeck_loaded = 1;
   }
   if (!d->sections_loaded && d->req_sections.done) {
-    if (d->req_sections.status == 0) d->sections = d->req_sections.result;
+    if (d->req_sections.status == PP_OK) d->sections = d->req_sections.result;
+    else {
+      if (d->req_sections.status == PP_ERR_AUTH) {
+        ui_toast("Auth expired — relink");
+        ui_pop();
+        ui_push(screen_link_create());
+      } else if (d->req_sections.error[0]) ui_toast(d->req_sections.error);
+    }
     d->sections_loaded = 1;
   }
 
@@ -155,8 +168,10 @@ pp_screen *screen_home_create(void) {
   d->in_sections = 0;
   /* Start async loads BEFORE setting type/done */
   d->req_ondeck.type = REQ_ON_DECK;
+  d->req_ondeck.srv = ui_current_server();
   d->req_ondeck.done = 0;
   d->req_sections.type = REQ_SECTIONS;
+  d->req_sections.srv = ui_current_server();
   d->req_sections.done = 0;
   s->id = SCREEN_HOME;
   s->data = d;

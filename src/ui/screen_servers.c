@@ -1,6 +1,8 @@
-/* screen_servers.c: server selection, loaded async via worker thread. */
+/* screen_servers.c: server selection, loaded async via worker thread.
+ * In production, calls pp_discover_servers with the auth token from config or
+ * PIN flow. In smoke mode, the worker dispatches to fake_provider.
+ */
 #include "ui.h"
-#include "ui/fake_provider.h"
 #include "ui/worker.h"
 #include "log.h"
 
@@ -9,7 +11,7 @@
 #include <stdio.h>
 
 typedef struct {
-  pp_server *servers;
+  pp_server *servers;     /* discovered servers (owned by this screen) */
   int count;
   int selected;
   pp_request req;
@@ -19,7 +21,7 @@ static void servers_render(pp_screen *self) {
   servers_data_t *d = (servers_data_t *)self->data;
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
   ui_draw_text("Servers", PP_MARGIN_L, 10, PP_COLOR_FG);
-  ui_draw_text("Servers  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
+  ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   /* Check async result */
   if (d->req.type == REQ_SERVERS && !d->req.done) {
@@ -30,20 +32,41 @@ static void servers_render(pp_screen *self) {
   }
 
   /* Worker completed */
-  if (d->req.type == REQ_SERVERS && d->req.done) {
-    if (d->req.status == 0 && d->req.servers) {
+  if (d->req.type == REQ_SERVERS && d->req.done && !d->servers) {
+    if (d->req.status == PP_OK && d->req.servers) {
       d->servers = d->req.servers;
       d->count = d->req.server_count;
+    } else {
+      /* Error handling: retry on NET/HTTP, relink on AUTH */
+      if (d->req.status == PP_ERR_AUTH) {
+        ui_toast("Auth expired — relink");
+        ui_pop();
+        ui_push(screen_link_create());
+        d->req.done = 0;
+        d->req.type = REQ_NONE;
+        return;
+      } else if (d->req.status == PP_ERR_NET || d->req.status == PP_ERR_HTTP) {
+        if (d->req.error[0]) ui_toast(d->req.error);
+        /* Retry */
+        d->req.type = REQ_SERVERS;
+        d->req.token = ui_get_auth_token();
+        d->req.srv = ui_current_server();
+        d->req.done = 0;
+        worker_submit(&d->req);
+        return;
+      }
+      if (d->req.error[0]) ui_toast(d->req.error);
+      d->req.type = REQ_NONE;
     }
-    self->loading = 0;
   }
+  self->loading = 0;
 
   int y = PP_HEADER_H + 12;
   int i;
   for (i = 0; i < d->count; i++) {
     pp_color col = (i == d->selected) ? PP_COLOR_SEL : PP_COLOR_FG;
     char buf[128];
-    snprintf(buf, sizeof(buf), "%d. %s", i + 1, d->servers[i].url);
+    snprintf(buf, sizeof(buf), "%s", d->servers[i].url);
     ui_draw_text(buf, PP_MARGIN_L, y, col);
     y += PP_LINE_H;
   }
@@ -62,6 +85,8 @@ static void servers_handle(pp_screen *self, pp_btn btn) {
   case BTN_UP:   if (d->selected > 0) d->selected--; break;
   case BTN_A:
     if (d->count > 0) {
+      pp_server *srv = &d->servers[d->selected];
+      ui_set_server(srv);
       ui_toast("Connected");
       ui_pop();
       ui_push(screen_home_create());
@@ -88,7 +113,8 @@ static void servers_destroy(pp_screen *self) {
   if (d) {
     int i;
     for (i = 0; i < d->count; i++) {
-      free(d->servers[i].url); free(d->servers[i].token);
+      free(d->servers[i].url);
+      free(d->servers[i].token);
       free(d->servers[i].client_id);
     }
     free(d->servers);
@@ -101,7 +127,10 @@ pp_screen *screen_servers_create(void) {
   if (!s) return NULL;
   servers_data_t *d = (servers_data_t *)calloc(1, sizeof(servers_data_t));
   if (!d) { free(s); return NULL; }
+
   d->req.type = REQ_SERVERS;
+  d->req.token = ui_get_auth_token();
+  d->req.srv = ui_current_server();
   d->req.done = 0;
   s->id = SCREEN_SERVERS;
   s->data = d;

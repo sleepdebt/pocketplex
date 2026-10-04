@@ -1,6 +1,5 @@
 /* screen_detail.c: item detail — title, year, duration, summary, resume/play. */
 #include "ui.h"
-#include "ui/fake_provider.h"
 #include "log.h"
 
 #include <stdlib.h>

@@ -3,11 +3,10 @@
  * so the UI layer can draw with SDL_Renderer directly.
  */
 #include "platform/platform.h"
-#include "ui/input_map.h"
-#include "log.h"
-
 #include <SDL.h>
 #include <SDL_ttf.h>
+#include "ui/input_map.h"
+#include "log.h"
 #include <stdlib.h>
 #include <string.h>
 

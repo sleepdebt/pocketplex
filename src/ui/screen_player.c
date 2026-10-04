@@ -31,6 +31,7 @@ typedef struct {
   play_state ps;
   Uint32 play_started;
   int failed;            /* player_poll < 0 */
+  pp_item *update;       /* caller's item to refresh on stop (may be NULL) */
 } player_data_t;
 
 static pp_play_args play_args(player_data_t *d, const char *state) {
@@ -85,6 +86,7 @@ static void player_render(pp_screen *self) {
       ui_toast(st == PP_ERR_AUTH ? "Auth expired — relink" : worker_error(d->req_url));
       worker_release(d->req_url);
       d->req_url = NULL;
+      ui_play_result(0);
       ui_pop();
       return;
     }
@@ -96,6 +98,7 @@ static void player_render(pp_screen *self) {
     if (!d->player) {
       self->no_present = 0;
       ui_toast("Could not start the player");
+      ui_play_result(0);
       ui_pop();
       return;
     }
@@ -136,10 +139,18 @@ static void player_render(pp_screen *self) {
 
   case P_STOPPING:
     draw_status("Stopping...", 0);
+    self->expect_slow = 1;   /* player_stop blocks up to ~1.5 s by design */
     finish_playback(d);
     /* The player read the buttons itself; drop what SDL queued meanwhile. */
     SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+    /* The screen below (Detail) is alive while we render; refresh its item so
+     * A offers the new resume point. A scrobbled item restarts from 0. */
+    if (d->update) {
+      d->update->view_offset_ms = d->ps.scrobbled ? 0 : d->ps.pos_ms;
+      if (d->ps.scrobbled) d->update->watched = 1;
+    }
     if (d->failed) ui_toast("Playback failed");
+    ui_play_result(!d->failed);
     ui_pop();
     return;
   }
@@ -160,13 +171,14 @@ static void player_destroy(pp_screen *self) {
   }
 }
 
-pp_screen *screen_player_create(const pp_item *item, long start_ms) {
+pp_screen *screen_player_create(const pp_item *item, long start_ms, pp_item *update) {
   if (!item) return NULL;
   pp_screen *s = (pp_screen *)calloc(1, sizeof(pp_screen));
   if (!s) return NULL;
   player_data_t *d = (player_data_t *)calloc(1, sizeof(player_data_t));
   if (!d) { free(s); return NULL; }
   d->item = *item;
+  d->update = update;
   d->start_ms = start_ms > 0 ? start_ms : 0;
   play_session_id(d->session);
 

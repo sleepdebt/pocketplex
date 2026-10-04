@@ -18,6 +18,7 @@
  */
 #include "platform/platform.h"
 #include "ui/ui.h"
+#include "ui/play_state.h"
 #include "plex/plex.h"
 #include "config/config.h"
 #include "log.h"
@@ -43,6 +44,7 @@ int main(int argc, char **argv) {
   int smoke = 0;
   int walk = 0;
   const char *play_key = NULL;  /* --smoke-play <key>: play the first item at key */
+  char play_path[256];
   long play_s = 30;
 
   for (i = 1; i < argc; i++) {
@@ -56,6 +58,15 @@ int main(int argc, char **argv) {
       play_key = argv[++i];
     else if (strcmp(argv[i], "--play-seconds") == 0 && i + 1 < argc)
       play_s = atol(argv[++i]);
+  }
+
+  if (play_key) {
+    if (play_normalize_key(play_key, play_path, sizeof play_path) != 0) {
+      LOGE("--smoke-play: '%s' is not a ratingKey (digits) or a /library/... path", play_key);
+      return 2;
+    }
+    play_key = play_path;
+    if (play_s <= 0) { LOGE("--play-seconds must be > 0"); return 2; }
   }
 
   const char *ini = ini_path(argv[0]);
@@ -91,7 +102,13 @@ int main(int argc, char **argv) {
     /* Fake provider only; starts at Link and walks the stack itself. */
     ui_set_smoke_scroll(1);
     ui_push_screen(SCREEN_LINK);
-  } else if (play_key && cfg.token[0] && cfg.server_url[0]) {
+  } else if (play_key && !(cfg.token[0] && cfg.server_url[0])) {
+    LOGE("--smoke-play needs server_url and token in the ini");
+    ui_quit();
+    pp_cleanup();
+    plat_quit();
+    return 2;
+  } else if (play_key) {
     ui_set_smoke_play(play_key, play_s * 1000);
     srv.url = cfg.server_url;
     srv.token = cfg.token;
@@ -129,5 +146,5 @@ int main(int argc, char **argv) {
   if (ui_quit() == 0) pp_cleanup();
   else LOGW("skipping pp_cleanup: requests still in flight");
   plat_quit();
-  return 0;
+  return ui_exit_code();
 }

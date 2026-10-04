@@ -111,13 +111,7 @@ static void servers_handle(pp_screen *self, pp_btn btn) {
 static void servers_destroy(pp_screen *self) {
   servers_data_t *d = (servers_data_t *)self->data;
   if (d) {
-    int i;
-    for (i = 0; i < d->count; i++) {
-      free(d->servers[i].url);
-      free(d->servers[i].token);
-      free(d->servers[i].client_id);
-    }
-    free(d->servers);
+    pp_servers_free(d->servers, d->count);
     free(d);
   }
 }

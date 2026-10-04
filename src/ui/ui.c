@@ -20,6 +20,7 @@ static TTF_Font *g_font_bold = NULL;
 static int g_font_pt = 20;
 
 static pp_server *g_current_server = NULL;
+static int g_server_owned = 0;  /* 1 if g_current_server was deep-copied */
 static char g_auth_token[256] = {0};
 static char g_ini_path[512] = {0};
 
@@ -201,7 +202,26 @@ void ui_set_ini_path(const char *path) {
 }
 const char *ui_ini_path(void) { return g_ini_path[0] ? g_ini_path : "pocketplex.ini"; }
 
-void ui_set_server(pp_server *srv) { g_current_server = srv; }
+void ui_set_server(pp_server *srv) {
+  if (g_server_owned && g_current_server) {
+    pp_servers_free(g_current_server, 1);
+    g_current_server = NULL;
+    g_server_owned = 0;
+  }
+  if (srv) {
+    pp_server *copy = (pp_server *)calloc(1, sizeof(pp_server));
+    if (copy) {
+      copy->url = srv->url ? strdup(srv->url) : NULL;
+      copy->token = srv->token ? strdup(srv->token) : NULL;
+      copy->client_id = srv->client_id ? strdup(srv->client_id) : NULL;
+      g_current_server = copy;
+      g_server_owned = 1;
+    }
+  } else {
+    g_current_server = NULL;
+    g_server_owned = 0;
+  }
+}
 
 void ui_set_auth_token(const char *token) {
   if (token) snprintf(g_auth_token, sizeof(g_auth_token), "%s", token);
@@ -230,6 +250,11 @@ pp_server *ui_current_server(void) {
 void ui_quit(void) {
   while (g_stack_top >= 0) ui_pop();
   cache_clear();
+  if (g_server_owned && g_current_server) {
+    pp_servers_free(g_current_server, 1);
+    g_current_server = NULL;
+    g_server_owned = 0;
+  }
   if (g_font_bold && g_font_bold != g_font) TTF_CloseFont(g_font_bold);
   if (g_font) TTF_CloseFont(g_font);
   g_font = g_font_bold = NULL;

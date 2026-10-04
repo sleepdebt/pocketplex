@@ -1,0 +1,27 @@
+# toolchains/Dockerfile.mmp.
+# Build image for the Miyoo Mini Plus (Onion / SSD202D, armhf Cortex-A7).
+# Host-arch independent: gcc-arm-linux-gnueabihf cross-compiles to armhf on both
+# amd64 and arm64 hosts (Debian ships this cross-compiler for both). base glibc is
+# bookworm's 2.36; the MMP device glibc must be >= 2.36 (see the spec).
+FROM debian:bookworm-slim
+
+ENV DEBIAN_FRONTEND=noninteractive
+RUN dpkg --add-architecture armhf \
+ && apt-get update && apt-get install -y --no-install-recommends \
+      ca-certificates \
+      build-essential \
+      pkg-config \
+      gcc-arm-linux-gnueabihf \
+      g++-arm-linux-gnueabihf \
+      crossbuild-essential-armhf \
+      libc6-dev:armhf \
+      libsdl2-dev:armhf \
+      libsdl2-ttf-dev:armhf \
+      libcurl4-openssl-dev:armhf \
+      libcjson-dev:armhf \
+      zip \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN arm-linux-gnueabihf-gcc --version | head -1 \
+ && PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig \
+    pkg-config --modversion sdl2 SDL2_ttf libcurl

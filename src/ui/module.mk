@@ -5,5 +5,5 @@
 CORE_SRCS += src/ui/list_view.c src/ui/input_map.c src/ui/fake_provider.c src/ui/worker.c src/ui/play_state.c
 APP_SRCS  += src/ui/ui.c
 APP_SRCS  += src/ui/screen_home.c src/ui/screen_list.c src/ui/screen_detail.c
-APP_SRCS  += src/ui/screen_servers.c src/ui/screen_link.c src/ui/screen_settings.c
+APP_SRCS  += src/ui/screen_servers.c src/ui/screen_link.c src/ui/screen_settings.c src/ui/screen_player.c
 APP_LIBS  += -lSDL2_ttf

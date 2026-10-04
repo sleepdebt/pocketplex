@@ -33,6 +33,9 @@ static int g_smoke_phase = 0;
 static Uint32 g_smoke_start = 0;
 static int g_smoke_scroll_count = 0;
 static Uint32 g_max_frame_ms = 0;
+static char g_smoke_play_key[256] = {0};
+static long g_smoke_play_ms = 0;
+static int g_smoke_play_saw_player = 0;
 
 static pp_screen *g_stack[MAX_SCREENS];
 static int g_stack_top = -1;
@@ -179,7 +182,9 @@ int text_width_px(const char *str) {
 void ui_push(pp_screen *s) {
   if (!s) return;
   if (g_stack_count >= MAX_SCREENS) {
-    LOGE("ui_push: stack overflow, leaking screen");
+    LOGE("ui_push: stack full, dropping screen");
+    if (s->destroy) s->destroy(s);
+    free(s);
     return;
   }
   g_stack[++g_stack_top] = s;
@@ -304,6 +309,7 @@ void ui_push_screen(pp_screen_id id) {
   case SCREEN_SETTINGS: s = screen_settings_create(); break;
   case SCREEN_DETAIL:
   case SCREEN_LIST:     s = screen_list_create_key(NULL, "Library"); break;
+  case SCREEN_PLAYER:
   case SCREEN_TOAST:
   case SCREEN_COUNT:    break;
   }
@@ -314,12 +320,13 @@ pp_server *ui_current_server(void) {
   return g_current_server;
 }
 
-void ui_quit(void) {
+int ui_quit(void) {
   while (g_stack_top >= 0) ui_pop();
   ui_finalize_pops();
   /* Released requests are freed by their workers when they finish; give any
    * still blocked in the network a moment so nothing is left at exit. */
-  if (worker_wait_idle(3000) != 0)
+  int idle = worker_wait_idle(3000);
+  if (idle != 0)
     LOGW("ui_quit: %d request(s) still in flight at exit", worker_live_count());
   cache_clear();
   ui_set_server(NULL);
@@ -327,6 +334,7 @@ void ui_quit(void) {
   if (g_font_bold && g_font_bold != g_font) TTF_CloseFont(g_font_bold);
   if (g_font) TTF_CloseFont(g_font);
   g_font = g_font_bold = NULL;
+  return idle;
 }
 
 int g_spinner_frame = 0;
@@ -348,6 +356,13 @@ void ui_render_toast(void) {
 void ui_set_smoke_scroll(int on) { g_smoke_scroll = on; }
 int  ui_is_smoke_scroll(void) { return g_smoke_scroll; }
 
+void ui_set_smoke_play(const char *key, long play_ms) {
+  snprintf(g_smoke_play_key, sizeof(g_smoke_play_key), "%s", key ? key : "");
+  g_smoke_play_ms = play_ms;
+}
+const char *ui_smoke_play_key(void) { return g_smoke_play_key; }
+long ui_smoke_play_ms(void) { return g_smoke_play_key[0] ? g_smoke_play_ms : 0; }
+
 void ui_set_smoke_walk(int on) { g_smoke_walk = on; }
 int  ui_is_smoke_walk(void) { return g_smoke_walk; }
 
@@ -363,7 +378,7 @@ void ui_run(void) {
     g_smoke_start = start_tick;
     g_smoke_phase = 0;
   }
-  if (g_smoke_walk) {
+  if (g_smoke_walk || ui_smoke_play_ms() > 0) {
     g_smoke_start = start_tick;
     g_smoke_phase = 0;
   }
@@ -487,22 +502,57 @@ void ui_run(void) {
       }
     }
 
+    /* Smoke play: List(key) -> A (Detail) -> A (play from start) -> back -> exit */
+    if (ui_smoke_play_ms() > 0) {
+      pp_screen *cur = current_screen();
+      Uint32 t = now - g_smoke_start;
+      switch (g_smoke_phase) {
+      case 0:
+        if (cur && cur->id == SCREEN_LIST && !cur->loading && t >= 200) {
+          if (cur->log_titles) cur->log_titles(cur, 1);
+          if (cur->handle_button) cur->handle_button(cur, BTN_A);
+          g_smoke_phase = 1;
+          g_smoke_start = now;
+        }
+        break;
+      case 1:
+        if (cur && cur->id == SCREEN_DETAIL && t >= 200) {
+          if (cur->handle_button) cur->handle_button(cur, BTN_A);
+          g_smoke_phase = 2;
+        }
+        break;
+      case 2:
+        if (cur && cur->id == SCREEN_PLAYER) g_smoke_play_saw_player = 1;
+        if (cur && cur->id == SCREEN_DETAIL && g_smoke_play_saw_player) {
+          LOGI("play: back on Detail, done");
+          running = 0;
+        }
+        break;
+      }
+    }
+
     pp_screen *s = current_screen();
     if (!s) break;
 
-    SDL_SetRenderDrawColor(g_ren, 0x18, 0x18, 0x1c, 0xff);
-    SDL_RenderClear(g_ren);
+    if (s->no_present) {
+      /* An external player owns the display: no clear, no present. */
+      if (s->render) s->render(s);
+      SDL_Delay(15);
+    } else {
+      SDL_SetRenderDrawColor(g_ren, 0x18, 0x18, 0x1c, 0xff);
+      SDL_RenderClear(g_ren);
 
-    if (s->render) s->render(s);
-    ui_render_toast();
+      if (s->render) s->render(s);
+      ui_render_toast();
 
-    plat_present();
+      plat_present();
 
-    Uint32 frame_end = SDL_GetTicks();
-    Uint32 frame_ms = frame_end - frame_start;
-    if (frame_ms > g_max_frame_ms) g_max_frame_ms = frame_ms;
-    if (frame_ms > 50) {
-      LOGI("WARNING: frame time %u ms > 50 ms (loading=%d)", frame_ms, s->loading);
+      Uint32 frame_end = SDL_GetTicks();
+      Uint32 frame_ms = frame_end - frame_start;
+      if (frame_ms > g_max_frame_ms) g_max_frame_ms = frame_ms;
+      if (frame_ms > 50) {
+        LOGI("WARNING: frame time %u ms > 50 ms (loading=%d)", frame_ms, s->loading);
+      }
     }
 
     pp_btn btn = plat_poll_button();

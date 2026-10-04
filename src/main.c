@@ -5,6 +5,8 @@
  *   ./build/pocketplex [--exit-after-ms N]  auto-quit after N ms
  *   ./build/pocketplex [--smoke-scroll]     auto-navigate all screens for perf testing
  *   ./build/pocketplex [--smoke-walk]       auto-navigate Library to Show to Season to Episode
+ *   ./build/pocketplex --smoke-play <key> [--play-seconds N]
+ *                                           play the first item at key for N s (default 30)
  *   PP_FAKE_DELAY_MS=800 ./build/pocketplex --smoke-scroll
  *
  *   Esc or window close quits. --smoke-scroll auto-navigates all screens
@@ -40,6 +42,8 @@ int main(int argc, char **argv) {
   int i;
   int smoke = 0;
   int walk = 0;
+  const char *play_key = NULL;  /* --smoke-play <key>: play the first item at key */
+  long play_s = 30;
 
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--exit-after-ms") == 0 && i + 1 < argc)
@@ -48,6 +52,10 @@ int main(int argc, char **argv) {
       smoke = 1;
     else if (strcmp(argv[i], "--smoke-walk") == 0)
       walk = 1;
+    else if (strcmp(argv[i], "--smoke-play") == 0 && i + 1 < argc)
+      play_key = argv[++i];
+    else if (strcmp(argv[i], "--play-seconds") == 0 && i + 1 < argc)
+      play_s = atol(argv[++i]);
   }
 
   const char *ini = ini_path(argv[0]);
@@ -68,6 +76,7 @@ int main(int argc, char **argv) {
     return 1;
   }
 
+  ui_set_ini_path(ini);  /* before any screen reads the config */
   if (ui_init() != 0) {
     LOGE("ui_init failed");
     plat_quit();
@@ -82,6 +91,14 @@ int main(int argc, char **argv) {
     /* Fake provider only; starts at Link and walks the stack itself. */
     ui_set_smoke_scroll(1);
     ui_push_screen(SCREEN_LINK);
+  } else if (play_key && cfg.token[0] && cfg.server_url[0]) {
+    ui_set_smoke_play(play_key, play_s * 1000);
+    srv.url = cfg.server_url;
+    srv.token = cfg.token;
+    srv.client_id = cfg.client_id;
+    ui_set_server(&srv);
+    ui_set_auth_token(cfg.token);
+    ui_push(screen_list_create_key(play_key, "Play"));
   } else if (walk) {
     ui_set_smoke_walk(1);
     srv.url = cfg.server_url;
@@ -102,14 +119,15 @@ int main(int argc, char **argv) {
   }
 
   ui_set_swap_ab(cfg.swap_ab);
-  ui_set_ini_path(ini);
   memset(&cfg, 0, sizeof cfg);  /* the UI keeps its own copy of the token */
 
   LOGI("PocketPlex started: %dx%d (smoke=%d)", w, h, smoke);
   ui_run();
 
-  ui_quit();
-  pp_cleanup();
+  /* A request still blocked in curl after ui_quit's wait would race
+   * curl_global_cleanup, so skip pp_cleanup then (the process is exiting). */
+  if (ui_quit() == 0) pp_cleanup();
+  else LOGW("skipping pp_cleanup: requests still in flight");
   plat_quit();
   return 0;
 }

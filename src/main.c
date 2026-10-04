@@ -78,11 +78,13 @@ int main(int argc, char **argv) {
   if (smoke) {
     ui_set_smoke_scroll(1);
     ui_push_screen(SCREEN_LINK);
-  } else if (walk) {
+  }
+
+  pp_server srv;
+  memset(&srv, 0, sizeof srv);
+
+  if (walk) {
     ui_set_smoke_walk(1);
-    /* Smoke walk uses dev fallback (real server from config) */
-    pp_server srv;
-    memset(&srv, 0, sizeof srv);
     srv.url = cfg.server_url;
     srv.token = cfg.token;
     srv.client_id = cfg.client_id;
@@ -90,8 +92,6 @@ int main(int argc, char **argv) {
     ui_set_auth_token(cfg.token);
     ui_push_screen(SCREEN_HOME);
   } else if (cfg.token[0] && cfg.server_url[0]) {
-    pp_server srv;
-    memset(&srv, 0, sizeof srv);
     srv.url = cfg.server_url;
     srv.token = cfg.token;
     srv.client_id = cfg.client_id;

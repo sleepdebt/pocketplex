@@ -23,15 +23,15 @@ static void settings_render(pp_screen *self) {
   const char *labels[] = { "Video Quality", "Subtitles", "Sign Out", NULL };
   int i;
   for (i = 0; labels[i]; i++) {
-    pp_color col = (i == d->sel) ? PP_COLOR_SEL : PP_COLOR_FG;
+    pp_color col = (i == d->sel) ? PP_COLOR_SEL : (i == 1 ? PP_COLOR_DIM : PP_COLOR_FG);
     ui_draw_text(labels[i], PP_MARGIN_L, y, col);
     char val[64];
     if (i == 0) {
       int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
       snprintf(val, sizeof(val), "%s", is_480 ? "480p" : "360p");
     } else if (i == 1) {
-      int burn = (strcmp(d->cfg.subtitles, "burn") == 0);
-      snprintf(val, sizeof(val), "%s", burn ? "burn in" : "off");
+      /* Not configurable yet: transcodes always burn subtitles in. */
+      snprintf(val, sizeof(val), "always on");
     } else {
       snprintf(val, sizeof(val), "%s", d->cfg.token[0] ? "signed in" : "signed out");
     }
@@ -39,6 +39,10 @@ static void settings_render(pp_screen *self) {
     ui_draw_text(val, PP_SCREEN_W - PP_MARGIN_R - w, y, PP_COLOR_DIM);
     y += PP_LINE_H;
   }
+
+  if (d->sel == 1)
+    ui_draw_text("Subtitles are burned into the stream for now.",
+                 PP_MARGIN_L, y + 12, PP_COLOR_DIM);
 
   ui_draw_text("D-pad: navigate  A: toggle  B: back",
                PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
@@ -60,10 +64,7 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
       snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", is_480 ? "360p" : "480p");
       ui_toast(settings_save(d) ? d->cfg.quality : "Failed to save settings");
     } else if (d->sel == 1) {
-      int burn = (strcmp(d->cfg.subtitles, "burn") == 0);
-      snprintf(d->cfg.subtitles, sizeof(d->cfg.subtitles), "%s", burn ? "off" : "burn");
-      if (!settings_save(d)) ui_toast("Failed to save settings");
-      else ui_toast(d->cfg.subtitles[0] == 'b' ? "Subtitles on" : "Subtitles off");
+      ui_toast("Subtitles are always burned in for now");
     } else if (d->sel == 2) {
       memset(d->cfg.token, 0, sizeof(d->cfg.token));
       int saved = settings_save(d);

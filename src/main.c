@@ -1,70 +1,115 @@
-/* main.c: core stub that opens a 640x480 SDL2 window. core owns this file from Phase 1
- * and replaces it with the app loop on top of platform.h.
+/* main.c: PocketPlex app entry point. Initializes platform + UI, then runs
+ * the screen stack loop.
  *
- *   ./build/pocketplex [--exit-after-ms N]   (Esc or closing the window quits)
+ *   ./build/pocketplex                      full app (PIN link or dev fallback)
+ *   ./build/pocketplex [--exit-after-ms N]  auto-quit after N ms
+ *   ./build/pocketplex [--smoke-scroll]     auto-navigate all screens for perf testing
+ *   ./build/pocketplex [--smoke-walk]       auto-navigate Library to Show to Season to Episode
+ *   PP_FAKE_DELAY_MS=800 ./build/pocketplex --smoke-scroll
+ *
+ *   Esc or window close quits. --smoke-scroll auto-navigates all screens
+ *   and logs fps to prove <50 ms frame times during async loading.
+ *
+ * Config: reads pocketplex.ini (POCKETPLEX_INI env overrides; else ./pocketplex.ini).
+ * If [plex] server_url + token are set (dev fallback), Link/Servers screens are
+ * skipped and the app goes straight to Home. Otherwise, PIN link flow.
  */
-#include <SDL.h>
+#include "platform/platform.h"
+#include "ui/ui.h"
+#include "plex/plex.h"
+#include "config/config.h"
+#include "log.h"
+
 #include <stdlib.h>
 #include <string.h>
 
-#include "log.h"
+static long g_exit_after_ms = -1;
 
-#define SCREEN_W 640
-#define SCREEN_H 480
+void ui_set_exit_after_ms(long ms) { g_exit_after_ms = ms; }
+
+long  ui_get_exit_after_ms(void) { return g_exit_after_ms; }
+
+static const char *ini_path(const char *argv0) {
+  (void)argv0;
+  const char *env = getenv("POCKETPLEX_INI");
+  if (env && env[0]) return env;
+  return "pocketplex.ini";
+}
 
 int main(int argc, char **argv) {
-  long exit_after_ms = -1;
-  SDL_Window *win;
-  SDL_Renderer *ren;
-  Uint32 start;
-  int running = 1, w = 0, h = 0, i;
+  int i;
+  int smoke = 0;
+  int walk = 0;
 
   for (i = 1; i < argc; i++) {
-    if (strcmp(argv[i], "--exit-after-ms") == 0 && i + 1 < argc) exit_after_ms = atol(argv[++i]);
+    if (strcmp(argv[i], "--exit-after-ms") == 0 && i + 1 < argc)
+      ui_set_exit_after_ms(atol(argv[++i]));
+    else if (strcmp(argv[i], "--smoke-scroll") == 0)
+      smoke = 1;
+    else if (strcmp(argv[i], "--smoke-walk") == 0)
+      walk = 1;
   }
 
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS) != 0) {
-    LOGE("SDL_Init: %s", SDL_GetError());
-    return 1;
-  }
-  win = SDL_CreateWindow("PocketPlex", SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                         SCREEN_W, SCREEN_H, SDL_WINDOW_SHOWN);
-  if (!win) {
-    LOGE("SDL_CreateWindow: %s", SDL_GetError());
-    SDL_Quit();
-    return 1;
-  }
-  ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_PRESENTVSYNC);
-  if (!ren) ren = SDL_CreateRenderer(win, -1, SDL_RENDERER_SOFTWARE);
-  if (!ren) {
-    LOGE("SDL_CreateRenderer: %s", SDL_GetError());
-    SDL_DestroyWindow(win);
-    SDL_Quit();
+  const char *ini = ini_path(argv[0]);
+  pp_config cfg;
+  pp_config_load(&cfg, ini);
+  if (cfg.client_id[0] == '\0') pp_config_ensure_client_id(&cfg);
+
+  if (pp_init(cfg.client_id) != PP_OK) {
+    LOGE("pp_init failed");
     return 1;
   }
 
-  SDL_GetWindowSize(win, &w, &h);
-  LOGI("window open %dx%d (SDL %d.%d.%d, video driver %s)", w, h, SDL_MAJOR_VERSION,
-       SDL_MINOR_VERSION, SDL_PATCHLEVEL, SDL_GetCurrentVideoDriver());
-
-  start = SDL_GetTicks();
-  while (running) {
-    SDL_Event ev;
-    while (SDL_PollEvent(&ev)) {
-      if (ev.type == SDL_QUIT) running = 0;
-      if (ev.type == SDL_KEYDOWN && ev.key.keysym.sym == SDLK_ESCAPE) running = 0;
-    }
-    if (exit_after_ms >= 0 && (long)(SDL_GetTicks() - start) >= exit_after_ms) running = 0;
-
-    SDL_SetRenderDrawColor(ren, 0x18, 0x18, 0x1c, 0xff);
-    SDL_RenderClear(ren);
-    SDL_RenderPresent(ren);
-    SDL_Delay(16);
+  if (smoke && !getenv("SDL_VIDEODRIVER")) setenv("SDL_VIDEODRIVER", "dummy", 0);
+  int w = 0, h = 0;
+  if (plat_init(&w, &h) != 0) {
+    LOGE("plat_init failed");
+    pp_cleanup();
+    return 1;
   }
 
-  LOGI("exit");
-  SDL_DestroyRenderer(ren);
-  SDL_DestroyWindow(win);
-  SDL_Quit();
+  if (ui_init() != 0) {
+    LOGE("ui_init failed");
+    plat_quit();
+    pp_cleanup();
+    return 1;
+  }
+
+  pp_server srv;  /* ui_set_server deep-copies it */
+  memset(&srv, 0, sizeof srv);
+
+  if (smoke) {
+    /* Fake provider only; starts at Link and walks the stack itself. */
+    ui_set_smoke_scroll(1);
+    ui_push_screen(SCREEN_LINK);
+  } else if (walk) {
+    ui_set_smoke_walk(1);
+    srv.url = cfg.server_url;
+    srv.token = cfg.token;
+    srv.client_id = cfg.client_id;
+    ui_set_server(&srv);
+    ui_set_auth_token(cfg.token);
+    ui_push_screen(SCREEN_HOME);
+  } else if (cfg.token[0] && cfg.server_url[0]) {
+    srv.url = cfg.server_url;
+    srv.token = cfg.token;
+    srv.client_id = cfg.client_id;
+    ui_set_server(&srv);
+    ui_set_auth_token(cfg.token);
+    ui_push_screen(SCREEN_HOME);
+  } else {
+    ui_push_screen(SCREEN_LINK);
+  }
+
+  ui_set_swap_ab(cfg.swap_ab);
+  ui_set_ini_path(ini);
+  memset(&cfg, 0, sizeof cfg);  /* the UI keeps its own copy of the token */
+
+  LOGI("PocketPlex started: %dx%d (smoke=%d)", w, h, smoke);
+  ui_run();
+
+  ui_quit();
+  pp_cleanup();
+  plat_quit();
   return 0;
 }

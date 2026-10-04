@@ -193,6 +193,10 @@ static void list_log_titles(pp_screen *self, int n) {
   }
 }
 
+static int list_item_count(pp_screen *self) {
+  return ((list_data_t *)self->data)->model.count;
+}
+
 pp_screen *screen_list_create(const pp_list *items, const char *title) {
   pp_screen *s = (pp_screen *)calloc(1, sizeof(pp_screen));
   if (!s) return NULL;
@@ -208,6 +212,7 @@ pp_screen *screen_list_create(const pp_list *items, const char *title) {
   s->handle_button = list_handle;
   s->destroy = list_destroy;
   s->log_titles = list_log_titles;
+  s->item_count = list_item_count;
   return s;
 }
 
@@ -227,6 +232,7 @@ pp_screen *screen_list_create_key(const char *key, const char *title) {
   s->handle_button = list_handle;
   s->destroy = list_destroy;
   s->log_titles = list_log_titles;
+  s->item_count = list_item_count;
   list_submit(d);
   return s;
 }

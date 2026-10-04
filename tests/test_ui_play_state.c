@@ -73,6 +73,22 @@ static void test_session_id(void) {
   CHECK(strcmp(a, b) != 0);
 }
 
+static void test_normalize_key(void) {
+  char out[256];
+  CHECK(play_normalize_key("53835", out, sizeof out) == 0);
+  CHECK_STR(out, "/library/metadata/53835");               /* bare ratingKey */
+  CHECK(play_normalize_key("/library/metadata/53835", out, sizeof out) == 0);
+  CHECK_STR(out, "/library/metadata/53835");               /* path passes through */
+  CHECK(play_normalize_key("/library/metadata/53833/children", out, sizeof out) == 0);
+  CHECK_STR(out, "/library/metadata/53833/children");
+  CHECK(play_normalize_key("", out, sizeof out) < 0);
+  CHECK(play_normalize_key(NULL, out, sizeof out) < 0);
+  CHECK(play_normalize_key("tv", out, sizeof out) < 0);    /* neither form */
+  CHECK(play_normalize_key("12a", out, sizeof out) < 0);
+  CHECK(play_normalize_key("/", out, sizeof out) < 0);
+  CHECK(play_normalize_key("/library/metadata/1", out, 8) < 0);  /* too long */
+}
+
 int main(void) {
   RUN(test_poll_cadence);
   RUN(test_timeline_every_10s);
@@ -82,5 +98,6 @@ int main(void) {
   RUN(test_fmt_time);
   RUN(test_quality_kbps);
   RUN(test_session_id);
+  RUN(test_normalize_key);
   return TEST_RESULT();
 }

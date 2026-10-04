@@ -36,6 +36,19 @@ static Uint32 g_max_frame_ms = 0;
 static char g_smoke_play_key[256] = {0};
 static long g_smoke_play_ms = 0;
 static int g_smoke_play_saw_player = 0;
+static int g_exit_code = 0;
+#define SMOKE_STEP_TIMEOUT_MS 20000   /* list load / detail / player start */
+
+static int g_play_result = -1;  /* -1 none yet, 0 failed, 1 played */
+
+int ui_exit_code(void) { return g_exit_code; }
+void ui_play_result(int ok) { g_play_result = ok ? 1 : 0; }
+
+static int smoke_fail(const char *why) {
+  LOGE("smoke-play failed: %s", why);
+  g_exit_code = 3;
+  return 0;  /* value for `running` */
+}
 
 static pp_screen *g_stack[MAX_SCREENS];
 static int g_stack_top = -1;
@@ -507,13 +520,27 @@ void ui_run(void) {
     if (ui_smoke_play_ms() > 0) {
       pp_screen *cur = current_screen();
       Uint32 t = now - g_smoke_start;
-      switch (g_smoke_phase) {
+      /* Phase 2 covers the whole playback; anything else is a quick step. */
+      long limit = g_smoke_phase == 2 && g_smoke_play_saw_player
+                   ? ui_smoke_play_ms() + SMOKE_STEP_TIMEOUT_MS : SMOKE_STEP_TIMEOUT_MS;
+      if ((long)t > limit) {
+        char why[96];
+        snprintf(why, sizeof why, "stalled in phase %d for %ld ms (screen %d)",
+                 g_smoke_phase, (long)t, cur ? (int)cur->id : -1);
+        running = smoke_fail(why);
+      } else switch (g_smoke_phase) {
       case 0:
         if (cur && cur->id == SCREEN_LIST && !cur->loading && t >= 200) {
+          if (cur->item_count && cur->item_count(cur) == 0) {
+            running = smoke_fail("item list is empty (bad key?)");
+            break;
+          }
           if (cur->log_titles) cur->log_titles(cur, 1);
           if (cur->handle_button) cur->handle_button(cur, BTN_A);
           g_smoke_phase = 1;
           g_smoke_start = now;
+        } else if (cur && cur->id != SCREEN_LIST) {
+          running = smoke_fail("left the item list before it loaded (auth?)");
         }
         break;
       case 1:
@@ -521,19 +548,28 @@ void ui_run(void) {
           if (cur->handle_button) cur->handle_button(cur, BTN_A);
           g_smoke_phase = 2;
           g_smoke_start = now;
+        } else if (cur && cur->id == SCREEN_LIST && t >= 200) {
+          running = smoke_fail("first item is a container, not playable");
         }
         break;
       case 2:
-        if (cur && cur->id == SCREEN_PLAYER) g_smoke_play_saw_player = 1;
+        if (cur && cur->id == SCREEN_PLAYER && !g_smoke_play_saw_player) {
+          g_smoke_play_saw_player = 1;
+          g_smoke_start = now;  /* playback timer starts now */
+        }
         /* Still on Detail: the resume choice is open; A takes "Resume from". */
-        if (cur && cur->id == SCREEN_DETAIL && !g_smoke_play_saw_player && t >= 400) {
+        if (cur && cur->id == SCREEN_DETAIL && !g_smoke_play_saw_player && t >= 400 && t < 1000) {
           LOGI("play: choosing Resume");
           if (cur->handle_button) cur->handle_button(cur, BTN_A);
-          g_smoke_start = now + 600000;  /* only once */
+          g_smoke_start = now - 1000;  /* only once; watchdog keeps counting */
         }
         if (cur && cur->id == SCREEN_DETAIL && g_smoke_play_saw_player) {
-          LOGI("play: back on Detail, done");
-          running = 0;
+          if (g_play_result == 1) {
+            LOGI("play: back on Detail, done");
+            running = 0;
+          } else {
+            running = smoke_fail("player screen closed without playing");
+          }
         }
         break;
       }
@@ -557,8 +593,10 @@ void ui_run(void) {
 
       Uint32 frame_end = SDL_GetTicks();
       Uint32 frame_ms = frame_end - frame_start;
-      if (frame_ms > g_max_frame_ms) g_max_frame_ms = frame_ms;
-      if (frame_ms > 50) {
+      int slow_ok = s->expect_slow;  /* deliberate block (player_stop), not a UI stall */
+      s->expect_slow = 0;
+      if (!slow_ok && frame_ms > g_max_frame_ms) g_max_frame_ms = frame_ms;
+      if (frame_ms > 50 && !slow_ok) {
         LOGI("WARNING: frame time %u ms > 50 ms (loading=%d)", frame_ms, s->loading);
       }
     }

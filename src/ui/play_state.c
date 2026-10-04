@@ -69,3 +69,17 @@ void play_session_id(char out[37]) {
            b[0], b[1], b[2], b[3], b[4], b[5], b[6], b[7],
            b[8], b[9], b[10], b[11], b[12], b[13], b[14], b[15]);
 }
+
+int play_normalize_key(const char *in, char *out, size_t n) {
+  if (!in || !in[0] || !out || n == 0) return -1;
+  int w;
+  if (in[0] == '/') {
+    if (!in[1]) return -1;
+    w = snprintf(out, n, "%s", in);
+  } else {
+    for (const char *p = in; *p; p++)
+      if (*p < '0' || *p > '9') return -1;
+    w = snprintf(out, n, "/library/metadata/%s", in);
+  }
+  return (w < 0 || (size_t)w >= n) ? -1 : 0;
+}

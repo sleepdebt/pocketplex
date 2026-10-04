@@ -33,4 +33,9 @@ int  play_quality_kbps(const char *quality);
 /* Random UUID v4 for the PMS transcode session. */
 void play_session_id(char out[37]);
 
+/* Normalise a dev/CLI item key: a bare ratingKey ("53835") becomes
+ * "/library/metadata/53835"; a path starting with '/' passes through.
+ * Returns 0 on success, -1 if empty, neither form, or too long for out. */
+int  play_normalize_key(const char *in, char *out, size_t n);
+
 #endif /* PP_PLAY_STATE_H */

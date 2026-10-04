@@ -19,7 +19,7 @@ static int is_playable(pp_kind k) {
 
 static void detail_play(detail_data_t *d, long start_ms) {
   d->choosing = 0;
-  pp_screen *p = screen_player_create(&d->item, start_ms);
+  pp_screen *p = screen_player_create(&d->item, start_ms, &d->item);
   if (p) ui_push(p);
   else ui_toast("Out of memory");
 }

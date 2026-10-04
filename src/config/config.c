@@ -114,7 +114,9 @@ int pp_config_save(const pp_config *cfg, const char *path) {
 
 void pp_config_ensure_client_id(pp_config *cfg) {
   if (cfg->client_id[0]) return;
-  unsigned long a = (unsigned long)time(NULL) ^ (unsigned long)(uintptr_t)cfg;
+  /* uint64_t: on 32-bit targets (armhf/MMP) unsigned long is 32 bits and
+   * x >> 32 would be UB (-Wshift-count-overflow) */
+  uint64_t a = (uint64_t)time(NULL) ^ (uint64_t)(uintptr_t)cfg;
   srandom((unsigned)(a ^ (a >> 32)));
   snprintf(cfg->client_id, sizeof cfg->client_id, "pp-%08lx-%08lx-%08lx",
            (unsigned long)random(), (unsigned long)random(), (unsigned long)random());

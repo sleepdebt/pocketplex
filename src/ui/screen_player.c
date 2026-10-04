@@ -38,10 +38,10 @@ static pp_play_args play_args(player_data_t *d, const char *state) {
   return a;
 }
 
-/* Fire-and-forget: released immediately, the worker frees it when done. */
+/* Fire-and-forget: detached (not cancelled), the worker frees it when done. */
 static void send_bg(player_data_t *d, pp_req_type type, const char *state) {
   pp_play_args a = play_args(d, state);
-  worker_release(worker_start_play(type, ui_current_server(), &a, 0));
+  worker_detach(worker_start_play(type, ui_current_server(), &a, 0));
 }
 
 static void begin_stop(pp_screen *self, player_data_t *d) {

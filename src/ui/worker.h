@@ -70,10 +70,18 @@ const char *worker_url(const pp_request *req);      /* REQ_TRANSCODE_URL on succ
 void worker_take_list(pp_request *req, pp_list *out);
 void worker_take_servers(pp_request *req, pp_server **out, int *count);
 
-/* Drop the caller's reference. Safe on NULL, and safe while the worker is
- * still running (it is told to skip remaining work and frees on exit). The
- * caller must not touch req afterwards. */
+/* Drop the caller's reference and cancel: if the worker hasn't started the
+ * provider call yet it skips it. Safe on NULL and while the worker is still
+ * running (it frees on exit). The caller must not touch req afterwards. */
 void worker_release(pp_request *req);
+
+/* Drop the caller's reference WITHOUT cancelling: the request still runs to
+ * completion and the worker frees it. For fire-and-forget calls (timeline,
+ * scrobble, stop). Safe on NULL. */
+void worker_detach(pp_request *req);
+
+/* Requests whose provider call actually ran (not skipped by a cancel). */
+int  worker_ran_count(void);
 
 /* Number of live requests (allocated, not yet freed). */
 int  worker_live_count(void);

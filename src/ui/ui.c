@@ -502,7 +502,8 @@ void ui_run(void) {
       }
     }
 
-    /* Smoke play: List(key) -> A (Detail) -> A (play from start) -> back -> exit */
+    /* Smoke play: List(key) -> A (Detail) -> A (play, or open the resume
+     * choice and take "Resume from") -> back on Detail -> exit */
     if (ui_smoke_play_ms() > 0) {
       pp_screen *cur = current_screen();
       Uint32 t = now - g_smoke_start;
@@ -519,10 +520,17 @@ void ui_run(void) {
         if (cur && cur->id == SCREEN_DETAIL && t >= 200) {
           if (cur->handle_button) cur->handle_button(cur, BTN_A);
           g_smoke_phase = 2;
+          g_smoke_start = now;
         }
         break;
       case 2:
         if (cur && cur->id == SCREEN_PLAYER) g_smoke_play_saw_player = 1;
+        /* Still on Detail: the resume choice is open; A takes "Resume from". */
+        if (cur && cur->id == SCREEN_DETAIL && !g_smoke_play_saw_player && t >= 400) {
+          LOGI("play: choosing Resume");
+          if (cur->handle_button) cur->handle_button(cur, BTN_A);
+          g_smoke_start = now + 600000;  /* only once */
+        }
         if (cur && cur->id == SCREEN_DETAIL && g_smoke_play_saw_player) {
           LOGI("play: back on Detail, done");
           running = 0;

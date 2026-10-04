@@ -44,6 +44,7 @@ struct pp_request {
 };
 
 static int g_live = 0;      /* live requests, for shutdown and tests */
+static int g_ran = 0;       /* requests whose provider call actually ran */
 
 static void sleep_ms(int ms) {
   struct timespec ts = { ms / 1000, (long)(ms % 1000) * 1000000L };
@@ -153,6 +154,7 @@ static void *worker_thread(void *arg) {
   } else {
     if (req->use_fake) run_fake(req);
     else run_real(req);
+    __atomic_add_fetch(&g_ran, 1, __ATOMIC_ACQ_REL);
   }
 
   if (req->status != PP_OK && req->status != 1) {
@@ -164,6 +166,10 @@ static void *worker_thread(void *arg) {
     case PP_ERR_NOMEM: set_error(req, "Out of memory"); break;
     default:           set_error(req, "Request failed"); break;
     }
+  }
+  if (req->type >= REQ_TRANSCODE_URL && !req->use_fake && !is_cancelled(req)) {
+    if (req->status == PP_OK) LOGD("play request %d ok", (int)req->type);
+    else LOGW("play request %d failed: %d", (int)req->type, req->status);
   }
   __atomic_store_n(&req->done, 1, __ATOMIC_RELEASE);
   request_unref(req);  /* may free req if the caller already released */
@@ -272,6 +278,14 @@ void worker_release(pp_request *req) {
   if (!req) return;
   __atomic_store_n(&req->cancelled, 1, __ATOMIC_RELEASE);
   request_unref(req);
+}
+
+void worker_detach(pp_request *req) {
+  if (req) request_unref(req);
+}
+
+int worker_ran_count(void) {
+  return __atomic_load_n(&g_ran, __ATOMIC_ACQUIRE);
 }
 
 int worker_live_count(void) {

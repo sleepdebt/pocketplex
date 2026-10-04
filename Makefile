@@ -83,4 +83,30 @@ run: $(BIN)
 clean:
 	rm -rf $(BUILD)
 
+# ---- core: container builds (Docker / OrbStack) --------------------------------
+# Auto-detect the Docker CLI: prefer an on-PATH `docker`, otherwise use the
+# OrbStack CLI shim that ships with the OrbStack app (the spec).
+DOCKER ?= $(shell command -v docker 2>/dev/null)
+ifeq ($(DOCKER),)
+  _ORBSTACK_DOCKER := /Applications/OrbStack.app/Contents/MacOS/xbin/docker
+  ifneq ($(wildcard $(_ORBSTACK_DOCKER)),)
+    DOCKER := $(_ORBSTACK_DOCKER)
+  endif
+endif
+
+DIST ?= dist
+.PHONY: docker-sp docker-mmp
+docker-sp:
+	@mkdir -p $(DIST)
+	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
+	$(DOCKER) build -t pocketplex:sp -f toolchains/Dockerfile.sp .
+	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:sp \
+	  sh -c 'make clean && make PLATFORM=sp && sh /src/toolchains/package.sh sp build/pocketplex dist/pocketplex-sp.zip'
+docker-mmp:
+	@mkdir -p $(DIST)
+	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
+	$(DOCKER) build -t pocketplex:mmp -f toolchains/Dockerfile.mmp .
+	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:mmp \
+	  sh -c 'make clean && make PLATFORM=mmp && sh /src/toolchains/package.sh mmp build/pocketplex dist/pocketplex-mmp.zip'
+
 -include $(CORE_OBJS:.o=.d) $(APP_OBJS:.o=.d) $(patsubst %.c,$(OBJ)/%.d,$(TEST_SRCS) $(TOOL_SRCS))

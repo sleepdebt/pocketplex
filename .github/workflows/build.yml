@@ -1,0 +1,54 @@
+# CI. Builds all three targets on push/PR and uploads artifacts.
+# Desktop + unit tests run on ubuntu; the SP and MMP cross builds run in the
+# Docker images from toolchains/ (host-arch independent: aarch64 / armhf cross
+# compilers, so an amd64 runner produces SP and MMP binaries).
+name: build
+on:
+  push:
+  pull_request:
+    paths-ignore: ["**/*.md", "docs/**"]
+
+jobs:
+  desktop:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install host build deps
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends \
+              build-essential pkg-config libsdl2-dev libsdl2-ttf-dev libcurl4-openssl-dev
+      - name: Build + test
+        run: make clean && make && make test
+      - name: Upload desktop binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketplex-desktop
+          path: build/pocketplex
+      - name: Upload pp-cli
+        uses: actions/upload-artifact@v4
+        with:
+          name: pp-cli
+          path: build/pp-cli
+
+  sp:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build SP PortMaster zip
+        run: make docker-sp
+      - name: Upload SP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketplex-sp-zip
+          path: dist/pocketplex-sp.zip
+
+  mmp:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build MMP Onion zip
+        run: make docker-mmp
+      - name: Upload MMP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketplex-mmp-zip
+          path: dist/pocketplex-mmp.zip

@@ -75,15 +75,14 @@ int main(int argc, char **argv) {
     return 1;
   }
 
-  if (smoke) {
-    ui_set_smoke_scroll(1);
-    ui_push_screen(SCREEN_LINK);
-  }
-
-  pp_server srv;
+  pp_server srv;  /* ui_set_server deep-copies it */
   memset(&srv, 0, sizeof srv);
 
-  if (walk) {
+  if (smoke) {
+    /* Fake provider only; starts at Link and walks the stack itself. */
+    ui_set_smoke_scroll(1);
+    ui_push_screen(SCREEN_LINK);
+  } else if (walk) {
     ui_set_smoke_walk(1);
     srv.url = cfg.server_url;
     srv.token = cfg.token;
@@ -104,6 +103,7 @@ int main(int argc, char **argv) {
 
   ui_set_swap_ab(cfg.swap_ab);
   ui_set_ini_path(ini);
+  memset(&cfg, 0, sizeof cfg);  /* the UI keeps its own copy of the token */
 
   LOGI("PocketPlex started: %dx%d (smoke=%d)", w, h, smoke);
   ui_run();

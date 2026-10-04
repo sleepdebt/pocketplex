@@ -120,6 +120,20 @@ static void test_client_id_generated_once_and_stable(void) {
   CHECK(strlen(cfg.client_id) >= 16); /* uuid-ish, not trivially short */
 }
 
+static void test_client_id_format(void) {
+  pp_config a, b;
+  pp_config_defaults(&a);
+  pp_config_defaults(&b);
+  pp_config_ensure_client_id(&a);
+  pp_config_ensure_client_id(&b);
+  /* pinned format: pp-<8 hex>-<8 hex>-<8 hex>, header/URL-safe chars only */
+  CHECK(strlen(a.client_id) == 29);
+  CHECK(strncmp(a.client_id, "pp-", 3) == 0);
+  for (const char *p = a.client_id + 3; *p; p++)
+    CHECK((*p == '-') || (*p >= '0' && *p <= '9') || (*p >= 'a' && *p <= 'f'));
+  CHECK(strcmp(a.client_id, b.client_id) != 0); /* different cfgs differ */
+}
+
 static void test_long_values_are_truncated_not_overflowed(void) {
   char big[2048];
   memset(big, 'x', sizeof big - 1);
@@ -158,6 +172,7 @@ int main(void) {
   RUN(test_save_roundtrip);
   RUN(test_saved_file_has_no_secrets_leak_of_other_keys);
   RUN(test_client_id_generated_once_and_stable);
+  RUN(test_client_id_format);
   RUN(test_long_values_are_truncated_not_overflowed);
   RUN(test_save_creates_private_file_no_tmp_left);
   return TEST_RESULT();

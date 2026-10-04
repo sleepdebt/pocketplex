@@ -20,6 +20,11 @@ struct pp_request {
   int         has_srv;
   char       *key;
   char       *token;
+  pp_item    *item;         /* playback requests */
+  char       *session;
+  char        state[16];
+  long        time_ms;
+  int         max_kbps;
 
   /* Outputs: written only by the worker, read by the caller after done. */
   int        status;
@@ -30,6 +35,7 @@ struct pp_request {
   char       pin[8];
   long       pin_id;        /* input for PIN_POLL, output for PIN_START */
   char       auth_token[256];
+  char       url[2048];     /* REQ_TRANSCODE_URL: contains the token */
 
   /* Synchronisation (atomic builtins). */
   int done;                 /* 1 once outputs are final (release store) */
@@ -68,8 +74,11 @@ static void request_free(pp_request *req) {
   free(req->srv.client_id);
   free(req->key);
   free(req->token);
-  /* Don't leave the PIN token lying around in freed heap. */
+  free(req->item);
+  free(req->session);
+  /* Don't leave tokens lying around in freed heap. */
   memset(req->auth_token, 0, sizeof(req->auth_token));
+  memset(req->url, 0, sizeof(req->url));
   free(req);
   __atomic_sub_fetch(&g_live, 1, __ATOMIC_ACQ_REL);
 }
@@ -94,6 +103,14 @@ static void run_fake(pp_request *req) {
     req->status = PP_OK;
     break;
   case REQ_PIN_POLL:  req->status = 1; break;  /* always pending in smoke mode */
+  case REQ_TRANSCODE_URL:
+    snprintf(req->url, sizeof(req->url), "http://fake.invalid/%s?session=%s",
+             req->item ? req->item->rating_key : "", req->session ? req->session : "");
+    req->status = PP_OK;
+    break;
+  case REQ_TIMELINE:
+  case REQ_SCROBBLE:
+  case REQ_PLAY_STOP: req->status = PP_OK; break;
   default:            req->status = PP_ERR_ARG; break;
   }
 }
@@ -107,6 +124,20 @@ static void run_real(pp_request *req) {
   case REQ_ON_DECK:   req->status = pp_on_deck(srv, &req->result); break;
   case REQ_PIN_START: req->status = pp_auth_pin_start(req->pin, &req->pin_id); break;
   case REQ_PIN_POLL:  req->status = pp_auth_pin_poll(req->pin_id, req->auth_token, sizeof(req->auth_token)); break;
+  case REQ_TRANSCODE_URL:
+    req->status = pp_transcode_url(srv, req->item, req->session, 640, 480, req->max_kbps,
+                                   0, req->url, sizeof(req->url));
+    if (req->status != PP_OK) memset(req->url, 0, sizeof(req->url));
+    break;
+  case REQ_TIMELINE:  req->status = pp_timeline(srv, req->item, req->state, req->time_ms); break;
+  case REQ_SCROBBLE:  req->status = pp_scrobble(srv, req->item); break;
+  case REQ_PLAY_STOP: {
+    /* Report the final position first, then end the transcode regardless. */
+    int tl = pp_timeline(srv, req->item, req->state, req->time_ms);
+    int ts = pp_transcode_stop(srv, req->session);
+    req->status = tl != PP_OK ? tl : ts;
+    break;
+  }
   default:            req->status = PP_ERR_ARG; break;
   }
 }
@@ -139,43 +170,76 @@ static void *worker_thread(void *arg) {
   return NULL;
 }
 
-pp_request *worker_start(pp_req_type type, const pp_server *srv, const char *key,
-                         const char *token, long pin_id, int use_fake) {
+static void copy_server(pp_request *req, const pp_server *srv, int *oom) {
+  if (!srv) return;
+  req->has_srv = 1;
+  req->srv.url = dup_or_null(srv->url);
+  req->srv.token = dup_or_null(srv->token);
+  req->srv.client_id = dup_or_null(srv->client_id);
+  *oom |= (srv->url && !req->srv.url) || (srv->token && !req->srv.token) ||
+          (srv->client_id && !req->srv.client_id);
+}
+
+static pp_request *request_alloc(pp_req_type type, int use_fake) {
   pp_request *req = (pp_request *)calloc(1, sizeof(*req));
   if (!req) return NULL;
   __atomic_add_fetch(&g_live, 1, __ATOMIC_ACQ_REL);
   req->type = type;
   req->use_fake = use_fake;
-  req->pin_id = pin_id;
   req->refs = 2;
-  int oom = 0;
-  if (srv) {
-    req->has_srv = 1;
-    req->srv.url = dup_or_null(srv->url);
-    req->srv.token = dup_or_null(srv->token);
-    req->srv.client_id = dup_or_null(srv->client_id);
-    oom |= (srv->url && !req->srv.url) || (srv->token && !req->srv.token) ||
-           (srv->client_id && !req->srv.client_id);
-  }
-  req->key = dup_or_null(key);
-  req->token = dup_or_null(token);
-  oom |= (key && !req->key) || (token && !req->token);
+  return req;
+}
 
+/* Start the thread, or finish the request immediately as an error. */
+static pp_request *request_launch(pp_request *req, int oom) {
   pthread_t t;
   pthread_attr_t attr;
   int started = 0;
-  if (!oom && type != REQ_NONE && pthread_attr_init(&attr) == 0) {
+  if (!oom && req->type != REQ_NONE && pthread_attr_init(&attr) == 0) {
     pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
     started = pthread_create(&t, &attr, worker_thread, req) == 0;
     pthread_attr_destroy(&attr);
   }
   if (!started) {
-    req->status = type == REQ_NONE ? PP_ERR_ARG : PP_ERR_NOMEM;
-    set_error(req, type == REQ_NONE ? "Request failed" : "Could not start request");
+    req->status = req->type == REQ_NONE ? PP_ERR_ARG : PP_ERR_NOMEM;
+    set_error(req, req->type == REQ_NONE ? "Request failed" : "Could not start request");
     req->done = 1;
     req->refs = 1;  /* no worker reference */
   }
   return req;
+}
+
+pp_request *worker_start(pp_req_type type, const pp_server *srv, const char *key,
+                         const char *token, long pin_id, int use_fake) {
+  pp_request *req = request_alloc(type, use_fake);
+  if (!req) return NULL;
+  int oom = 0;
+  req->pin_id = pin_id;
+  copy_server(req, srv, &oom);
+  req->key = dup_or_null(key);
+  req->token = dup_or_null(token);
+  oom |= (key && !req->key) || (token && !req->token);
+  return request_launch(req, oom);
+}
+
+pp_request *worker_start_play(pp_req_type type, const pp_server *srv,
+                              const pp_play_args *args, int use_fake) {
+  pp_request *req = request_alloc(type, use_fake);
+  if (!req) return NULL;
+  int oom = 0;
+  copy_server(req, srv, &oom);
+  if (args) {
+    if (args->item) {
+      req->item = (pp_item *)malloc(sizeof(pp_item));
+      if (req->item) *req->item = *args->item; else oom = 1;
+    }
+    req->session = dup_or_null(args->session);
+    oom |= args->session && !req->session;
+    if (args->state) snprintf(req->state, sizeof(req->state), "%s", args->state);
+    req->time_ms = args->time_ms;
+    req->max_kbps = args->max_kbps;
+  }
+  return request_launch(req, oom);
 }
 
 int worker_is_done(const pp_request *req) {
@@ -188,6 +252,7 @@ const char *worker_error(const pp_request *req) { return req ? req->error : "Out
 const char *worker_pin(const pp_request *req) { return req ? req->pin : ""; }
 long worker_pin_id(const pp_request *req) { return req ? req->pin_id : 0; }
 const char *worker_auth_token(const pp_request *req) { return req ? req->auth_token : ""; }
+const char *worker_url(const pp_request *req) { return req ? req->url : ""; }
 
 void worker_take_list(pp_request *req, pp_list *out) {
   if (!out) return;

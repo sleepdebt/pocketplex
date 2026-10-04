@@ -118,6 +118,15 @@ static void detail_destroy(pp_screen *self) {
   free(self->data);
 }
 
+static void detail_log_titles(pp_screen *self, int n) {
+  detail_data_t *d = (detail_data_t *)self->data;
+  (void)n;
+  LOGI("  title: %s", d->item.title);
+  LOGI("  subtitle: %s", d->item.subtitle);
+  LOGI("  year/duration: %d / %ld ms", d->item.year, d->item.duration_ms);
+  LOGI("  resume: %ld ms", d->item.view_offset_ms);
+}
+
 pp_screen *screen_detail_create(const pp_item *item) {
   pp_screen *s = (pp_screen *)calloc(1, sizeof(pp_screen));
   if (!s) return NULL;
@@ -129,5 +138,6 @@ pp_screen *screen_detail_create(const pp_item *item) {
   s->render = detail_render;
   s->handle_button = detail_handle;
   s->destroy = detail_destroy;
+  s->log_titles = detail_log_titles;
   return s;
 }

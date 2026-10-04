@@ -25,6 +25,7 @@ static char g_ini_path[512] = {0};
 
 /* ---- Smoke scroll + max frame tracking ------------------------------------ */
 static int g_smoke_scroll = 0;
+static int g_smoke_walk = 0;
 static int g_smoke_phase = 0;
 static Uint32 g_smoke_start = 0;
 static int g_smoke_scroll_count = 0;
@@ -244,6 +245,9 @@ void ui_render_toast(void) {
 void ui_set_smoke_scroll(int on) { g_smoke_scroll = on; }
 int  ui_is_smoke_scroll(void) { return g_smoke_scroll; }
 
+void ui_set_smoke_walk(int on) { g_smoke_walk = on; }
+int  ui_is_smoke_walk(void) { return g_smoke_walk; }
+
 void ui_run(void) {
   int running = 1;
   Uint32 start_tick = SDL_GetTicks();
@@ -253,6 +257,10 @@ void ui_run(void) {
   int frame_count = 0;
 
   if (g_smoke_scroll) {
+    g_smoke_start = start_tick;
+    g_smoke_phase = 0;
+  }
+  if (g_smoke_walk) {
     g_smoke_start = start_tick;
     g_smoke_phase = 0;
   }
@@ -318,6 +326,58 @@ void ui_run(void) {
         if (t >= 3000) {
           LOGI("smoke: scrolled %d DOWN presses, stack=%d, max_frame=%u ms",
                g_smoke_scroll_count, g_stack_count, g_max_frame_ms);
+          running = 0;
+        }
+        break;
+      }
+    }
+
+    /* Smoke walk: auto-navigate Home→Library(TV)→Show→Season→Episode */
+    if (g_smoke_walk) {
+      pp_screen *cur = current_screen();
+      Uint32 t = now - g_smoke_start;
+      switch (g_smoke_phase) {
+      case 0: /* Wait for Home to load, log sections, then go to TV Shows */
+        if (cur && !cur->loading) {
+          if (cur->log_titles) cur->log_titles(cur, 3);
+          ui_pop();
+          ui_push(screen_list_create_key("2", "TV Shows"));
+          g_smoke_phase = 1;
+          g_smoke_start = now;
+        }
+        break;
+      case 1: /* Wait for TV Shows List to load, log, press A on first show */
+        if (cur && !cur->loading && t >= 200) {
+          LOGI("walk: Level 1 — Library (TV Shows)");
+          if (cur->log_titles) cur->log_titles(cur, 3);
+          if (cur->handle_button) cur->handle_button(cur, BTN_A);
+          g_smoke_phase = 2;
+          g_smoke_start = now;
+        }
+        break;
+      case 2: /* Wait for Show List, log, press A on first season */
+        if (cur && !cur->loading && t >= 200) {
+          LOGI("walk: Level 2 — Show");
+          if (cur->log_titles) cur->log_titles(cur, 3);
+          if (cur->handle_button) cur->handle_button(cur, BTN_A);
+          g_smoke_phase = 3;
+          g_smoke_start = now;
+        }
+        break;
+      case 3: /* Wait for Season List, log, press A on first episode */
+        if (cur && !cur->loading && t >= 200) {
+          LOGI("walk: Level 3 — Season");
+          if (cur->log_titles) cur->log_titles(cur, 3);
+          if (cur->handle_button) cur->handle_button(cur, BTN_A);
+          g_smoke_phase = 4;
+          g_smoke_start = now;
+        }
+        break;
+      case 4: /* Wait for Detail, log, exit */
+        if (t >= 200) {
+          LOGI("walk: Level 4 — Episode");
+          if (cur->log_titles) cur->log_titles(cur, 1);
+          LOGI("walk: complete — Library → Show → Season → Episode");
           running = 0;
         }
         break;

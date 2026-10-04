@@ -28,6 +28,7 @@ struct pp_screen {
   int loading;       /* 1 while an async request is pending */
   void (*render)(pp_screen *self);
   void (*handle_button)(pp_screen *self, pp_btn);
+  void (*log_titles)(pp_screen *self, int n);  /* optional: log first n titles */
   void (*destroy)(pp_screen *self);
   void *data;
 };
@@ -47,6 +48,11 @@ long  ui_get_exit_after_ms(void);
  * holds DOWN for ~3s, logs fps. */
 void ui_set_smoke_scroll(int on);
 int  ui_is_smoke_scroll(void);
+
+/* Smoke walk mode: auto-navigates Library→Show→Season→Episode on real server,
+ * logging each level's first titles to prove the walk-through matches pp-cli. */
+void ui_set_smoke_walk(int on);
+int  ui_is_smoke_walk(void);
 
 /* Push/pop screens on the global stack. */
 void ui_push(pp_screen *s);

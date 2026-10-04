@@ -157,6 +157,14 @@ static void list_destroy(pp_screen *self) {
   }
 }
 
+static void list_log_titles(pp_screen *self, int n) {
+  list_data_t *d = (list_data_t *)self->data;
+  for (int i = 0; i < n && i < d->model.count; i++) {
+    const pp_item *it = &d->model.items[i];
+    LOGI("  [%d] %s", i, it->title);
+  }
+}
+
 pp_screen *screen_list_create(const pp_list *items, const char *title) {
   pp_screen *s = (pp_screen *)calloc(1, sizeof(pp_screen));
   if (!s) return NULL;
@@ -171,6 +179,7 @@ pp_screen *screen_list_create(const pp_list *items, const char *title) {
   s->render = list_render;
   s->handle_button = list_handle;
   s->destroy = list_destroy;
+  s->log_titles = list_log_titles;
   return s;
 }
 
@@ -192,6 +201,7 @@ pp_screen *screen_list_create_key(const char *key, const char *title) {
   s->render = list_render;
   s->handle_button = list_handle;
   s->destroy = list_destroy;
+  s->log_titles = list_log_titles;
   worker_submit(&d->req);
   return s;
 }

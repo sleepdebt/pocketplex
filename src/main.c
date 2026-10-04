@@ -4,6 +4,7 @@
  *   ./build/pocketplex                      full app (PIN link or dev fallback)
  *   ./build/pocketplex [--exit-after-ms N]  auto-quit after N ms
  *   ./build/pocketplex [--smoke-scroll]     auto-navigate all screens for perf testing
+ *   ./build/pocketplex [--smoke-walk]       auto-navigate Library to Show to Season to Episode
  *   PP_FAKE_DELAY_MS=800 ./build/pocketplex --smoke-scroll
  *
  *   Esc or window close quits. --smoke-scroll auto-navigates all screens
@@ -38,12 +39,15 @@ static const char *ini_path(const char *argv0) {
 int main(int argc, char **argv) {
   int i;
   int smoke = 0;
+  int walk = 0;
 
   for (i = 1; i < argc; i++) {
     if (strcmp(argv[i], "--exit-after-ms") == 0 && i + 1 < argc)
       ui_set_exit_after_ms(atol(argv[++i]));
     else if (strcmp(argv[i], "--smoke-scroll") == 0)
       smoke = 1;
+    else if (strcmp(argv[i], "--smoke-walk") == 0)
+      walk = 1;
   }
 
   const char *ini = ini_path(argv[0]);
@@ -74,6 +78,17 @@ int main(int argc, char **argv) {
   if (smoke) {
     ui_set_smoke_scroll(1);
     ui_push_screen(SCREEN_LINK);
+  } else if (walk) {
+    ui_set_smoke_walk(1);
+    /* Smoke walk uses dev fallback (real server from config) */
+    pp_server srv;
+    memset(&srv, 0, sizeof srv);
+    srv.url = cfg.server_url;
+    srv.token = cfg.token;
+    srv.client_id = cfg.client_id;
+    ui_set_server(&srv);
+    ui_set_auth_token(cfg.token);
+    ui_push_screen(SCREEN_HOME);
   } else if (cfg.token[0] && cfg.server_url[0]) {
     pp_server srv;
     memset(&srv, 0, sizeof srv);

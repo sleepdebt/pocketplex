@@ -159,6 +159,16 @@ static void home_destroy(pp_screen *self) {
   }
 }
 
+static void home_log_titles(pp_screen *self, int n) {
+  home_data_t *d = (home_data_t *)self->data;
+  LOGI("walk: Home — On Deck (first %d):", n);
+  for (int i = 0; i < n && i < d->on_deck.count; i++)
+    LOGI("  [%d] %s", i, d->on_deck.items[i].title);
+  LOGI("walk: Home — Sections:");
+  for (int i = 0; i < d->sections.count; i++)
+    LOGI("  [%d] %s (key=%s)", i, d->sections.items[i].title, d->sections.items[i].key);
+}
+
 pp_screen *screen_home_create(void) {
   pp_screen *s = (pp_screen *)calloc(1, sizeof(pp_screen));
   if (!s) return NULL;
@@ -179,6 +189,7 @@ pp_screen *screen_home_create(void) {
   s->render = home_render;
   s->handle_button = home_handle;
   s->destroy = home_destroy;
+  s->log_titles = home_log_titles;
   worker_submit(&d->req_ondeck);
   worker_submit(&d->req_sections);
   return s;

@@ -56,6 +56,53 @@ static void test_swap_ab_does_not_affect_other_buttons(void) {
   ui_set_swap_ab(0);
 }
 
+/* Gamepad (SDL GameController button indices, as PP_PAD_*). */
+static void test_pad_mapping(void) {
+  ui_set_swap_ab(0);
+  CHECK(pp_pad_button_to_btn(PP_PAD_A) == BTN_A);
+  CHECK(pp_pad_button_to_btn(PP_PAD_B) == BTN_B);
+  CHECK(pp_pad_button_to_btn(PP_PAD_X) == BTN_X);
+  CHECK(pp_pad_button_to_btn(PP_PAD_Y) == BTN_Y);
+  CHECK(pp_pad_button_to_btn(PP_PAD_BACK) == BTN_SELECT);
+  CHECK(pp_pad_button_to_btn(PP_PAD_START) == BTN_START);
+  CHECK(pp_pad_button_to_btn(PP_PAD_GUIDE) == BTN_MENU);
+  CHECK(pp_pad_button_to_btn(PP_PAD_LEFTSHOULDER) == BTN_L1);
+  CHECK(pp_pad_button_to_btn(PP_PAD_RIGHTSHOULDER) == BTN_R1);
+  CHECK(pp_pad_button_to_btn(PP_PAD_DPAD_UP) == BTN_UP);
+  CHECK(pp_pad_button_to_btn(PP_PAD_DPAD_RIGHT) == BTN_RIGHT);
+}
+
+/* swap_ab must apply to the gamepad too (it only applied to the keyboard). */
+static void test_pad_swap_ab(void) {
+  ui_set_swap_ab(1);
+  CHECK(pp_pad_button_to_btn(PP_PAD_A) == BTN_B);
+  CHECK(pp_pad_button_to_btn(PP_PAD_B) == BTN_A);
+  CHECK(pp_pad_button_to_btn(PP_PAD_X) == BTN_X);
+  ui_set_swap_ab(0);
+}
+
+/* Only an explicit Menu input can quit: unmapped pad buttons/keys are BTN_NONE. */
+static void test_unmapped_cannot_quit(void) {
+  CHECK(pp_pad_button_to_btn(PP_PAD_LEFTSTICK) == BTN_NONE);
+  CHECK(pp_pad_button_to_btn(PP_PAD_RIGHTSTICK) == BTN_NONE);
+  CHECK(pp_pad_button_to_btn(-1) == BTN_NONE);
+  CHECK(pp_pad_button_to_btn(15) == BTN_NONE);     /* SDL misc/paddles */
+  CHECK(pp_pad_button_to_btn(1000) == BTN_NONE);
+  int menu_pad = 0, menu_keys = 0;
+  for (int b = -1; b < 64; b++) if (pp_pad_button_to_btn(b) == BTN_MENU) menu_pad++;
+  for (int i = 0; pp_default_keys[i].btn != BTN_NONE; i++)
+    if (pp_default_keys[i].btn == BTN_MENU) menu_keys++;
+  CHECK(menu_pad == 1);                             /* GUIDE only */
+  CHECK(menu_keys == 1);                            /* Escape only */
+  CHECK(pp_keycode_to_btn('q') == BTN_NONE);
+}
+
+static void test_btn_names(void) {
+  CHECK_STR(pp_btn_name(BTN_A), "A");
+  CHECK_STR(pp_btn_name(BTN_MENU), "MENU");
+  CHECK_STR(pp_btn_name(BTN_NONE), "none");
+}
+
 int main(void) {
   RUN(test_arrow_keys_map_to_dpad);
   RUN(test_enter_is_a);
@@ -66,5 +113,9 @@ int main(void) {
   RUN(test_swap_ab_does_not_affect_other_buttons);
   RUN(test_unknown_key_is_none);
   RUN(test_default_keys_table_terminates);
+  RUN(test_pad_mapping);
+  RUN(test_pad_swap_ab);
+  RUN(test_unmapped_cannot_quit);
+  RUN(test_btn_names);
   return TEST_RESULT();
 }

@@ -147,8 +147,7 @@ static void detail_handle(pp_screen *self, pp_btn btn) {
     d->item.watched = !d->item.watched;
     break;
   case BTN_START:
-    ui_pop();
-    ui_push(screen_home_create());
+    ui_replace(screen_home_create());
     break;
   case BTN_MENU:
     ui_pop();

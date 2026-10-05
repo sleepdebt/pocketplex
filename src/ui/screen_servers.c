@@ -4,6 +4,8 @@
  */
 #include "ui.h"
 #include "ui/worker.h"
+#include "ui/session.h"
+#include "config/config.h"
 #include "log.h"
 
 #include <SDL.h>
@@ -23,8 +25,21 @@ typedef struct {
 } servers_data_t;
 
 static void servers_submit(servers_data_t *d) {
-  d->req = worker_start(REQ_SERVERS, NULL, NULL, ui_get_auth_token(), 0,
-                        ui_is_smoke_scroll());
+  const char *tok = ui_get_auth_token();
+  LOGI("discovery: start (token %s, attempt %d)", tok ? "set" : "missing", d->retry_count + 1);
+  d->req = worker_start(REQ_SERVERS, NULL, NULL, tok, 0, ui_is_smoke_scroll());
+}
+
+/* Remember the chosen server so the next launch goes straight to Home. */
+static void servers_persist(const pp_server *srv) {
+  if (ui_is_smoke_scroll()) return;  /* fake servers never touch the ini */
+  pp_config cfg;
+  pp_config_defaults(&cfg);
+  pp_config_load(&cfg, ui_ini_path());
+  int ok = session_apply_server(&cfg, srv) == 0 && pp_config_save(&cfg, ui_ini_path()) == 0;
+  memset(&cfg, 0, sizeof cfg);
+  if (ok) LOGI("servers: saved choice (server token %s)", srv->token && srv->token[0] ? "set" : "kept");
+  else { LOGW("servers: could not save the chosen server"); ui_toast("Could not save server"); }
 }
 
 static void servers_render(pp_screen *self) {
@@ -47,14 +62,17 @@ static void servers_render(pp_screen *self) {
     if (st == PP_OK) {
       worker_take_servers(d->req, &d->servers, &d->count);
       d->retry_count = 0;
-    } else if (worker_error(d->req)[0]) {
+      LOGI("discovery: %d server(s)", d->count);
+    } else {
+      LOGW("discovery: failed (%d)", st);
+    }
+    if (st != PP_OK && worker_error(d->req)[0]) {
       ui_toast(worker_error(d->req));
     }
     worker_release(d->req);
     d->req = NULL;
     if (st == PP_ERR_AUTH) {
-      ui_pop();
-      ui_push(screen_link_create());
+      ui_replace(screen_link_create());
       return;
     }
     if (st == PP_ERR_NET || st == PP_ERR_HTTP) {
@@ -82,12 +100,12 @@ static void servers_render(pp_screen *self) {
   for (i = 0; i < d->count; i++) {
     pp_color col = (i == d->selected) ? PP_COLOR_SEL : PP_COLOR_FG;
     char buf[128];
-    snprintf(buf, sizeof(buf), "%s", d->servers[i].url ? d->servers[i].url : "(no url)");
+    session_server_label(&d->servers[i], buf, sizeof(buf));
     ui_draw_text(buf, PP_MARGIN_L, y, col);
     y += PP_LINE_H;
   }
   if (d->count == 0)
-    ui_draw_text("No servers found", PP_MARGIN_L, y, PP_COLOR_DIM);
+    ui_draw_text("No servers found  (A: retry)", PP_MARGIN_L, y, PP_COLOR_DIM);
 
   ui_draw_text("D-pad: select  A: connect  B: back  Menu: quit",
                PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
@@ -103,20 +121,23 @@ static void servers_handle(pp_screen *self, pp_btn btn) {
   case BTN_DOWN: if (d->selected < d->count - 1) d->selected++; break;
   case BTN_UP:   if (d->selected > 0) d->selected--; break;
   case BTN_A:
-    if (d->count > 0) {
+    if (d->count == 0 && !d->req) {  /* "No servers found": A retries */
+      servers_submit(d);
+      self->loading = 1;
+    } else if (d->count > 0) {
       pp_server *srv = &d->servers[d->selected];
+      LOGI("servers: chose #%d of %d", d->selected + 1, d->count);
       ui_set_server(srv);
+      servers_persist(srv);
       ui_toast("Connected");
-      ui_pop();
-      ui_push(screen_home_create());
+      ui_replace(screen_home_create());
     }
     break;
   case BTN_SELECT:
     ui_push(screen_settings_create());
     break;
   case BTN_START:
-    ui_pop();
-    ui_push(screen_home_create());
+    ui_replace(screen_home_create());
     break;
   case BTN_B:
   case BTN_MENU:

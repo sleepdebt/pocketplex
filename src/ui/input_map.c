@@ -24,6 +24,41 @@ static int g_swap_ab = 0;
 void ui_set_swap_ab(int swap) { g_swap_ab = swap ? 1 : 0; }
 int  ui_is_swap_ab(void) { return g_swap_ab; }
 
+static pp_btn swap_ab(pp_btn btn) {
+  if (g_swap_ab) {
+    if (btn == BTN_A) return BTN_B;
+    if (btn == BTN_B) return BTN_A;
+  }
+  return btn;
+}
+
+pp_btn pp_pad_button_to_btn(int pad_button) {
+  pp_btn b;
+  switch (pad_button) {
+  case PP_PAD_A:             b = BTN_A; break;
+  case PP_PAD_B:             b = BTN_B; break;
+  case PP_PAD_X:             b = BTN_X; break;
+  case PP_PAD_Y:             b = BTN_Y; break;
+  case PP_PAD_BACK:          b = BTN_SELECT; break;
+  case PP_PAD_GUIDE:         b = BTN_MENU; break;
+  case PP_PAD_START:         b = BTN_START; break;
+  case PP_PAD_LEFTSHOULDER:  b = BTN_L1; break;
+  case PP_PAD_RIGHTSHOULDER: b = BTN_R1; break;
+  case PP_PAD_DPAD_UP:       b = BTN_UP; break;
+  case PP_PAD_DPAD_DOWN:     b = BTN_DOWN; break;
+  case PP_PAD_DPAD_LEFT:     b = BTN_LEFT; break;
+  case PP_PAD_DPAD_RIGHT:    b = BTN_RIGHT; break;
+  default:                   return BTN_NONE;
+  }
+  return swap_ab(b);
+}
+
+const char *pp_btn_name(pp_btn b) {
+  static const char *const names[] = { "UP", "DOWN", "LEFT", "RIGHT", "A", "B", "X", "Y",
+    "L1", "R1", "L2", "R2", "START", "SELECT", "MENU" };
+  return ((int)b >= 0 && b < BTN_NONE) ? names[b] : "none";
+}
+
 pp_btn pp_keycode_to_btn(int sdl_keycode) {
   int i;
   pp_btn btn = BTN_NONE;
@@ -33,9 +68,5 @@ pp_btn pp_keycode_to_btn(int sdl_keycode) {
       break;
     }
   }
-  if (g_swap_ab) {
-    if (btn == BTN_A) return BTN_B;
-    if (btn == BTN_B) return BTN_A;
-  }
-  return btn;
+  return swap_ab(btn);
 }

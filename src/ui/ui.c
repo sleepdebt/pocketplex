@@ -154,12 +154,14 @@ int ui_draw_text(const char *str, int x, int y, pp_color color) {
 }
 
 void ui_fill_rect(int x, int y, int w, int h, pp_color color) {
+  if (!g_ren) return;
   SDL_SetRenderDrawColor(g_ren, color.r, color.g, color.b, color.a);
   SDL_Rect r = { x, y, w, h };
   SDL_RenderFillRect(g_ren, &r);
 }
 
 void ui_draw_rect(int x, int y, int w, int h, pp_color color) {
+  if (!g_ren) return;
   SDL_SetRenderDrawColor(g_ren, color.r, color.g, color.b, color.a);
   SDL_Rect r = { x, y, w, h };
   SDL_RenderDrawRect(g_ren, &r);
@@ -243,6 +245,68 @@ int ui_init(void) {
   g_ren = plat_renderer();
   if (!g_ren) { LOGE("no renderer"); return -1; }
   if (font_load() != 0) return -1;
+  return 0;
+}
+
+/* ---- Display hand-off around the external player ----------------------- */
+/* SP device bug 2026-10-05: after mpv (--vo=sdl, its own process and EGL
+ * surface on the same Mali fbdev, no compositor) video fragments showed on
+ * every screen until navigating. Both paths drop every SDL texture (the text
+ * cache holds them all; TTF fonts are CPU-only) and present 3 full frames;
+ * "recreate" also destroys renderer + window and quits SDL video for the
+ * player (controllers stay open), then rebuilds them. */
+static int g_video_lost = 0;      /* recreate failed; ui_run retries */
+static Uint32 g_video_retry_at = 0;
+
+/* Recreate by default on the handhelds (two EGL clients on one Mali fbdev,
+ * core's finding); light on desktop. PP_VIDEO_RECREATE=0/1 overrides. */
+static int video_recreate_mode(void) {
+  const char *e = getenv("PP_VIDEO_RECREATE");
+  if (e && (e[0] == '0' || e[0] == '1')) return e[0] == '1';
+#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP)
+  return 1;
+#else
+  return 0;
+#endif
+}
+
+int ui_video_ready(void) { return g_ren != NULL; }
+
+void ui_video_before_player(void) {
+  cache_clear();
+  if (video_recreate_mode()) {
+    g_ren = NULL;
+    plat_video_suspend();
+  }
+}
+
+/* Full-screen clear + present, n times, so every buffer of a double/triple
+ * buffered display is repainted without leftovers. */
+static void present_blank_frames(int n) {
+  for (int i = 0; i < n && g_ren; i++) {
+    SDL_SetRenderDrawColor(g_ren, 0x18, 0x18, 0x1c, 0xff);
+    SDL_RenderClear(g_ren);
+    plat_present();
+  }
+}
+
+int ui_video_after_player(void) {
+  const char *path = video_recreate_mode() ? "recreate" : "light";
+  if (!g_ren) {
+    if (plat_video_resume() != 0) {
+      if (!g_video_lost) LOGE("video: could not restore the display after playback; retrying");
+      g_video_lost = 1;
+      g_video_retry_at = SDL_GetTicks() + 500;
+      return -1;
+    }
+    g_ren = plat_renderer();
+  }
+  cache_clear();               /* never reuse textures from before the player */
+  present_blank_frames(3);
+  SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
+  if (g_video_lost) ui_toast("Display restored");
+  g_video_lost = 0;
+  LOGI("video: restored after playback (path=%s, cache cleared, 3 blank frames)", path);
   return 0;
 }
 
@@ -592,7 +656,11 @@ void ui_run(void) {
     pp_screen *s = current_screen();
     if (!s) break;
 
-    if (s->no_present) {
+    if (!g_ren && !s->no_present) {
+      /* Display lost (recreate failed after playback): retry, draw nothing. */
+      if (SDL_TICKS_PASSED(SDL_GetTicks(), g_video_retry_at)) ui_video_after_player();
+      SDL_Delay(15);
+    } else if (s->no_present) {
       /* An external player owns the display: no clear, no present. */
       if (s->render) s->render(s);
       SDL_Delay(15);

@@ -47,8 +47,12 @@ static void send_bg(player_data_t *d, pp_req_type type, const char *state) {
 }
 
 static void begin_stop(pp_screen *self, player_data_t *d) {
-  self->no_present = 0;   /* next frame draws "Stopping..." */
-  d->phase = P_STOP_DRAW;
+  if (ui_video_ready()) {
+    self->no_present = 0;   /* next frame draws "Stopping..." */
+    d->phase = P_STOP_DRAW;
+  } else {
+    d->phase = P_STOPPING;  /* video is down for the player: stop first, then restore */
+  }
 }
 
 /* Stop the player and close out the PMS session. Safe to call twice. */
@@ -96,11 +100,13 @@ static void player_render(pp_screen *self) {
     LOGI("play: transcode %s", shown);
     /* From player_start until player_stop the UI must not present. */
     self->no_present = 1;
+    ui_video_before_player();
     d->player = player_start(worker_url(d->req_url), d->start_ms);
     worker_release(d->req_url);  /* wipes the tokenised URL */
     d->req_url = NULL;
     if (!d->player) {
       self->no_present = 0;
+      ui_video_after_player();
       ui_toast("Could not start the player");
       ui_play_result(0);
       ui_pop();
@@ -145,7 +151,10 @@ static void player_render(pp_screen *self) {
     draw_status("Stopping...", 0);
     self->expect_slow = 1;   /* player_stop blocks up to ~1.5 s by design */
     finish_playback(d);
-    /* The player read the buttons itself; drop what SDL queued meanwhile. */
+    /* Give the display back: drop stale textures (or rebuild SDL video),
+     * repaint every buffer, and drop the buttons SDL queued meanwhile. */
+    self->no_present = 0;
+    ui_video_after_player();
     SDL_FlushEvents(SDL_FIRSTEVENT, SDL_LASTEVENT);
     /* The screen below (Detail) is alive while we render; refresh its item so
      * A offers the new resume point. A scrobbled item restarts from 0. */

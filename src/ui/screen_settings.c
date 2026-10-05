@@ -21,7 +21,7 @@ static void settings_render(pp_screen *self) {
                PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   int y = PP_HEADER_H + 20;
-  const char *labels[] = { "Video Quality", "Subtitles", "Sign Out", NULL };
+  const char *labels[] = { "Video Quality", "Subtitles", "Swap A/B", "Sign Out", NULL };
   int i;
   for (i = 0; labels[i]; i++) {
     pp_color col = (i == d->sel) ? PP_COLOR_SEL : PP_COLOR_FG;
@@ -32,6 +32,8 @@ static void settings_render(pp_screen *self) {
       snprintf(val, sizeof(val), "%s", is_480 ? "480p" : "360p");
     } else if (i == 1) {
       snprintf(val, sizeof(val), "%s", play_burn_subtitles(d->cfg.subtitles) ? "on" : "off");
+    } else if (i == 2) {
+      snprintf(val, sizeof(val), "%s", d->cfg.swap_ab ? "on" : "off");
     } else {
       snprintf(val, sizeof(val), "%s", d->cfg.token[0] ? "signed in" : "signed out");
     }
@@ -42,6 +44,9 @@ static void settings_render(pp_screen *self) {
 
   if (d->sel == 1)
     ui_draw_text("Uses the subtitle track chosen in Plex",
+                 PP_MARGIN_L, y + 12, PP_COLOR_DIM);
+  else if (d->sel == 2)
+    ui_draw_text("Off = buttons follow their printed labels",
                  PP_MARGIN_L, y + 12, PP_COLOR_DIM);
 
   ui_draw_text("D-pad: navigate  A: toggle  B: back",
@@ -54,7 +59,7 @@ static int settings_save(settings_data_t *d) {
 
 static void settings_handle(pp_screen *self, pp_btn btn) {
   settings_data_t *d = (settings_data_t *)self->data;
-  int count = 3;
+  int count = 4;
   switch (btn) {
   case BTN_DOWN: if (d->sel < count - 1) d->sel++; break;
   case BTN_UP:   if (d->sel > 0) d->sel--; break;
@@ -69,6 +74,11 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
       if (!settings_save(d)) ui_toast("Failed to save settings");
       else ui_toast(on ? "Subtitles off" : "Subtitles on");
     } else if (d->sel == 2) {
+      d->cfg.swap_ab = !d->cfg.swap_ab;
+      ui_set_swap_ab(d->cfg.swap_ab);  /* takes effect on the next press */
+      if (!settings_save(d)) ui_toast("Failed to save settings");
+      else ui_toast(d->cfg.swap_ab ? "A/B swapped" : "A/B follow labels");
+    } else if (d->sel == 3) {
       memset(d->cfg.token, 0, sizeof(d->cfg.token));
       int saved = settings_save(d);
       ui_sign_out();  /* clears the session and resets the stack to Link */

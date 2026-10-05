@@ -7,6 +7,13 @@
 #include <SDL_ttf.h>
 #include "ui/input_map.h"
 #include "log.h"
+
+#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP)
+#define PP_HANDHELD_BUILD 1   /* unknown controller = built-in Nintendo-layout pad */
+#else
+#define PP_HANDHELD_BUILD 0
+#endif
+
 #include <stdlib.h>
 #include <string.h>
 
@@ -20,6 +27,9 @@ SDL_Renderer *plat_renderer(void) { return g_ren; }
 SDL_Window *plat_window(void) { return g_win; }
 
 int plat_init(int *w, int *h) {
+  /* SDL maps known Nintendo (Switch) pads by label with this on; other pads
+   * are positional and input_map applies the handheld layout itself. */
+  SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "1");
   if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER |
                SDL_INIT_GAMECONTROLLER) != 0) {
     LOGE("SDL_Init: %s", SDL_GetError());
@@ -58,6 +68,9 @@ int plat_init(int *w, int *h) {
   if (h) *h = hh;
   g_quit_requested = 0;
   LOGI("platform ready: window %dx%d", ww, hh);
+  LOGI("input: default layout %s until a controller is found",
+       pp_pad_layout_name(pp_pad_layout_for(NULL, 0, PP_HANDHELD_BUILD)));
+  pp_pad_set_layout(pp_pad_layout_for(NULL, 0, PP_HANDHELD_BUILD));
   return 0;
 }
 
@@ -101,6 +114,22 @@ static void on_joystick_added(int index) {
     SDL_GameController *gc = SDL_GameControllerOpen(index);
     LOGI("input: controller %d '%s' (game controller%s)", index, name ? name : "?",
          gc ? "" : ", open failed");
+    int label_mapped = 0;
+#if SDL_VERSION_ATLEAST(2, 0, 12)
+    SDL_GameControllerType type = SDL_GameControllerTypeForIndex(index);
+    label_mapped = type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_PRO;
+#if SDL_VERSION_ATLEAST(2, 24, 0)
+    label_mapped |= type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_LEFT ||
+                    type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_RIGHT ||
+                    type == SDL_CONTROLLER_TYPE_NINTENDO_SWITCH_JOYCON_PAIR;
+#endif
+#endif
+    pp_pad_layout layout = pp_pad_layout_for(name, label_mapped, PP_HANDHELD_BUILD);
+    pp_pad_set_layout(layout);
+    LOGI("input: layout %s for '%s' (%s; swap_ab=%d)", pp_pad_layout_name(layout),
+         name ? name : "?",
+         layout == PP_LAYOUT_NINTENDO ? "A = east, X = north" : "A = south, X = west",
+         ui_is_swap_ab());
   } else {
     /* No SDL mapping: open it anyway so raw codes reach the log. */
     SDL_Joystick *js = SDL_JoystickOpen(index);

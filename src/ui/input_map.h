@@ -47,7 +47,21 @@ pp_btn pp_keycode_to_btn(int sdl_keycode);
 #define PP_PAD_DPAD_LEFT     13
 #define PP_PAD_DPAD_RIGHT    14
 
-/* Map a GameController button to a pp_btn (swap_ab applied). BTN_NONE if unmapped. */
+/* Face-button layout of the active controller. SDL reports face buttons by
+ * position (Xbox: A = south). Nintendo-layout handhelds (Anbernic, Miyoo)
+ * print A on the east button, so their labels need the swap. */
+typedef enum { PP_LAYOUT_POSITIONAL, PP_LAYOUT_NINTENDO } pp_pad_layout;
+
+/* Pick the layout for a controller. sdl_label_mapped: SDL already maps it by
+ * label (Switch controllers with USE_BUTTON_LABELS). handheld_build: sp/mmp,
+ * where an unknown controller is the built-in Nintendo-layout pad. */
+pp_pad_layout pp_pad_layout_for(const char *name, int sdl_label_mapped, int handheld_build);
+void pp_pad_set_layout(pp_pad_layout layout);
+pp_pad_layout pp_pad_get_layout(void);
+const char *pp_pad_layout_name(pp_pad_layout layout);
+
+/* Map a GameController button to a pp_btn: layout first, then the user's
+ * swap_ab on top. BTN_NONE if unmapped. */
 pp_btn pp_pad_button_to_btn(int pad_button);
 
 /* Short name for logs ("A", "MENU", "none"). */

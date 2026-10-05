@@ -6,6 +6,10 @@ A lightweight, text-first Plex client for the RG35XX SP (Knulli).
 
 In PortMaster: search for "PocketPlex", install, then launch from the Ports menu.
 
+> ES note: after first install the entry does not appear in the Ports menu until ES rescans
+> `/userdata/roms/ports`. Refresh from EmulationStation: **Ports → Start → Update Gamelists**
+> (or restart ES). `PocketPlex.sh` is picked up as a port on the next `*.sh` scan.
+
 ### First run
 
 The app reads `pocketplex.ini` from next to the binary, in the port folder
@@ -26,6 +30,8 @@ If `token` is empty, PocketPlex will print a 4-digit PIN and you enter it at
   position over JSON IPC. mpv is therefore not bundled.
 - The gamepad is read natively (evdev); `gptokeyb` is not used.
 - SDL2/SDL2_ttf/libcurl are linked dynamically against the system copies on the SP.
+- On first run Knulli prints `/usr/lib64/libcurl.so.4: no version information available`; this is
+  benign (same OpenSSL 3 backend as the build host; the app runs fine).
 
 ## Controls
 

@@ -38,4 +38,11 @@ void play_session_id(char out[37]);
  * Returns 0 on success, -1 if empty, neither form, or too long for out. */
 int  play_normalize_key(const char *in, char *out, size_t n);
 
+/* [ui] subtitles -> burn flag for pp_transcode_url_ex. On unless "off". */
+int  play_burn_subtitles(const char *cfg_subtitles);
+
+/* Copy url with the X-Plex-Token value replaced by REDACTED (for logs).
+ * If out is too small the copy stops before any token bytes. */
+void play_redact_url(const char *url, char *out, size_t n);
+
 #endif /* PP_PLAY_STATE_H */

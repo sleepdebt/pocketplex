@@ -25,6 +25,7 @@ struct pp_request {
   char        state[16];
   long        time_ms;
   int         max_kbps;
+  int         burn_subtitles;
 
   /* Outputs: written only by the worker, read by the caller after done. */
   int        status;
@@ -105,8 +106,9 @@ static void run_fake(pp_request *req) {
     break;
   case REQ_PIN_POLL:  req->status = 1; break;  /* always pending in smoke mode */
   case REQ_TRANSCODE_URL:
-    snprintf(req->url, sizeof(req->url), "http://fake.invalid/%s?session=%s",
-             req->item ? req->item->rating_key : "", req->session ? req->session : "");
+    snprintf(req->url, sizeof(req->url), "http://fake.invalid/%s?subtitles=%s&session=%s",
+             req->item ? req->item->rating_key : "", req->burn_subtitles ? "burn" : "none",
+             req->session ? req->session : "");
     req->status = PP_OK;
     break;
   case REQ_TIMELINE:
@@ -126,8 +128,8 @@ static void run_real(pp_request *req) {
   case REQ_PIN_START: req->status = pp_auth_pin_start(req->pin, &req->pin_id); break;
   case REQ_PIN_POLL:  req->status = pp_auth_pin_poll(req->pin_id, req->auth_token, sizeof(req->auth_token)); break;
   case REQ_TRANSCODE_URL:
-    req->status = pp_transcode_url(srv, req->item, req->session, 640, 480, req->max_kbps,
-                                   0, req->url, sizeof(req->url));
+    req->status = pp_transcode_url_ex(srv, req->item, req->session, 640, 480, req->max_kbps,
+                                      0, req->burn_subtitles, req->url, sizeof(req->url));
     if (req->status != PP_OK) memset(req->url, 0, sizeof(req->url));
     break;
   case REQ_TIMELINE:  req->status = pp_timeline(srv, req->item, req->state, req->time_ms); break;
@@ -244,6 +246,7 @@ pp_request *worker_start_play(pp_req_type type, const pp_server *srv,
     if (args->state) snprintf(req->state, sizeof(req->state), "%s", args->state);
     req->time_ms = args->time_ms;
     req->max_kbps = args->max_kbps;
+    req->burn_subtitles = args->burn_subtitles;
   }
   return request_launch(req, oom);
 }

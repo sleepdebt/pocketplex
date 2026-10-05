@@ -89,6 +89,27 @@ static void test_normalize_key(void) {
   CHECK(play_normalize_key("/library/metadata/1", out, 8) < 0);  /* too long */
 }
 
+/* Owner decision (Q4): on by default; only an explicit "off" disables burn-in. */
+static void test_burn_subtitles_mapping(void) {
+  CHECK(play_burn_subtitles("burn") == 1);
+  CHECK(play_burn_subtitles("off") == 0);
+  CHECK(play_burn_subtitles("") == 1);
+  CHECK(play_burn_subtitles(NULL) == 1);
+  CHECK(play_burn_subtitles("on") == 1);
+}
+
+static void test_redact_url(void) {
+  char out[256];
+  play_redact_url("http://h:32400/x?a=1&X-Plex-Token=abc123&subtitles=none", out, sizeof out);
+  CHECK_STR(out, "http://h:32400/x?a=1&X-Plex-Token=REDACTED&subtitles=none");
+  play_redact_url("http://h/x?X-Plex-Token=abc123", out, sizeof out);
+  CHECK_STR(out, "http://h/x?X-Plex-Token=REDACTED");
+  play_redact_url("http://h/x?a=1", out, sizeof out);
+  CHECK_STR(out, "http://h/x?a=1");
+  play_redact_url("http://h/x?X-Plex-Token=abc123", out, 12);   /* truncated: no token bytes */
+  CHECK(strstr(out, "abc") == NULL);
+}
+
 int main(void) {
   RUN(test_poll_cadence);
   RUN(test_timeline_every_10s);
@@ -99,5 +120,7 @@ int main(void) {
   RUN(test_quality_kbps);
   RUN(test_session_id);
   RUN(test_normalize_key);
+  RUN(test_burn_subtitles_mapping);
+  RUN(test_redact_url);
   return TEST_RESULT();
 }

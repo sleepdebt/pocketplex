@@ -114,8 +114,7 @@ static void test_server_is_copied(void) {
   srv->name = strdup("Living Room");
   char *key = strdup("/library/metadata/1/children");
   pp_request *req = worker_start(REQ_CHILDREN, srv, key, NULL, 0, 0);
-  free(srv->url); free(srv->token); free(srv->client_id); free(srv->name);  /* name too */
-  free(srv);
+  pp_servers_free(srv, 1);  /* frees name too; the request kept its own copy */
   free(key);
   CHECK(wait_done(req, 10000));
   CHECK(worker_status(req) < 0);

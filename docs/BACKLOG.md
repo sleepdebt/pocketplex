@@ -22,3 +22,5 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] `.clangd` at the repo root: decide and add on main if wanted.
 - [ ] MMP zip links libcurl.so.4 dynamically; amended D2 says static curl+mbedTLS on the MMP.
 - [ ] -Wformat-truncation in cross builds: src/ui/screen_list.c:114/116, src/ui/screen_detail.c:28 and tools/pp-cli.c:116.
+- [ ] Phase 4: subtitle track picker on Detail (contract: subtitleStreamID); today "on" = the track selected in Plex.
+- [ ] core: a test that the full decision and start queries match (up to X-Plex-Token); `pp-cli url` should honour cfg.subtitles via _ex; internal.h comment: cite "none" or say "accepted by PMS 1.43.3".

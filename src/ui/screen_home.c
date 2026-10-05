@@ -51,8 +51,7 @@ static void home_render(pp_screen *self) {
   if (d->auth_failed == 1) {
     d->auth_failed = 2;
     ui_toast("Auth expired — relink");
-    ui_pop();
-    ui_push(screen_link_create());
+    ui_replace(screen_link_create());
     return;
   }
 
@@ -133,21 +132,18 @@ static void home_handle(pp_screen *self, pp_btn btn) {
   case BTN_A:
     if (!d->in_sections && d->sel >= 0 && d->sel < total_top) {
       pp_item *it = &d->on_deck.items[d->sel];
-      ui_pop();
-      ui_push(screen_detail_create(it));
+      ui_replace(screen_detail_create(it));
     } else if (d->in_sections && d->sel - total_top >= 0 &&
                d->sel - total_top < d->sections.count) {
       pp_item *it = &d->sections.items[d->sel - total_top];
-      ui_pop();
-      ui_push(screen_list_create_key(it->key, it->title));
+      ui_replace(screen_list_create_key(it->key, it->title));
     }
     break;
   case BTN_SELECT:
     ui_push(screen_settings_create());
     break;
   case BTN_L1:
-    ui_pop();
-    ui_push(screen_servers_create());
+    ui_replace(screen_servers_create());
     break;
   case BTN_MENU:
     ui_pop();

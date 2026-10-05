@@ -86,26 +86,45 @@ both anyway.
 owner's 1865674), so `player_poll` positions can be used directly as Plex resume points.
 After `transcode/universal/stop?session=…`, `/transcode/sessions` is empty.
 
-### Post-playback tearing in the integrated app (2026-10-05)
+### Post-playback glitch in the integrated app (2026-10-05)
 
-Owner report: playback is fine, but after leaving it the UI shows **tearing / half-screen updates on every screen
-until the app restarts**. A sample taken afterwards: fb0 `virtual_size 640,960`, `pan 0,480`, 640×480-60, 32 bpp.
+Owner report: playback is fine, but after leaving it the UI glitches until the app restarts. Owner's description:
+"tearing / half screen", and frames from the video carry over onto the Home and Detail screens.
 
-Analysis: the app (SDL2 GLES2 renderer, vsync) and mpv (`--vo=sdl`, also GLES2) are separate EGL clients of the same
-Mali fbdev. Mali double-buffers inside the 640×960 virtual framebuffer and flips with `FBIOPAN_DISPLAY` between
-y=0 and y=480. Each process tracks its own idea of which half is the front buffer. If mpv exits after an odd number
-of flips relative to the app, the display is left on the half the app's driver now thinks is the *back* buffer. The
-app then draws into the visible half, which matches the tearing / half-updated screen, and it never resyncs
-because both sides keep flipping in lockstep.
+**Ruled out: fb0 pan/mode.** The first theory was that mpv leaves Mali's double buffer panned to the other half of
+the 640×960 virtual framebuffer. `player_mpv.c` now logs fb0 around mpv and restores it if it changed. The
+device log from the owner's test with that build (Detail → play → B):
 
-Fix (player_mpv.c, Linux device builds): at `player_start`, save fb0's `fb_var_screeninfo` (`FBIOGET_VSCREENINFO`),
-i.e. what the app's renderer last displayed. As soon as mpv's exit is seen (in `player_poll` or `player_stop`,
-which is before the app presents again), compare. If only the offset differs, `FBIOPAN_DISPLAY` back to the saved
-offset. If the geometry or bpp differs, `FBIOPUT_VSCREENINFO` the saved mode. Then `FBIOBLANK` unblank. The saved
-offset is restored rather than y=0, because the app's driver expects the buffer it last flipped to, which can
-be either half. Both states are logged (`player: fb0 before: …` / `player: fb0 after mpv: … -> pan back`).
-`PP_FB_RESTORE=0` disables the restore (logging only) for an A/B test.
-**Status: built into `dist/pocketplex-sp.zip`, not yet verified on the SP (SSH down).**
+```
+15:26:47 player: fb0 before: 640x480 virt 640x960 offset 0,0 bpp 32
+15:26:47 player: mpv pid 9388, start 3738239 ms, vo sdl
+15:27:58 player: mpv exited (code 0) at 3797377 ms
+15:27:58 player: fb0 after mpv: 640x480 virt 640x960 offset 0,0 bpp 32 -> unchanged
+```
+
+The glitch still happened, with fb0 identical before and after. The save/restore stays as a cheap guard and log
+line (it would undo a pan or mode change if a future firmware's mpv made one), but it isn't the fix.
+
+**Ruled out: partial redraws.** The UI loop (`src/ui/ui.c`, not `no_present`) does `SDL_RenderClear` and a full
+redraw before every `plat_present`. So stale video in the UI isn't just undrawn pixels left in the buffer the app
+renders into.
+
+**What's known about the two processes:**
+- The app and mpv (`--vo=sdl`) each load the system SDL2 2.30.12. Its fbdev backend is SDL's `mali` video driver
+  (the string is in `/usr/lib/libSDL2-2.0.so.0`), and both use the GLES2 renderer (mpv logs
+  `[vo/sdl] Using opengles2`). So two independent EGL displays and window surfaces exist on one fb0 at the same time,
+  and there is no compositor.
+- The app keeps its window, renderer and EGL surface alive across playback and only stops presenting
+  (`no_present`).
+- The standalone harness `pp_play --sdl` (window + renderer created before mpv, one static green frame presented
+  after) looked clean to the owner. It differs from the app in `SDL_RENDERER_PRESENTVSYNC` (the app sets it), in
+  having no long-lived textures (the app has a glyph/texture cache), and in presenting only once after playback.
+
+**Working hypothesis (not proven):** while mpv's own SDL/EGL instance owns fb0, the app's EGL window surface, its
+swap chain, or its GPU-side textures stop matching what the Mali fbdev driver scans out. So the app's presents
+partly land on the screen and partly show mpv's last frames. The lead asked core to release the app's SDL window and
+renderer before `player_start` and recreate them, and the texture cache, after `player_stop`. core will verify that
+build on the SP with the owner.
 
 ### Buttons (evdev)
 

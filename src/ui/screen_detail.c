@@ -50,7 +50,9 @@ static void detail_render(pp_screen *self) {
   y += PP_LINE_H;
 
   /* Subtitle / year / duration */
-  char meta[256];
+  /* Room for a full subtitle + " · " + year + " · 99h59m" (and the resume line
+   * below), so none of these snprintf calls can truncate. */
+  char meta[sizeof it->subtitle + 64];
   if (it->subtitle[0])
     snprintf(meta, sizeof(meta), "%s · %d", it->subtitle, it->year);
   else

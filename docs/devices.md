@@ -126,6 +126,54 @@ partly land on the screen and partly show mpv's last frames. The lead asked core
 renderer before `player_start` and recreate them, and the texture cache, after `player_stop`. core will verify that
 build on the SP with the owner.
 
+### Final core criterion run in the integrated app (2026-10-05)
+
+Setup: the merged app from `main` on the SP (installed binary sha256 `07273c806fecbcac…`, launched from Ports), test
+episode 53835 (*The Americans* S1E2 "The Clock", 1080p HEVC source, 47:48). The owner drove the buttons. core
+sampled read-only every 60 s over SSH: mpv properties via `get_property` on the app's IPC socket, `top -b -n1`,
+`log.txt`, plus PMS `/transcode/sessions` from the Mac.
+
+The first attempt ran with the owner's `quality = 360p` preset (`maxVideoBitrate=800`). It was stopped after
+about 4.5 minutes (clean, 0 drops), and the owner switched Settings → Quality to 480p. The 480p run resumed at
+367495 ms (16:24:58), with transcode URL `videoResolution=640x480&maxVideoBitrate=1500&offset=0`.
+
+| t (wall) | time-pos (s) | drops (vo/dec/delayed) | avsync (s) | cache ahead (s) | mpv CPU % / RES | PMS throttled |
+|---|---|---|---|---|---|---|
+| 16:25:36 | 387.3 | 0/0/0 | 0.0 | 44 | 26.7 / 102 MB | false |
+| 16:27:38 | 509.2 | 0/0/0 | 0.0 | 242 | 33.3 / 132 MB | false |
+| 16:29:40 | 630.9 | 0/0/0 | 0.0 | 401 | 26.7 / 156 MB | false |
+| 16:31:42 | 752.7 | 0/0/0 | 0.0 | 426 | 53.3 / 157 MB | true |
+| 16:33:44 | 874.5 | 0/0/0 | 0.0 | 420 | 40.0 / 157 MB | true |
+| 16:35:46 | 996.2 | 0/0/0 | 0.0001 | 412 | 33.3 / 157 MB | false |
+
+All 11 samples: 0 dropped, decoder-dropped and delayed frames, and |avsync| ≤ 0.1 ms. Position advanced 608.98 s in about 610 s
+of wall clock. The app process itself sat at 50.7 MB RSS and about 0% CPU while mpv played.
+
+| Check | Result |
+|---|---|
+| 10 min with no visible stutter or A/V drift | **Pass.** About 11 min at 480p settings (plus 4.5 min at 360p). Owner: "Smooth, in sync". Numbers above. |
+| Pause, ±10 s seek and exit from buttons | **Pass.** Owner: A pause, A resume, Right, Left, then B all worked, and the Detail screen looked clean after B (no post-playback glitch with core's hand-off fix). Log: `player: mpv exited (code 0) at 1097850 ms`, `play: stopped 53835 at 18:17`. |
+| Resume point correct in Plex Web | **Pass.** PMS `viewOffset` = 1097850 (exactly the exit position). Plex Web shows "29 mins left" (47:48 − 18:17 = 29:31). |
+| PMS transcode session stopped on exit | **Pass.** `/transcode/sessions` → `[]`, `/status/sessions` → `[]` right after B, and the IPC socket was removed. |
+| Plays a **480p** transcode | **Fail.** See below. |
+| Menu quits from Home (KEY 312 question) | **Yes.** `input: pad button 5 -> MENU`, then `quit: MENU (button or window close) on Home`. The app exited to ES. |
+
+**The stream is 480×270 at 330 kbps, not 480p.** mpv reported `video-params` 480×270 and `track-list` showed
+`hls-bitrate 330000`, even though PMS's `/status/sessions` listed the session as 640×360 at 1377 kbps. Cause:
+mpv fetches `start.m3u8` with no `X-Plex-*` headers, only the URL's query string, and the app's URL has no
+`X-Plex-Client-Identifier` in the query. Same parameters, fetched without headers (like mpv does):
+
+```
+app URL as-is (no client id): BANDWIDTH=330000,RESOLUTION=480x270
++ X-Plex-Client-Identifier : BANDWIDTH=941000,RESOLUTION=640x360
++ client id, product, device: BANDWIDTH=941000,RESOLUTION=640x360
+```
+
+So without a client id, PMS ignores `maxVideoBitrate` and serves its lowest rung. The fix belongs in
+`pp_transcode_url`: put `X-Plex-Client-Identifier` (and ideally `X-Plex-Product`/`X-Plex-Device`) in the
+`start.m3u8` query string. At 640×360 the decode load will rise (the earlier 638×346 spike ran at about 70% of one
+core with 0 drops), so the soak needs a rerun after that fix.
+
 ### Buttons (evdev)
 
 The controller is `/dev/input/event1` ("Anbernic RG35XX-SP Controller", also `js0`). Measured by reading raw

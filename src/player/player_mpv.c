@@ -37,6 +37,7 @@
 #if defined(__linux__) && !defined(PP_PLATFORM_DESKTOP)
 #define PP_MPV_EVDEV 1
 #include <dirent.h>
+#include <linux/fb.h>
 #include <linux/input.h>
 #include <sys/ioctl.h>
 #include <pthread.h>
@@ -50,7 +51,15 @@ extern char **environ;
 #define PP_EV_ABS 3
 #define PP_MPV_REPEAT_MS 500
 
+/* The parts of fb_var_screeninfo that mpv can leave changed (portable mirror, so it's testable). */
+typedef struct {
+  unsigned xres, yres, xres_virtual, yres_virtual, xoffset, yoffset, bits_per_pixel;
+} pp_fbinfo;
+typedef enum { PP_FB_NONE, PP_FB_PAN, PP_FB_PUT } pp_fb_action;
+
 struct pp_player {
+  pp_fbinfo fb_saved;     /* fb0 as the app's renderer left it at player_start */
+  int fb_saved_ok;
   pid_t pid;
   int exited, exit_code;
   int fd;                 /* IPC connection used by player_poll; -1 until connected */
@@ -222,6 +231,73 @@ static int ipc_time_pos(pp_player *p, double *sec, int timeout_ms) {
   }
 }
 
+/* What it takes to get from cur back to saved: nothing, a pan (Mali double-buffers by panning between
+ * y=0 and y=yres, so mpv can leave the "wrong" buffer on screen), or a full mode put. */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((unused))
+#endif
+static pp_fb_action fb_restore_action(const pp_fbinfo *saved, const pp_fbinfo *cur) {
+  if (saved->xres != cur->xres || saved->yres != cur->yres || saved->xres_virtual != cur->xres_virtual ||
+      saved->yres_virtual != cur->yres_virtual || saved->bits_per_pixel != cur->bits_per_pixel)
+    return PP_FB_PUT;
+  if (saved->xoffset != cur->xoffset || saved->yoffset != cur->yoffset) return PP_FB_PAN;
+  return PP_FB_NONE;
+}
+
+#ifdef PP_MPV_EVDEV
+static void fb_copy(pp_fbinfo *o, const struct fb_var_screeninfo *v) {
+  o->xres = v->xres; o->yres = v->yres; o->xres_virtual = v->xres_virtual; o->yres_virtual = v->yres_virtual;
+  o->xoffset = v->xoffset; o->yoffset = v->yoffset; o->bits_per_pixel = v->bits_per_pixel;
+}
+
+static void fb_save(pp_player *p) {
+  struct fb_var_screeninfo v;
+  int fd = open("/dev/fb0", O_RDWR | O_CLOEXEC);
+  if (fd < 0) return;
+  if (ioctl(fd, FBIOGET_VSCREENINFO, &v) == 0) {
+    fb_copy(&p->fb_saved, &v);
+    p->fb_saved_ok = 1;
+    LOGI("player: fb0 before: %ux%u virt %ux%u offset %u,%u bpp %u", v.xres, v.yres, v.xres_virtual,
+         v.yres_virtual, v.xoffset, v.yoffset, v.bits_per_pixel);
+  }
+  close(fd);
+}
+
+/* Called once, as soon as mpv's exit is seen and before the app presents again. PP_FB_RESTORE=0 turns
+ * the restore off (logging only), for A/B tests on the device. */
+static void fb_restore(pp_player *p) {
+  struct fb_var_screeninfo v;
+  pp_fbinfo cur;
+  pp_fb_action act;
+  const char *env = getenv("PP_FB_RESTORE");
+  int fd, on = !(env && strcmp(env, "0") == 0), rc = 0;
+  if (!p->fb_saved_ok || (fd = open("/dev/fb0", O_RDWR | O_CLOEXEC)) < 0) return;
+  if (ioctl(fd, FBIOGET_VSCREENINFO, &v) == 0) {
+    fb_copy(&cur, &v);
+    act = fb_restore_action(&p->fb_saved, &cur);
+    LOGI("player: fb0 after mpv: %ux%u virt %ux%u offset %u,%u bpp %u -> %s%s", v.xres, v.yres,
+         v.xres_virtual, v.yres_virtual, v.xoffset, v.yoffset, v.bits_per_pixel,
+         act == PP_FB_NONE ? "unchanged" : act == PP_FB_PAN ? "pan back" : "mode put back",
+         on ? "" : " (PP_FB_RESTORE=0: not restoring)");
+    if (on && act != PP_FB_NONE) {
+      v.xoffset = p->fb_saved.xoffset; v.yoffset = p->fb_saved.yoffset;
+      if (act == PP_FB_PUT) {
+        v.xres = p->fb_saved.xres; v.yres = p->fb_saved.yres;
+        v.xres_virtual = p->fb_saved.xres_virtual; v.yres_virtual = p->fb_saved.yres_virtual;
+        v.bits_per_pixel = p->fb_saved.bits_per_pixel;
+        v.activate = FB_ACTIVATE_NOW;
+        rc = ioctl(fd, FBIOPUT_VSCREENINFO, &v);
+      } else {
+        rc = ioctl(fd, FBIOPAN_DISPLAY, &v);
+      }
+      if (rc < 0) LOGW("player: fb0 restore failed: %s", strerror(errno));
+    }
+  }
+  if (on) ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
+  close(fd);
+}
+#endif
+
 static void reap(pp_player *p, int block) {
   int st;
   pid_t r;
@@ -231,6 +307,9 @@ static void reap(pp_player *p, int block) {
     p->exited = 1;
     p->exit_code = r == p->pid ? (WIFEXITED(st) ? WEXITSTATUS(st) : 128 + WTERMSIG(st)) : 0;
     LOGI("player: mpv exited (code %d) at %ld ms", p->exit_code, p->pos_ms);
+#ifdef PP_MPV_EVDEV
+    fb_restore(p);
+#endif
   }
 }
 
@@ -360,6 +439,9 @@ pp_player *player_start(const char *url, long start_ms) {
   else p->conf[0] = 0;
 
   mpv_build_args(argv, bufs, bin, url, p->pos_ms, p->sock, p->conf[0] ? p->conf : NULL, vo);
+#ifdef PP_MPV_EVDEV
+  fb_save(p);
+#endif
   rc = spawn_mpv(&p->pid, bin, argv);
   if (rc != 0) {
     LOGE("player: can't start %s: %s", bin, strerror(rc));

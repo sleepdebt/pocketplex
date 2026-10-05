@@ -68,22 +68,44 @@ int plat_init(int *w, int *h) {
 static pp_btn g_pad_held = BTN_NONE;
 static Uint32 g_pad_next = 0;
 
-static pp_btn pad_button_to_btn(Uint8 b) {
-  switch (b) {
-  case SDL_CONTROLLER_BUTTON_DPAD_DOWN:     return BTN_DOWN;
-  case SDL_CONTROLLER_BUTTON_DPAD_UP:       return BTN_UP;
-  case SDL_CONTROLLER_BUTTON_DPAD_LEFT:     return BTN_LEFT;
-  case SDL_CONTROLLER_BUTTON_DPAD_RIGHT:    return BTN_RIGHT;
-  case SDL_CONTROLLER_BUTTON_A:             return BTN_A;
-  case SDL_CONTROLLER_BUTTON_B:             return BTN_B;
-  case SDL_CONTROLLER_BUTTON_X:             return BTN_X;
-  case SDL_CONTROLLER_BUTTON_Y:             return BTN_Y;
-  case SDL_CONTROLLER_BUTTON_LEFTSHOULDER:  return BTN_L1;
-  case SDL_CONTROLLER_BUTTON_RIGHTSHOULDER: return BTN_R1;
-  case SDL_CONTROLLER_BUTTON_START:         return BTN_START;
-  case SDL_CONTROLLER_BUTTON_BACK:          return BTN_SELECT;
-  case SDL_CONTROLLER_BUTTON_GUIDE:         return BTN_MENU;
-  default:                                  return BTN_NONE;
+/* input_map.c maps PP_PAD_* (tested without SDL); they must equal SDL's values. */
+#define PP_PAD_CHECK(pp, sdl) typedef char pp_pad_check_##pp[((pp) == (sdl)) ? 1 : -1]
+PP_PAD_CHECK(PP_PAD_A, SDL_CONTROLLER_BUTTON_A);
+PP_PAD_CHECK(PP_PAD_B, SDL_CONTROLLER_BUTTON_B);
+PP_PAD_CHECK(PP_PAD_X, SDL_CONTROLLER_BUTTON_X);
+PP_PAD_CHECK(PP_PAD_Y, SDL_CONTROLLER_BUTTON_Y);
+PP_PAD_CHECK(PP_PAD_BACK, SDL_CONTROLLER_BUTTON_BACK);
+PP_PAD_CHECK(PP_PAD_GUIDE, SDL_CONTROLLER_BUTTON_GUIDE);
+PP_PAD_CHECK(PP_PAD_START, SDL_CONTROLLER_BUTTON_START);
+PP_PAD_CHECK(PP_PAD_LEFTSTICK, SDL_CONTROLLER_BUTTON_LEFTSTICK);
+PP_PAD_CHECK(PP_PAD_RIGHTSTICK, SDL_CONTROLLER_BUTTON_RIGHTSTICK);
+PP_PAD_CHECK(PP_PAD_LEFTSHOULDER, SDL_CONTROLLER_BUTTON_LEFTSHOULDER);
+PP_PAD_CHECK(PP_PAD_RIGHTSHOULDER, SDL_CONTROLLER_BUTTON_RIGHTSHOULDER);
+PP_PAD_CHECK(PP_PAD_DPAD_UP, SDL_CONTROLLER_BUTTON_DPAD_UP);
+PP_PAD_CHECK(PP_PAD_DPAD_DOWN, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
+PP_PAD_CHECK(PP_PAD_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
+PP_PAD_CHECK(PP_PAD_DPAD_RIGHT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
+
+#define PAD_TRIGGER_ON 16000  /* trigger axis threshold for L2/R2 */
+static int g_trig_l = 0, g_trig_r = 0;
+
+/* Log a press with what it mapped to, so device logs show the real layout. */
+static pp_btn log_press(const char *src, int code, pp_btn b) {
+  LOGI("input: %s %d -> %s", src, code, pp_btn_name(b));
+  return b;
+}
+
+static void on_joystick_added(int index) {
+  const char *name = SDL_JoystickNameForIndex(index);
+  if (SDL_IsGameController(index)) {
+    SDL_GameController *gc = SDL_GameControllerOpen(index);
+    LOGI("input: controller %d '%s' (game controller%s)", index, name ? name : "?",
+         gc ? "" : ", open failed");
+  } else {
+    /* No SDL mapping: open it anyway so raw codes reach the log. */
+    SDL_Joystick *js = SDL_JoystickOpen(index);
+    LOGW("input: joystick %d '%s' has no game-controller mapping; buttons unmapped "
+         "(raw codes logged)%s", index, name ? name : "?", js ? "" : ", open failed");
   }
 }
 
@@ -99,14 +121,15 @@ pp_btn plat_poll_button(void) {
     switch (ev.type) {
     case SDL_QUIT:
       g_quit_requested = 1;
+      LOGI("input: SDL_QUIT (window close or signal)");
       return BTN_MENU;
     case SDL_KEYDOWN:
-      return pp_keycode_to_btn(ev.key.keysym.sym);
-    case SDL_CONTROLLERDEVICEADDED:
-      SDL_GameControllerOpen(ev.cdevice.which);
+      return log_press("key", (int)ev.key.keysym.sym, pp_keycode_to_btn(ev.key.keysym.sym));
+    case SDL_JOYDEVICEADDED:
+      on_joystick_added(ev.jdevice.which);
       break;
     case SDL_CONTROLLERBUTTONDOWN:
-      b = pad_button_to_btn(ev.cbutton.button);
+      b = log_press("pad button", ev.cbutton.button, pp_pad_button_to_btn(ev.cbutton.button));
       if (b == BTN_NONE) break;
       if (pad_repeats(b)) {
         g_pad_held = b;
@@ -114,7 +137,28 @@ pp_btn plat_poll_button(void) {
       }
       return b;
     case SDL_CONTROLLERBUTTONUP:
-      if (pad_button_to_btn(ev.cbutton.button) == g_pad_held) g_pad_held = BTN_NONE;
+      if (pp_pad_button_to_btn(ev.cbutton.button) == g_pad_held) g_pad_held = BTN_NONE;
+      break;
+    case SDL_CONTROLLERAXISMOTION:
+      /* Triggers as L2/R2 (edge-triggered). Never MENU. */
+      if (ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT ||
+          ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERRIGHT) {
+        int left = ev.caxis.axis == SDL_CONTROLLER_AXIS_TRIGGERLEFT;
+        int *state = left ? &g_trig_l : &g_trig_r;
+        int on = ev.caxis.value > PAD_TRIGGER_ON;
+        if (on && !*state) { *state = 1; return log_press("pad trigger", ev.caxis.axis, left ? BTN_L2 : BTN_R2); }
+        if (!on) *state = 0;
+      }
+      break;
+    case SDL_JOYBUTTONDOWN:
+      /* Game controllers also emit joystick events; only log unmapped devices. */
+      if (!SDL_GameControllerFromInstanceID(ev.jbutton.which))
+        LOGI("input: raw joystick %d button %d (unmapped)", (int)ev.jbutton.which, ev.jbutton.button);
+      break;
+    case SDL_JOYHATMOTION:
+      if (!SDL_GameControllerFromInstanceID(ev.jhat.which) && ev.jhat.value)
+        LOGI("input: raw joystick %d hat %d value %d (unmapped)", (int)ev.jhat.which,
+             ev.jhat.hat, ev.jhat.value);
       break;
     default:
       break;

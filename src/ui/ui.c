@@ -3,6 +3,7 @@
 #include "ui/ui_platform.h"
 #include "config/config.h"
 #include "ui/worker.h"
+#include "ui/ui_stack.h"
 #include "log.h"
 
 #include <SDL.h>
@@ -11,7 +12,6 @@
 #include <string.h>
 #include <time.h>
 
-#define MAX_SCREENS 16
 #define MAX_TOAST_LEN 128
 
 static SDL_Renderer *g_ren = NULL;
@@ -39,6 +39,9 @@ static int g_smoke_play_saw_player = 0;
 static int g_exit_code = 0;
 #define SMOKE_STEP_TIMEOUT_MS 20000   /* list load / detail / player start */
 
+static int g_smoke_link = 0;
+static int g_smoke_link_b_sent = 0;
+void ui_set_smoke_link(int on) { g_smoke_link = on; }
 static int g_play_result = -1;  /* -1 none yet, 0 failed, 1 played */
 
 int ui_exit_code(void) { return g_exit_code; }
@@ -49,16 +52,6 @@ static int smoke_fail(const char *why) {
   g_exit_code = 3;
   return 0;  /* value for `running` */
 }
-
-static pp_screen *g_stack[MAX_SCREENS];
-static int g_stack_top = -1;
-static int g_stack_count = 0;
-
-/* Deferred pop queue: popped screens are destroyed at end of frame, so a
- * handler can still read its own data after calling ui_pop(). Workers never
- * need the screen alive: each request is refcounted (see worker.h). */
-static pp_screen *g_pop_queue[2 * MAX_SCREENS];
-static int g_pop_count = 0;
 
 static char g_toast_msg[MAX_TOAST_LEN] = {0};
 static int g_toast_ms_left = 0;
@@ -192,46 +185,24 @@ int text_width_px(const char *str) {
 
 /* ---- Screen stack -------------------------------------------------------- */
 
-void ui_push(pp_screen *s) {
-  if (!s) return;
-  if (g_stack_count >= MAX_SCREENS) {
-    LOGE("ui_push: stack full, dropping screen");
-    if (s->destroy) s->destroy(s);
-    free(s);
+/* The stack itself lives in ui_stack.c (pure, unit-tested). */
+void ui_push(pp_screen *s) { ui_stack_push(s); }
+/* Back. Screens replace each other while browsing, so List/Detail/Settings are
+ * often the only screen: there, back goes Home instead of doing nothing. The
+ * root Link/Servers/Home stay put; only Menu quits. */
+void ui_pop(void) {
+  pp_screen *top = ui_stack_top();
+  if (ui_stack_depth() == 1 && top && top->id != SCREEN_LINK &&
+      top->id != SCREEN_SERVERS && top->id != SCREEN_HOME && ui_current_server()) {
+    ui_stack_replace(screen_home_create());
     return;
   }
-  g_stack[++g_stack_top] = s;
-  g_stack_count = g_stack_top + 1;
+  ui_stack_pop();
 }
+void ui_replace(pp_screen *s) { ui_stack_replace(s); }
+void ui_reset(pp_screen *s) { ui_stack_reset(s); }
 
-void ui_pop(void) {
-  if (g_stack_top < 0) return;
-  pp_screen *s = g_stack[g_stack_top];
-  g_stack[g_stack_top] = NULL;
-  g_stack_top--;
-  if (g_stack_top < 0) g_stack_top = -1;
-  g_stack_count = g_stack_top + 1;
-  if (!s) return;
-  if (g_pop_count < (int)(sizeof(g_pop_queue) / sizeof(g_pop_queue[0])))
-    g_pop_queue[g_pop_count++] = s;
-  else
-    LOGE("ui_pop: pop queue full, leaking screen");
-}
-
-/* Destroy screens popped this frame. Called at end of frame. */
-static void ui_finalize_pops(void) {
-  int i;
-  for (i = 0; i < g_pop_count; i++) {
-    pp_screen *s = g_pop_queue[i];
-    if (s->destroy) s->destroy(s);
-    free(s);
-  }
-  g_pop_count = 0;
-}
-
-static pp_screen *current_screen(void) {
-  return (g_stack_top >= 0) ? g_stack[g_stack_top] : NULL;
-}
+static pp_screen *current_screen(void) { return ui_stack_top(); }
 
 void ui_toast(const char *msg) {
   if (!msg) return;
@@ -309,8 +280,7 @@ const char *ui_get_auth_token(void) { return g_auth_token[0] ? g_auth_token : NU
 void ui_sign_out(void) {
   ui_set_auth_token(NULL);
   ui_set_server(NULL);
-  while (g_stack_top >= 0) ui_pop();
-  ui_push(screen_link_create());
+  ui_reset(screen_link_create());
 }
 
 void ui_push_screen(pp_screen_id id) {
@@ -334,8 +304,8 @@ pp_server *ui_current_server(void) {
 }
 
 int ui_quit(void) {
-  while (g_stack_top >= 0) ui_pop();
-  ui_finalize_pops();
+  ui_stack_pop_all();
+  ui_stack_finalize();
   /* Released requests are freed by their workers when they finish; give any
    * still blocked in the network a moment so nothing is left at exit. */
   int idle = worker_wait_idle(3000);
@@ -391,13 +361,13 @@ void ui_run(void) {
     g_smoke_start = start_tick;
     g_smoke_phase = 0;
   }
-  if (g_smoke_walk || ui_smoke_play_ms() > 0) {
+  if (g_smoke_walk || g_smoke_link || ui_smoke_play_ms() > 0) {
     g_smoke_start = start_tick;
     g_smoke_phase = 0;
   }
 
   /* Initial screen is pushed by main.c (Link or Home). */
-  while (running && g_stack_top >= 0) {
+  while (running && ui_stack_depth() > 0) {
     Uint32 now = SDL_GetTicks();
     Uint32 frame_start = now;
     Uint32 elapsed = now - last_tick;
@@ -407,20 +377,62 @@ void ui_run(void) {
       if (g_toast_ms_left < 0) g_toast_ms_left = 0;
     }
 
-    if (exit_after > 0 && (long)(now - start_tick) >= exit_after) break;
+    if (exit_after > 0 && (long)(now - start_tick) >= exit_after) {
+      LOGI("quit: --exit-after-ms reached");
+      break;
+    }
 
     /* FPS logging every 1 s */
     frame_count++;
     if (now - fps_check >= 1000) {
       LOGI("fps: %d (stack=%d, loading=%d, max_frame=%u ms)",
-           frame_count, g_stack_count,
+           frame_count, ui_stack_depth(),
            current_screen() ? current_screen()->loading : 0, g_max_frame_ms);
       frame_count = 0;
       fps_check = now;
     }
 
+    /* Smoke link (device bug 2026-10-05): Link -A-> Servers -B (must not quit)
+     * -A-> Home, all as root replacements. Fails (exit 3) on a stall or a
+     * wrong screen. */
+    if (g_smoke_link) {
+      pp_screen *cur = current_screen();
+      Uint32 t = now - g_smoke_start;
+      if (t > SMOKE_STEP_TIMEOUT_MS) {
+        char why[96];
+        snprintf(why, sizeof why, "link flow stalled on %s", cur ? ui_screen_name(cur->id) : "nothing");
+        running = smoke_fail(why);
+      } else if (cur && t >= 300) {
+        switch (cur->id) {
+        case SCREEN_LINK:     /* smoke mode: A simulates the PIN confirmation */
+          if (cur->handle_button) cur->handle_button(cur, BTN_A);
+          g_smoke_start = now;
+          break;
+        case SCREEN_SERVERS:
+          if (cur->loading) break;
+          if (!g_smoke_link_b_sent) {   /* B on the root Servers must not quit */
+            g_smoke_link_b_sent = 1;
+            if (cur->handle_button) cur->handle_button(cur, BTN_B);
+          } else if (cur->handle_button) {
+            cur->handle_button(cur, BTN_A);
+          }
+          g_smoke_start = now;
+          break;
+        case SCREEN_HOME:
+          if (cur->loading) break;
+          LOGI("smoke-link: reached Home, depth %d, B on Servers %s", ui_stack_depth(),
+               g_smoke_link_b_sent ? "ignored" : "not tested");
+          running = 0;
+          break;
+        default:
+          running = smoke_fail("link flow left Link/Servers/Home");
+          break;
+        }
+      }
+    }
+
     /* Smoke scroll: auto-navigate through screens, building stack >= 3 */
-    if (g_smoke_scroll) {
+    if (g_smoke_scroll && !g_smoke_link) {
       pp_screen *cur = current_screen();
       Uint32 t = now - g_smoke_start;
       switch (g_smoke_phase) {
@@ -444,7 +456,7 @@ void ui_run(void) {
         break;
       case 3: /* List loading -> ready to scroll */
         if (cur && !cur->loading) {
-          LOGI("smoke: reached 2000-item list, stack=%d", g_stack_count);
+          LOGI("smoke: reached 2000-item list, stack=%d", ui_stack_depth());
           g_smoke_phase = 4;
           g_smoke_start = now;
         }
@@ -456,7 +468,7 @@ void ui_run(void) {
         }
         if (t >= 3000) {
           LOGI("smoke: scrolled %d DOWN presses, stack=%d, max_frame=%u ms",
-               g_smoke_scroll_count, g_stack_count, g_max_frame_ms);
+               g_smoke_scroll_count, ui_stack_depth(), g_max_frame_ms);
           running = 0;
         }
         break;
@@ -471,8 +483,7 @@ void ui_run(void) {
       case 0: /* Wait for Home to load, log sections, then go to TV Shows */
         if (cur && !cur->loading) {
           if (cur->log_titles) cur->log_titles(cur, 3);
-          ui_pop();
-          ui_push(screen_list_create_key("2", "TV Shows"));
+          ui_replace(screen_list_create_key("2", "TV Shows"));
           g_smoke_phase = 1;
           g_smoke_start = now;
         }
@@ -603,12 +614,17 @@ void ui_run(void) {
     }
 
     pp_btn btn = plat_poll_button();
-    if (btn == BTN_MENU) { running = 0; break; }
+    if (btn == BTN_MENU) {
+      LOGI("quit: MENU (button or window close) on %s", ui_screen_name(s->id));
+      running = 0;
+      break;
+    }
     if (btn != BTN_NONE && s->handle_button) s->handle_button(s, btn);
 
-    /* Destroy screens popped this frame. */
-    ui_finalize_pops();
+    /* Destroy screens removed this frame. */
+    ui_stack_finalize();
   }
+  if (ui_stack_depth() == 0) LOGI("quit: screen stack empty");
 
   if (g_smoke_scroll) {
     LOGI("smoke done: total max frame time = %u ms (must be <50)", g_max_frame_ms);

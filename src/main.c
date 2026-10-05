@@ -5,6 +5,7 @@
  *   ./build/pocketplex [--exit-after-ms N]  auto-quit after N ms
  *   ./build/pocketplex [--smoke-scroll]     auto-navigate all screens for perf testing
  *   ./build/pocketplex [--smoke-walk]       auto-navigate Library to Show to Season to Episode
+ *   ./build/pocketplex --smoke-link         Link -> Servers -> Home (fake data if no token in ini)
  *   ./build/pocketplex --smoke-play <key> [--play-seconds N]
  *                                           play the first item at key for N s (default 30)
  *   PP_FAKE_DELAY_MS=800 ./build/pocketplex --smoke-scroll
@@ -19,6 +20,8 @@
 #include "platform/platform.h"
 #include "ui/ui.h"
 #include "ui/play_state.h"
+#include "ui/session.h"
+#include "ui/ui_stack.h"
 #include "plex/plex.h"
 #include "config/config.h"
 #include "log.h"
@@ -43,6 +46,7 @@ int main(int argc, char **argv) {
   int i;
   int smoke = 0;
   int walk = 0;
+  int link = 0;  /* --smoke-link: Link -> Servers -> Home (fake data when no token) */
   const char *play_key = NULL;  /* --smoke-play <key>: play the first item at key */
   char play_path[256];
   long play_s = 30;
@@ -54,6 +58,8 @@ int main(int argc, char **argv) {
       smoke = 1;
     else if (strcmp(argv[i], "--smoke-walk") == 0)
       walk = 1;
+    else if (strcmp(argv[i], "--smoke-link") == 0)
+      link = 1;
     else if (strcmp(argv[i], "--smoke-play") == 0 && i + 1 < argc)
       play_key = argv[++i];
     else if (strcmp(argv[i], "--play-seconds") == 0 && i + 1 < argc)
@@ -124,15 +130,23 @@ int main(int argc, char **argv) {
     ui_set_server(&srv);
     ui_set_auth_token(cfg.token);
     ui_push_screen(SCREEN_HOME);
-  } else if (cfg.token[0] && cfg.server_url[0]) {
-    srv.url = cfg.server_url;
-    srv.token = cfg.token;
-    srv.client_id = cfg.client_id;
-    ui_set_server(&srv);
-    ui_set_auth_token(cfg.token);
-    ui_push_screen(SCREEN_HOME);
   } else {
-    ui_push_screen(SCREEN_LINK);
+    if (link) {
+      ui_set_smoke_link(1);
+      if (!cfg.token[0]) ui_set_smoke_scroll(1);  /* fake PIN + fake servers */
+    }
+    /* No token -> Link; token only (fresh PIN link) -> Servers; token + url -> Home. */
+    pp_screen_id start = session_start_screen(cfg.token, cfg.server_url);
+    if (start != SCREEN_LINK) ui_set_auth_token(cfg.token);
+    if (start == SCREEN_HOME) {
+      srv.url = cfg.server_url;
+      srv.token = cfg.token;
+      srv.client_id = cfg.client_id;
+      ui_set_server(&srv);
+    }
+    LOGI("start: %s (token %s, server_url %s)", ui_screen_name(start),
+         cfg.token[0] ? "set" : "empty", cfg.server_url[0] ? "set" : "empty");
+    ui_push_screen(start);
   }
 
   ui_set_swap_ab(cfg.swap_ab);

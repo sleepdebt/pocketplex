@@ -148,7 +148,7 @@ static void test_play_requests_fake(void) {
   pp_item *it = calloc(1, sizeof(*it));
   snprintf(it->rating_key, sizeof(it->rating_key), "53835");
   char *session = strdup("0f0e0d0c-0b0a-4908-8706-050403020100");
-  pp_play_args a = { it, session, NULL, 0, 1500 };
+  pp_play_args a = { it, session, NULL, 0, 1500, 1 };
   pp_request *url = worker_start_play(REQ_TRANSCODE_URL, NULL, &a, 1);
   a.state = "playing"; a.time_ms = 30000;
   pp_request *tl = worker_start_play(REQ_TIMELINE, NULL, &a, 1);
@@ -164,8 +164,18 @@ static void test_play_requests_fake(void) {
   CHECK(worker_status(tl) == PP_OK);
   CHECK(worker_status(sc) == PP_OK);
   CHECK(worker_status(st) == PP_OK);
+  CHECK(strstr(worker_url(url), "subtitles=burn") != NULL);
   CHECK_STR(worker_url(NULL), "");
   worker_release(url); worker_release(tl); worker_release(sc); worker_release(st);
+  CHECK(worker_wait_idle(1000) == 0);
+
+  pp_item it2;
+  memset(&it2, 0, sizeof it2);
+  pp_play_args off = { &it2, "s", NULL, 0, 1500, 0 };     /* burn_subtitles = 0 */
+  pp_request *u2 = worker_start_play(REQ_TRANSCODE_URL, NULL, &off, 1);
+  CHECK(wait_done(u2, 5000));
+  CHECK(strstr(worker_url(u2), "subtitles=none") != NULL);
+  worker_release(u2);
   CHECK(worker_wait_idle(1000) == 0);
 }
 

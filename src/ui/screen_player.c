@@ -25,6 +25,7 @@ typedef struct {
   long start_ms;
   char session[37];
   int kbps;
+  int burn_subtitles;    /* from [ui] subtitles */
   player_phase phase;
   pp_request *req_url;   /* owned reference while resolving */
   pp_player *player;     /* non-NULL between player_start and player_stop */
@@ -35,7 +36,7 @@ typedef struct {
 } player_data_t;
 
 static pp_play_args play_args(player_data_t *d, const char *state) {
-  pp_play_args a = { &d->item, d->session, state, d->ps.pos_ms, d->kbps };
+  pp_play_args a = { &d->item, d->session, state, d->ps.pos_ms, d->kbps, d->burn_subtitles };
   return a;
 }
 
@@ -90,6 +91,9 @@ static void player_render(pp_screen *self) {
       ui_pop();
       return;
     }
+    char shown[2048];
+    play_redact_url(worker_url(d->req_url), shown, sizeof shown);
+    LOGI("play: transcode %s", shown);
     /* From player_start until player_stop the UI must not present. */
     self->no_present = 1;
     d->player = player_start(worker_url(d->req_url), d->start_ms);
@@ -186,6 +190,7 @@ pp_screen *screen_player_create(const pp_item *item, long start_ms, pp_item *upd
   pp_config_defaults(&cfg);
   pp_config_load(&cfg, ui_ini_path());
   d->kbps = play_quality_kbps(cfg.quality);
+  d->burn_subtitles = play_burn_subtitles(cfg.subtitles);
   memset(&cfg, 0, sizeof cfg);   /* holds the token */
 
   s->id = SCREEN_PLAYER;

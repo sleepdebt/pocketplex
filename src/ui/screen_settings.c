@@ -1,6 +1,7 @@
 /* screen_settings.c: quality preset, subtitles, sign out. */
 #include "ui.h"
 #include "config/config.h"
+#include "ui/play_state.h"
 #include "log.h"
 
 #include <stdlib.h>
@@ -23,15 +24,14 @@ static void settings_render(pp_screen *self) {
   const char *labels[] = { "Video Quality", "Subtitles", "Sign Out", NULL };
   int i;
   for (i = 0; labels[i]; i++) {
-    pp_color col = (i == d->sel) ? PP_COLOR_SEL : (i == 1 ? PP_COLOR_DIM : PP_COLOR_FG);
+    pp_color col = (i == d->sel) ? PP_COLOR_SEL : PP_COLOR_FG;
     ui_draw_text(labels[i], PP_MARGIN_L, y, col);
     char val[64];
     if (i == 0) {
       int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
       snprintf(val, sizeof(val), "%s", is_480 ? "480p" : "360p");
     } else if (i == 1) {
-      /* Not configurable yet: transcodes always burn subtitles in. */
-      snprintf(val, sizeof(val), "always on");
+      snprintf(val, sizeof(val), "%s", play_burn_subtitles(d->cfg.subtitles) ? "on" : "off");
     } else {
       snprintf(val, sizeof(val), "%s", d->cfg.token[0] ? "signed in" : "signed out");
     }
@@ -41,7 +41,7 @@ static void settings_render(pp_screen *self) {
   }
 
   if (d->sel == 1)
-    ui_draw_text("Subtitles are burned into the stream for now.",
+    ui_draw_text("Uses the subtitle track chosen in Plex",
                  PP_MARGIN_L, y + 12, PP_COLOR_DIM);
 
   ui_draw_text("D-pad: navigate  A: toggle  B: back",
@@ -64,7 +64,10 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
       snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", is_480 ? "360p" : "480p");
       ui_toast(settings_save(d) ? d->cfg.quality : "Failed to save settings");
     } else if (d->sel == 1) {
-      ui_toast("Subtitles are always burned in for now");
+      int on = play_burn_subtitles(d->cfg.subtitles);
+      snprintf(d->cfg.subtitles, sizeof(d->cfg.subtitles), "%s", on ? "off" : "burn");
+      if (!settings_save(d)) ui_toast("Failed to save settings");
+      else ui_toast(on ? "Subtitles off" : "Subtitles on");
     } else if (d->sel == 2) {
       memset(d->cfg.token, 0, sizeof(d->cfg.token));
       int saved = settings_save(d);

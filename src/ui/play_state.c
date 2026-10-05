@@ -83,3 +83,20 @@ int play_normalize_key(const char *in, char *out, size_t n) {
   }
   return (w < 0 || (size_t)w >= n) ? -1 : 0;
 }
+
+int play_burn_subtitles(const char *cfg_subtitles) {
+  return !(cfg_subtitles && strcmp(cfg_subtitles, "off") == 0);
+}
+
+void play_redact_url(const char *url, char *out, size_t n) {
+  static const char key[] = "X-Plex-Token=";
+  if (!out || n == 0) return;
+  out[0] = '\0';
+  if (!url) return;
+  const char *t = strstr(url, key);
+  if (!t) { snprintf(out, n, "%s", url); return; }
+  size_t head = (size_t)(t - url) + sizeof key - 1;
+  if (head >= n) { snprintf(out, n, "%.*s", (int)(n - 1), url); return; }
+  const char *rest = strchr(t, '&');
+  snprintf(out, n, "%.*sREDACTED%s", (int)head, url, rest ? rest : "");
+}

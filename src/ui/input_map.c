@@ -1,6 +1,8 @@
 /* input_map.c: keyboard to pp_btn mapping for desktop. Tested without SDL. */
 #include "ui/input_map.h"
 
+#include <ctype.h>
+
 pp_keymap pp_default_keys[] = {
   { PP_SDLK_DOWN,     BTN_DOWN },
   { PP_SDLK_UP,       BTN_UP },
@@ -20,6 +22,36 @@ pp_keymap pp_default_keys[] = {
 };
 
 static int g_swap_ab = 0;
+static pp_pad_layout g_layout = PP_LAYOUT_POSITIONAL;
+
+/* Case-insensitive substring match (ASCII). */
+static int has_word(const char *hay, const char *needle) {
+  for (; *hay; hay++) {
+    const char *h = hay, *n = needle;
+    while (*h && *n && tolower((unsigned char)*h) == tolower((unsigned char)*n)) { h++; n++; }
+    if (!*n) return 1;
+  }
+  return 0;
+}
+
+pp_pad_layout pp_pad_layout_for(const char *name, int sdl_label_mapped, int handheld_build) {
+  static const char *const nintendo[] = { "anbernic", "rg35xx", "rg40xx", "rg28xx", "rgcube",
+                                          "miyoo", NULL };
+  static const char *const positional[] = { "xbox", "x-box", "playstation", "dualshock",
+                                            "dualsense", "ps4", "ps5", NULL };
+  if (sdl_label_mapped) return PP_LAYOUT_POSITIONAL;  /* SDL already applied labels */
+  if (name) {
+    for (int i = 0; positional[i]; i++) if (has_word(name, positional[i])) return PP_LAYOUT_POSITIONAL;
+    for (int i = 0; nintendo[i]; i++) if (has_word(name, nintendo[i])) return PP_LAYOUT_NINTENDO;
+  }
+  return handheld_build ? PP_LAYOUT_NINTENDO : PP_LAYOUT_POSITIONAL;
+}
+
+void pp_pad_set_layout(pp_pad_layout layout) { g_layout = layout; }
+pp_pad_layout pp_pad_get_layout(void) { return g_layout; }
+const char *pp_pad_layout_name(pp_pad_layout layout) {
+  return layout == PP_LAYOUT_NINTENDO ? "nintendo" : "positional";
+}
 
 void ui_set_swap_ab(int swap) { g_swap_ab = swap ? 1 : 0; }
 int  ui_is_swap_ab(void) { return g_swap_ab; }
@@ -35,10 +67,11 @@ static pp_btn swap_ab(pp_btn btn) {
 pp_btn pp_pad_button_to_btn(int pad_button) {
   pp_btn b;
   switch (pad_button) {
-  case PP_PAD_A:             b = BTN_A; break;
-  case PP_PAD_B:             b = BTN_B; break;
-  case PP_PAD_X:             b = BTN_X; break;
-  case PP_PAD_Y:             b = BTN_Y; break;
+  /* Nintendo layout: east (SDL B) is labelled A, north (SDL Y) is labelled X. */
+  case PP_PAD_A:             b = g_layout == PP_LAYOUT_NINTENDO ? BTN_B : BTN_A; break;
+  case PP_PAD_B:             b = g_layout == PP_LAYOUT_NINTENDO ? BTN_A : BTN_B; break;
+  case PP_PAD_X:             b = g_layout == PP_LAYOUT_NINTENDO ? BTN_Y : BTN_X; break;
+  case PP_PAD_Y:             b = g_layout == PP_LAYOUT_NINTENDO ? BTN_X : BTN_Y; break;
   case PP_PAD_BACK:          b = BTN_SELECT; break;
   case PP_PAD_GUIDE:         b = BTN_MENU; break;
   case PP_PAD_START:         b = BTN_START; break;

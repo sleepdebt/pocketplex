@@ -26,6 +26,52 @@ static void (*g_on_resume)(void) = NULL;
 SDL_Renderer *plat_renderer(void) { return g_ren; }
 SDL_Window *plat_window(void) { return g_win; }
 
+/* Window + renderer (also used to rebuild them after the external player). */
+static int create_video(int ww, int hh) {
+  g_win = SDL_CreateWindow("PocketPlex",
+                           SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                           ww, hh, SDL_WINDOW_SHOWN);
+  if (!g_win) {
+    LOGE("SDL_CreateWindow: %s", SDL_GetError());
+    return -1;
+  }
+  g_ren = SDL_CreateRenderer(g_win, -1,
+                             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+  if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
+  if (!g_ren) {
+    LOGE("SDL_CreateRenderer: %s", SDL_GetError());
+    SDL_DestroyWindow(g_win);
+    g_win = NULL;
+    return -1;
+  }
+  return 0;
+}
+
+static void destroy_video(void) {
+  if (g_ren) { SDL_DestroyRenderer(g_ren); g_ren = NULL; }
+  if (g_win) { SDL_DestroyWindow(g_win); g_win = NULL; }
+}
+
+void plat_video_suspend(void) {
+  destroy_video();
+  SDL_QuitSubSystem(SDL_INIT_VIDEO);  /* events/controllers stay up (own refcounts) */
+  LOGI("video: suspended for the external player");
+}
+
+int plat_video_resume(void) {
+  if (g_ren) return 0;
+  if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
+    LOGE("video: SDL_InitSubSystem: %s", SDL_GetError());
+    return -1;
+  }
+  if (create_video(640, 480) != 0) {
+    SDL_QuitSubSystem(SDL_INIT_VIDEO);
+    return -1;
+  }
+  LOGI("video: window and renderer recreated");
+  return 0;
+}
+
 int plat_init(int *w, int *h) {
   /* SDL maps known Nintendo (Switch) pads by label with this on; other pads
    * are positional and input_map applies the handheld layout itself. */
@@ -42,23 +88,7 @@ int plat_init(int *w, int *h) {
   }
 
   int ww = 640, hh = 480;
-
-  g_win = SDL_CreateWindow("PocketPlex",
-                           SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                           ww, hh, SDL_WINDOW_SHOWN);
-  if (!g_win) {
-    LOGE("SDL_CreateWindow: %s", SDL_GetError());
-    TTF_Quit();
-    SDL_Quit();
-    return -1;
-  }
-
-  g_ren = SDL_CreateRenderer(g_win, -1,
-                             SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-  if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
-  if (!g_ren) {
-    LOGE("SDL_CreateRenderer: %s", SDL_GetError());
-    SDL_DestroyWindow(g_win);
+  if (create_video(ww, hh) != 0) {
     TTF_Quit();
     SDL_Quit();
     return -1;
@@ -201,7 +231,7 @@ pp_btn plat_poll_button(void) {
 }
 
 void plat_present(void) {
-  SDL_RenderPresent(g_ren);
+  if (g_ren) SDL_RenderPresent(g_ren);
 }
 
 void plat_suspend_hook(void (*on_resume)(void)) {
@@ -209,8 +239,7 @@ void plat_suspend_hook(void (*on_resume)(void)) {
 }
 
 void plat_quit(void) {
-  if (g_ren) { SDL_DestroyRenderer(g_ren); g_ren = NULL; }
-  if (g_win) { SDL_DestroyWindow(g_win); g_win = NULL; }
+  destroy_video();
   TTF_Quit();
   SDL_Quit();
   LOGI("platform shut down");

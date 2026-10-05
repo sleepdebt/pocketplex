@@ -142,7 +142,8 @@ static int cmd_servers(void) {
   int rc = pp_discover_servers(cfg.token, &servers, &count);
   if (rc != PP_OK) return fail("servers", rc);
   for (int i = 0; i < count; i++)
-    printf("%d  %s  (%s)\n", i, servers[i].url, servers[i].client_id);
+    printf("%d  %s  %s  (%s)\n", i, servers[i].name ? servers[i].name : "(unnamed)",
+           servers[i].url, servers[i].client_id);
   printf("(%d servers)\n", count);
   pp_servers_free(servers, count);
   return 0;

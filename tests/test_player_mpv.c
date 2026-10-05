@@ -158,6 +158,22 @@ static void test_repeat_limit(void) {
   CHECK(mpv_repeat_ok(&last, 1, 10000 + PP_MPV_REPEAT_MS + 66) == 1);  /* new press always */
 }
 
+/* After mpv exits, put the framebuffer back the way the app's renderer left it. */
+static void test_fb_restore_action(void) {
+  pp_fbinfo saved = {640, 480, 640, 960, 0, 0, 32}, cur = saved;
+  CHECK(fb_restore_action(&saved, &cur) == PP_FB_NONE);
+  cur.yoffset = 480;                                    /* mpv left the other buffer on screen */
+  CHECK(fb_restore_action(&saved, &cur) == PP_FB_PAN);
+  cur = saved; cur.xoffset = 8;
+  CHECK(fb_restore_action(&saved, &cur) == PP_FB_PAN);
+  cur = saved; cur.yres_virtual = 480;                  /* geometry changed: full put */
+  CHECK(fb_restore_action(&saved, &cur) == PP_FB_PUT);
+  cur = saved; cur.bits_per_pixel = 16;
+  CHECK(fb_restore_action(&saved, &cur) == PP_FB_PUT);
+  cur = saved; cur.xres = 320; cur.yoffset = 480;
+  CHECK(fb_restore_action(&saved, &cur) == PP_FB_PUT);
+}
+
 /* ---- lifecycle against the fake ------------------------------------------------------- */
 
 static const char *self_path;
@@ -328,6 +344,7 @@ int main(int argc, char **argv) {
   RUN(test_button_map);
   RUN(test_wait_left);
   RUN(test_repeat_limit);
+  RUN(test_fb_restore_action);
   RUN(test_fake_play_and_stop);
   RUN(test_fake_ends_by_itself);
   RUN(test_fake_fails_to_play);

@@ -151,6 +151,13 @@ int  text_width_px(const char *str);
 
 void ui_render_toast(void);
 
+/* Around player_start / player_stop: drop GPU textures (and with
+ * PP_VIDEO_RECREATE=1 the whole SDL video) for the external player, then
+ * restore and repaint every buffer. after: 0 ok, -1 failed (ui_run retries). */
+void ui_video_before_player(void);
+int  ui_video_after_player(void);
+int  ui_video_ready(void);        /* 1 if a renderer exists (drawing is possible) */
+
 /* Spinner shown while a request is pending; frame advances once per render. */
 void ui_draw_spinner(int x, int y, int frame);
 extern int g_spinner_frame;

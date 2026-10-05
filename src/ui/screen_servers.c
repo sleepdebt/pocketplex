@@ -100,7 +100,7 @@ static void servers_render(pp_screen *self) {
   for (i = 0; i < d->count; i++) {
     pp_color col = (i == d->selected) ? PP_COLOR_SEL : PP_COLOR_FG;
     char buf[128];
-    snprintf(buf, sizeof(buf), "%s", d->servers[i].url ? d->servers[i].url : "(no url)");
+    session_server_label(&d->servers[i], buf, sizeof(buf));
     ui_draw_text(buf, PP_MARGIN_L, y, col);
     y += PP_LINE_H;
   }

@@ -111,9 +111,11 @@ static void test_server_is_copied(void) {
   srv->url = strdup("http://127.0.0.1:1");
   srv->token = strdup("REDACTED");
   srv->client_id = strdup("test-client");
+  srv->name = strdup("Living Room");
   char *key = strdup("/library/metadata/1/children");
   pp_request *req = worker_start(REQ_CHILDREN, srv, key, NULL, 0, 0);
-  pp_servers_free(srv, 1);
+  free(srv->url); free(srv->token); free(srv->client_id); free(srv->name);  /* name too */
+  free(srv);
   free(key);
   CHECK(wait_done(req, 10000));
   CHECK(worker_status(req) < 0);

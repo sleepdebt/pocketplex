@@ -18,6 +18,9 @@ int fake_servers(pp_server **out, int *count) {
   srv[0].token = NULL;
   srv[0].client_id = strdup("pocketplex-device");
   srv[1].url = srv[1].token = srv[1].client_id = NULL;
+  /* NULL until pp_servers_free frees names, to avoid a leak now and a
+   * double free later; the Servers list falls back to the URL host. */
+  srv[0].name = srv[1].name = NULL;
   if (!srv[0].url || !srv[0].client_id) {
     free(srv[0].url);
     free(srv[0].client_id);

@@ -256,6 +256,7 @@ static void server_free(pp_server *srv) {
   if (srv->token) memset(srv->token, 0, strlen(srv->token));
   free(srv->token);
   free(srv->client_id);
+  free(srv->name);
   free(srv);
 }
 
@@ -268,6 +269,7 @@ void ui_set_server(pp_server *srv) {
   copy->url = srv->url ? strdup(srv->url) : NULL;
   copy->token = srv->token ? strdup(srv->token) : NULL;
   copy->client_id = srv->client_id ? strdup(srv->client_id) : NULL;
+  copy->name = srv->name ? strdup(srv->name) : NULL;
   g_current_server = copy;
 }
 

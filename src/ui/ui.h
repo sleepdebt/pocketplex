@@ -82,7 +82,9 @@ void ui_push(pp_screen *s);
 void ui_push_screen(pp_screen_id id);
 void ui_pop(void);                 /* back; on the last screen goes Home, or is ignored on
                                       Link/Servers/Home (only Menu quits) */
-void ui_replace(pp_screen *s);     /* swap the top screen for s (use instead of pop+push) */
+void ui_replace(pp_screen *s);     /* swap the top screen for s */
+void ui_go(pp_screen *s);          /* navigate: roots (Link/Servers/Home) reset the stack,
+                                      everything else is pushed so B goes back one level */
 void ui_reset(pp_screen *s);       /* drop everything, s becomes the only screen */
 
 /* Set the current server (from config or discovery). The server is deep-copied;

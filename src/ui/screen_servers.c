@@ -72,7 +72,7 @@ static void servers_render(pp_screen *self) {
     worker_release(d->req);
     d->req = NULL;
     if (st == PP_ERR_AUTH) {
-      ui_replace(screen_link_create());
+      ui_go(screen_link_create());
       return;
     }
     if (st == PP_ERR_NET || st == PP_ERR_HTTP) {
@@ -130,14 +130,14 @@ static void servers_handle(pp_screen *self, pp_btn btn) {
       ui_set_server(srv);
       servers_persist(srv);
       ui_toast("Connected");
-      ui_replace(screen_home_create());
+      ui_go(screen_home_create());
     }
     break;
   case BTN_SELECT:
-    ui_push(screen_settings_create());
+    ui_go(screen_settings_create());
     break;
   case BTN_START:
-    ui_replace(screen_home_create());
+    ui_go(screen_home_create());
     break;
   case BTN_B:
   case BTN_MENU:

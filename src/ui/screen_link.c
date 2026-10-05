@@ -101,7 +101,7 @@ static void link_render(pp_screen *self) {
     if (d->linked == 1) {
       d->linked = 2;
       ui_toast("Account linked");
-      ui_replace(screen_servers_create());
+      ui_go(screen_servers_create());
     }
   } else {
     ui_draw_text("Waiting for confirmation...", PP_MARGIN_L, 240, PP_COLOR_DIM);

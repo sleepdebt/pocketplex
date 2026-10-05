@@ -14,4 +14,9 @@ pp_screen_id session_start_screen(const char *token, const char *server_url);
  * field would not fit. The caller saves cfg. */
 int session_apply_server(pp_config *cfg, const pp_server *srv);
 
+/* Servers list label: the friendly name, else the URL host (a plex.direct
+ * host is shown as its IP), plus " (local)" / " (remote)" when the address
+ * shows it (private vs public IPv4). Always NUL-terminated. */
+void session_server_label(const pp_server *srv, char *out, size_t n);
+
 #endif /* PP_SESSION_H */

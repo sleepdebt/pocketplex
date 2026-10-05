@@ -1,0 +1,33 @@
+{
+  "version": 4,
+  "name": "pocketplex.zip",
+  "items": [
+    "PocketPlex.sh",
+    "pocketplex/PocketPlex"
+  ],
+  "items_opt": [],
+  "attr": {
+    "title": "PocketPlex",
+    "porter": [
+      "sleepdebt"
+    ],
+    "desc": "A lightweight, text-first Plex client for retro handhelds. Browses your own Plex Media Server over Wi-Fi and plays video/music via server-side transcode.",
+    "desc_md": "## Notes\n\n- PMS Settings → Network → **Secure connections = Preferred** (not Required), otherwise plain-HTTP LAN calls fail.\n- The binary links dynamically against the device's SDL2/cURL; no bundled libs are shipped.\n- The gamepad is read natively via evdev; gptokeyb is not used.",
+    "inst": "Copy `pocketplex/` next to this script into `/userdata/roms/ports/` (it is already so when installed via PortMaster). Set your server/token in `/userdata/roms/ports/pocketplex/conf/pocketplex.ini` (see the example file).",
+    "inst_md": null,
+    "genres": [
+      "media"
+    ],
+    "image": null,
+    "rtr": true,
+    "exp": false,
+    "runtime": [],
+    "store": [],
+    "availability": "full",
+    "reqs": [],
+    "arch": [
+      "aarch64"
+    ],
+    "min_glibc": "2.36"
+  }
+}

@@ -103,6 +103,56 @@ static void test_btn_names(void) {
   CHECK_STR(pp_btn_name(BTN_NONE), "none");
 }
 
+/* SP device 2026-10-05: 'Anbernic RG35XX-SP Controller' is mapped by position
+ * (Xbox): physical A (east) arrives as SDL B. Nintendo layout = labels win. */
+static void test_layout_detection(void) {
+  CHECK(pp_pad_layout_for("Anbernic RG35XX-SP Controller", 0, 0) == PP_LAYOUT_NINTENDO);
+  CHECK(pp_pad_layout_for("Anbernic RG35XX-SP Controller", 0, 1) == PP_LAYOUT_NINTENDO);
+  CHECK(pp_pad_layout_for("RG40XX-H gamepad", 0, 0) == PP_LAYOUT_NINTENDO);
+  CHECK(pp_pad_layout_for("Miyoo Mini Plus", 0, 0) == PP_LAYOUT_NINTENDO);
+  CHECK(pp_pad_layout_for("Xbox Wireless Controller", 0, 0) == PP_LAYOUT_POSITIONAL);
+  CHECK(pp_pad_layout_for("Xbox Wireless Controller", 0, 1) == PP_LAYOUT_POSITIONAL);  /* Xbox pad on the SP */
+  CHECK(pp_pad_layout_for("PS5 DualSense", 0, 1) == PP_LAYOUT_POSITIONAL);
+  /* SDL already maps Switch controllers by label (USE_BUTTON_LABELS): don't swap twice. */
+  CHECK(pp_pad_layout_for("Nintendo Switch Pro Controller", 1, 0) == PP_LAYOUT_POSITIONAL);
+  CHECK(pp_pad_layout_for("Generic USB gamepad", 0, 0) == PP_LAYOUT_POSITIONAL);  /* desktop default */
+  CHECK(pp_pad_layout_for("Generic USB gamepad", 0, 1) == PP_LAYOUT_NINTENDO);    /* sp/mmp default */
+  CHECK(pp_pad_layout_for(NULL, 0, 1) == PP_LAYOUT_NINTENDO);
+  CHECK(pp_pad_layout_for(NULL, 0, 0) == PP_LAYOUT_POSITIONAL);
+  CHECK_STR(pp_pad_layout_name(PP_LAYOUT_NINTENDO), "nintendo");
+  CHECK_STR(pp_pad_layout_name(PP_LAYOUT_POSITIONAL), "positional");
+}
+
+/* Both layouts: what each SDL face button means. */
+static void test_mapping_both_layouts(void) {
+  ui_set_swap_ab(0);
+  pp_pad_set_layout(PP_LAYOUT_POSITIONAL);
+  CHECK(pp_pad_button_to_btn(PP_PAD_A) == BTN_A);
+  CHECK(pp_pad_button_to_btn(PP_PAD_B) == BTN_B);
+  CHECK(pp_pad_button_to_btn(PP_PAD_X) == BTN_X);
+  CHECK(pp_pad_button_to_btn(PP_PAD_Y) == BTN_Y);
+
+  pp_pad_set_layout(PP_LAYOUT_NINTENDO);          /* the SP */
+  CHECK(pp_pad_button_to_btn(PP_PAD_B) == BTN_A);  /* physical A (east) -> A: the device bug */
+  CHECK(pp_pad_button_to_btn(PP_PAD_A) == BTN_B);  /* physical B (south) */
+  CHECK(pp_pad_button_to_btn(PP_PAD_Y) == BTN_X);  /* physical X (north) */
+  CHECK(pp_pad_button_to_btn(PP_PAD_X) == BTN_Y);  /* physical Y (west) */
+  CHECK(pp_pad_button_to_btn(PP_PAD_DPAD_UP) == BTN_UP);       /* others untouched */
+  CHECK(pp_pad_button_to_btn(PP_PAD_START) == BTN_START);
+  CHECK(pp_pad_button_to_btn(PP_PAD_GUIDE) == BTN_MENU);
+
+  /* [ui] swap_ab / the Settings toggle overrides on top of the layout. */
+  ui_set_swap_ab(1);
+  CHECK(pp_pad_button_to_btn(PP_PAD_B) == BTN_B);
+  CHECK(pp_pad_button_to_btn(PP_PAD_A) == BTN_A);
+  CHECK(pp_pad_button_to_btn(PP_PAD_Y) == BTN_X);  /* swap_ab leaves X/Y alone */
+  ui_set_swap_ab(0);
+
+  /* The keyboard never follows the pad layout. */
+  CHECK(pp_keycode_to_btn(PP_SDLK_RETURN) == BTN_A);
+  pp_pad_set_layout(PP_LAYOUT_POSITIONAL);
+}
+
 int main(void) {
   RUN(test_arrow_keys_map_to_dpad);
   RUN(test_enter_is_a);
@@ -117,5 +167,7 @@ int main(void) {
   RUN(test_pad_swap_ab);
   RUN(test_unmapped_cannot_quit);
   RUN(test_btn_names);
+  RUN(test_layout_detection);
+  RUN(test_mapping_both_layouts);
   return TEST_RESULT();
 }

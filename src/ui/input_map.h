@@ -30,6 +30,29 @@ extern pp_keymap pp_default_keys[];
  * Honors ui_set_swap_ab() for firmware A/B position differences. */
 pp_btn pp_keycode_to_btn(int sdl_keycode);
 
+/* SDL_GameControllerButton values (checked against SDL in sdl2.c). */
+#define PP_PAD_A              0
+#define PP_PAD_B              1
+#define PP_PAD_X              2
+#define PP_PAD_Y              3
+#define PP_PAD_BACK           4
+#define PP_PAD_GUIDE          5
+#define PP_PAD_START          6
+#define PP_PAD_LEFTSTICK      7
+#define PP_PAD_RIGHTSTICK     8
+#define PP_PAD_LEFTSHOULDER   9
+#define PP_PAD_RIGHTSHOULDER 10
+#define PP_PAD_DPAD_UP       11
+#define PP_PAD_DPAD_DOWN     12
+#define PP_PAD_DPAD_LEFT     13
+#define PP_PAD_DPAD_RIGHT    14
+
+/* Map a GameController button to a pp_btn (swap_ab applied). BTN_NONE if unmapped. */
+pp_btn pp_pad_button_to_btn(int pad_button);
+
+/* Short name for logs ("A", "MENU", "none"). */
+const char *pp_btn_name(pp_btn b);
+
 /* Swap A/B buttons (for configurable mapping per the spec). */
 void ui_set_swap_ab(int swap);
 int  ui_is_swap_ab(void);

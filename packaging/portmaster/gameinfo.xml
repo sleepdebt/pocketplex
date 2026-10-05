@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<gameList>
+  <game>
+    <path>./PocketPlex.sh</path>
+    <name>PocketPlex</name>
+    <desc>A lightweight, text-first Plex client for retro handhelds. Links your account with a PIN, browses your Plex Media Server over Wi-Fi, and plays video/music via server-side transcode.</desc>
+    <desc bulletPoint="false">Browses Movies, TV and Music libraries.</desc>
+    <desc bulletPoint="false">Plays 640x480 H.264/AAC via PMS HLS transcode (subtitles burned in).</desc>
+    <desc bulletPoint="false">Resume/watched sync with Plex Web.</desc>
+    <releasedate>20261003T000000</releasedate>
+    <developer>sleepdebt</developer>
+    <publisher>Open source</publisher>
+    <genre>Media</genre>
+  </game>
+</gameList>

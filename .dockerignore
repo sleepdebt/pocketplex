@@ -1,0 +1,21 @@
+# Root .dockerignore for PocketPlex. Prevents the build context
+# (and therefore any image layer or packaged zip) from ever containing secrets or
+# stale local state. See the spec.
+pocketplex.ini
+*.token
+.env*
+build/
+dist/
+.git/
+.git-ignore
+.gitignore
+*.o
+*.a
+*.so
+*.dSYM/
+.hed/
+.herd/
+.swarm/
+pocketplex.log
+.DS_Store
+.tool-versions

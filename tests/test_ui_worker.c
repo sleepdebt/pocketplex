@@ -186,7 +186,7 @@ static void test_play_stop_released_in_flight(void) {
   memset(&it, 0, sizeof it);
   snprintf(it.rating_key, sizeof it.rating_key, "1");
   snprintf(it.key, sizeof it.key, "/library/metadata/1");
-  pp_play_args a = { &it, "session", "stopped", 1000, 1500 };
+  pp_play_args a = { &it, "session", "stopped", 1000, 1500, 1 };
   worker_detach(worker_start_play(REQ_PLAY_STOP, &srv, &a, 0));  /* as the player screen does */
   pp_request *r = worker_start_play(REQ_TRANSCODE_URL, &srv, &a, 0);
   CHECK(wait_done(r, 10000));
@@ -202,7 +202,7 @@ static void test_detach_runs_release_cancels(void) {
   setenv("PP_FAKE_DELAY_MS", "50", 1);
   pp_item it;
   memset(&it, 0, sizeof it);
-  pp_play_args a = { &it, "s", "stopped", 1000, 1500 };
+  pp_play_args a = { &it, "s", "stopped", 1000, 1500, 1 };
   int before = worker_ran_count();
   worker_detach(worker_start_play(REQ_PLAY_STOP, NULL, &a, 1));
   CHECK(worker_wait_idle(5000) == 0);

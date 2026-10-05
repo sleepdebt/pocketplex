@@ -22,7 +22,9 @@ typedef enum {
   PP_ERR_NOMEM = -6
 } pp_err;
 
-typedef struct { char *url; char *token; char *client_id; } pp_server;
+/* name: the server's friendly name from discovery (e.g. "Living Room"); NULL when unknown (e.g. dev fallback).
+ * Added 2026-10-04; freed by pp_servers_free. */
+typedef struct { char *url; char *token; char *client_id; char *name; } pp_server;
 
 typedef enum { PP_SECTION, PP_SHOW, PP_SEASON, PP_EPISODE, PP_MOVIE,
                PP_ARTIST, PP_ALBUM, PP_TRACK, PP_DIR } pp_kind;

@@ -1,6 +1,6 @@
 [
  {
-  "name": "Owner’s MacBook Pro 2012",
+  "name": "Living Room Server",
   "product": "Plex Media Server",
   "productVersion": "1.43.3.10896-cb3ebc72d",
   "platform": "MacOSX",
@@ -46,7 +46,7 @@
   ]
  },
  {
-  "name": "LATENITE",
+  "name": "Cabin Server",
   "product": "Plex Media Server",
   "productVersion": "1.43.0.10492-121068a07",
   "platform": "Windows",
@@ -92,7 +92,7 @@
   ]
  },
  {
-  "name": "Owner MacBook Air",
+  "name": "Laptop Client",
   "product": "Plexamp",
   "productVersion": "4.13.2",
   "platform": "macOS",
@@ -127,7 +127,7 @@
   ]
  },
  {
-  "name": "iPhone 16",
+  "name": "Phone Client",
   "product": "Plexamp",
   "productVersion": "4.12.4",
   "platform": "iOS",

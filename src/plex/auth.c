@@ -95,11 +95,14 @@ int pp_parse_servers(const char *json, pp_server **out, int *count) {
     }
     const cJSON *access = cJSON_GetObjectItemCaseSensitive(node, "accessToken");
     const cJSON *cid = cJSON_GetObjectItemCaseSensitive(node, "clientIdentifier");
+    const cJSON *nm = cJSON_GetObjectItemCaseSensitive(node, "name");
     if (!url) url = "";
     servers[i].url = dupstr(url);
     servers[i].token = dupstr(cJSON_IsString(access) && access->valuestring ? access->valuestring : "");
     servers[i].client_id = dupstr(cJSON_IsString(cid) && cid->valuestring ? cid->valuestring : "");
-    if (!servers[i].url || !servers[i].token || !servers[i].client_id) {
+    servers[i].name = (cJSON_IsString(nm) && nm->valuestring) ? dupstr(nm->valuestring) : NULL;
+    if (!servers[i].url || !servers[i].token || !servers[i].client_id ||
+        (cJSON_IsString(nm) && nm->valuestring && !servers[i].name)) {
       pp_servers_free(servers, i + 1);
       cJSON_Delete(root);
       return PP_ERR_NOMEM;
@@ -118,6 +121,7 @@ void pp_servers_free(pp_server *servers, int count) {
     free(servers[i].url);
     free(servers[i].token);
     free(servers[i].client_id);
+    free(servers[i].name); /* NULL-safe */
   }
   free(servers);
 }

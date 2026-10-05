@@ -108,7 +108,9 @@ static void list_render(pp_screen *self) {
        i < d->view.scroll_top + visible && i < d->model.count; i++) {
     pp_item *it = &d->model.items[i];
     pp_color col = (i == d->view.selected) ? PP_COLOR_SEL : PP_COLOR_FG;
-    char buf[200];
+    /* Sized to the source fields (no silent truncation); ellipsize() then
+     * shortens it to the row width on a UTF-8 boundary. */
+    char buf[sizeof it->title > sizeof it->subtitle ? sizeof it->title : sizeof it->subtitle];
     if (it->kind == PP_EPISODE && it->subtitle[0])
       snprintf(buf, sizeof(buf), "%s", it->subtitle);
     else

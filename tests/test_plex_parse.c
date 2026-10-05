@@ -203,7 +203,7 @@ static void test_list_free_null_safe(void) {
 /* ---------- transcode URL ---------- */
 
 static void test_build_transcode_url_offset_zero(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
   char url[1024];
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "sess-1",
                                640, 480, 1500, 0, 1, url, sizeof url) == 0);
@@ -223,7 +223,7 @@ static void test_build_transcode_url_offset_zero(void) {
 }
 
 static void test_build_transcode_url_subtitles_off(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
   char url[1024];
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "sess-2",
                                640, 480, 1500, 0, 0, url, sizeof url) == 0);
@@ -233,7 +233,7 @@ static void test_build_transcode_url_subtitles_off(void) {
 }
 
 static void test_build_transcode_url_offset_seconds(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
   char url[1024];
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "s2",
                                640, 360, 750, 90500, 1, url, sizeof url) == 0);
@@ -243,7 +243,7 @@ static void test_build_transcode_url_offset_seconds(void) {
 }
 
 static void test_build_transcode_url_errors(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
   char small[32] = "";
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/1", "s", 640, 480, 1500, 0, 1,
                                small, sizeof small) == PP_ERR_ARG);
@@ -282,7 +282,7 @@ static void test_parse_decision_bad(void) {
 }
 
 static void test_build_decision_url_matches_start_params(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
   char dec[1024], start[1024];
   CHECK(pp_build_decision_url(&srv, "/library/metadata/53834", "sess-9",
                               640, 480, 1500, 0, 1, dec, sizeof dec) == 0);

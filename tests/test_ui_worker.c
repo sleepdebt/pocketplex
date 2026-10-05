@@ -181,7 +181,7 @@ static void test_play_requests_fake(void) {
 
 /* Real provider, closed loopback port: errors cleanly, fire-and-forget release is safe. */
 static void test_play_stop_released_in_flight(void) {
-  pp_server srv = { "http://127.0.0.1:1", "REDACTED", "test-client" };
+  pp_server srv = { "http://127.0.0.1:1", "REDACTED", "test-client", NULL };
   pp_item it;
   memset(&it, 0, sizeof it);
   snprintf(it.rating_key, sizeof it.rating_key, "1");

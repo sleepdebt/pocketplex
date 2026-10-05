@@ -25,3 +25,6 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] Phase 4: subtitle track picker on Detail (contract: subtitleStreamID); today "on" = the track selected in Plex.
 - [ ] core: a test that the full decision and start queries match (up to X-Plex-Token); `pp-cli url` should honour cfg.subtitles via _ex; internal.h comment: cite "none" or say "accepted by PMS 1.43.3".
 - [ ] `packaging/portmaster/port.json` items lists `pocketplex/PocketPlex`; use `pocketplex` (the directory) so PortMaster uninstall removes the assets too.
+- [ ] Config has one token. Saving a shared server's accessToken overwrites the account token (equal for owned servers). Add a separate server_token if shared servers matter.
+- [ ] sdl2.c: close GameController/Joystick handles on SDL_JOYDEVICEREMOVED; drop unused g_quit_requested.
+- [ ] cJSON.c: 6 sprintf deprecation warnings under clang sanitizer builds.

@@ -65,8 +65,28 @@ static void test_parse_servers(void) {
   CHECK(strncmp(servers[0].url, "https://", 8) == 0);
   CHECK_STR(servers[0].token, "REDACTED");
   CHECK(strlen(servers[0].client_id) > 0);
+  CHECK_STR(servers[0].name, "Living Room Server");
+  CHECK_STR(servers[1].name, "Cabin Server");
   pp_servers_free(servers, count);
   free_fixture(j);
+}
+
+static void test_parse_servers_name_null_safe(void) {
+  /* entries without a name get NULL, not "" */
+  const char *j =
+    "[{\"name\":\"NoName Server\",\"provides\":\"server\",\"connections\":"
+    "[{\"local\":true,\"uri\":\"https://192-0-2-1.0123456789abcdef0123456789abcdef.plex.direct:32400\"}],"
+    "\"accessToken\":\"t1\",\"clientIdentifier\":\"c1\"},"
+    "{\"provides\":\"server\",\"connections\":"
+    "[{\"local\":true,\"uri\":\"https://192-0-2-2.0123456789abcdef0123456789abcdef.plex.direct:32400\"}],"
+    "\"accessToken\":\"t2\",\"clientIdentifier\":\"c2\"}]";
+  pp_server *servers = NULL;
+  int count = 0;
+  CHECK(pp_parse_servers(j, &servers, &count) == 0);
+  CHECK(count == 2);
+  CHECK(servers[0].name != NULL && strcmp(servers[0].name, "NoName Server") == 0);
+  CHECK(servers[1].name == NULL);
+  pp_servers_free(servers, count);
 }
 
 static void test_parse_servers_bad(void) {
@@ -317,6 +337,7 @@ int main(void) {
   RUN(test_parse_pin_authorized);
   RUN(test_parse_pin_bad_json);
   RUN(test_parse_servers);
+  RUN(test_parse_servers_name_null_safe);
   RUN(test_parse_servers_bad);
   RUN(test_parse_sections);
   RUN(test_parse_shows);

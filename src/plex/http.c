@@ -17,10 +17,6 @@
 #include <string.h>
 #include <curl/curl.h>
 
-#define PP_PRODUCT   "PocketPlex"
-#define PP_VERSION   "0.1"
-#define PP_PLATFORM  "Chrome"
-
 static char g_client_id[64] = "";
 
 static size_t write_cb(char *ptr, size_t size, size_t nmemb, void *ud) {

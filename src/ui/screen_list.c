@@ -76,7 +76,7 @@ static void list_render(pp_screen *self) {
     } else if (st == PP_ERR_AUTH) {
       ui_toast("Auth expired — relink");
       d->async = 0;
-      ui_replace(screen_link_create());
+      ui_go(screen_link_create());
       return;
     } else if (!d->error_shown) {
       /* Toast once and retry once against the current server. */
@@ -150,19 +150,19 @@ static void list_handle(pp_screen *self, pp_btn btn) {
     if (d->model.count > 0) {
       pp_item *it = &d->model.items[d->view.selected];
       if (is_container(it->kind) && it->key[0])
-        ui_replace(screen_list_create_key(it->key, it->title));
+        ui_go(screen_list_create_key(it->key, it->title));
       else
-        ui_replace(screen_detail_create(it));
+        ui_go(screen_detail_create(it));
     }
     break;
   case BTN_B:
     ui_pop();
     break;
   case BTN_START:
-    ui_replace(screen_home_create());
+    ui_go(screen_home_create());
     break;
   case BTN_SELECT:
-    ui_push(screen_settings_create());
+    ui_go(screen_settings_create());
     break;
   case BTN_MENU:
     ui_pop();

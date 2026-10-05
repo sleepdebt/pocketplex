@@ -90,5 +90,15 @@ void ui_stack_finalize(void) {
   g_dead_count = 0;
 }
 
+ui_nav_op ui_nav_for(pp_screen_id target) {
+  return (target == SCREEN_LINK || target == SCREEN_SERVERS || target == SCREEN_HOME)
+         ? UI_NAV_RESET : UI_NAV_PUSH;
+}
+
+int ui_stack_go(pp_screen *s) {
+  if (!s) return -1;
+  return ui_nav_for(s->id) == UI_NAV_RESET ? ui_stack_reset(s) : ui_stack_push(s);
+}
+
 pp_screen *ui_stack_top(void) { return g_depth > 0 ? g_stack[g_depth - 1] : NULL; }
 int ui_stack_depth(void) { return g_depth; }

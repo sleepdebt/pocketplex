@@ -24,6 +24,13 @@ void ui_stack_pop_all(void);
 /* Destroy screens removed this frame. Call once at end of frame. */
 void ui_stack_finalize(void);
 
+/* Navigation rule (§6 'B goes back'): Link, Servers and Home are roots, and
+ * going to one resets the stack; every other screen is pushed so B pops one
+ * level. Screens navigate with ui_stack_go (ui_go), not push/replace. */
+typedef enum { UI_NAV_PUSH, UI_NAV_RESET } ui_nav_op;
+ui_nav_op ui_nav_for(pp_screen_id target);
+int  ui_stack_go(pp_screen *s);
+
 pp_screen *ui_stack_top(void);
 int  ui_stack_depth(void);
 const char *ui_screen_name(pp_screen_id id);

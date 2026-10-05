@@ -16,6 +16,13 @@
 #include <time.h>
 #include <unistd.h>
 
+/* fb0 pan offset from sysfs ("x,y"), for watching Mali's double-buffer flips. */
+static void fb_pan(char *out, size_t n) {
+  FILE *f = fopen("/sys/class/graphics/fb0/pan", "r");
+  snprintf(out, n, "-");
+  if (f) { if (fgets(out, (int)n, f)) out[strcspn(out, "\n")] = 0; fclose(f); }
+}
+
 #ifdef PP_PLAY_SDL
 #include <SDL.h>
 static SDL_Window *win;
@@ -58,12 +65,14 @@ int main(int argc, char **argv) {
   if (use_sdl) { fprintf(stderr, "built without PP_PLAY_SDL\n"); return 2; }
 #endif
 
+  { char pan[32]; fb_pan(pan, sizeof pan); printf("before player_start fb0-pan=%s\n", pan); }
   t0 = time(NULL);
   if (!(p = player_start(url, start_ms))) { LOGE("pp_play: player_start failed"); return 1; }
   while (!fin) {
     sleep(1);
     rc = player_poll(p, &pos, &fin);
-    printf("t=%lds pos=%ldms fin=%d rc=%d\n", (long)(time(NULL) - t0), pos, fin, rc);
+    { char pan[32]; fb_pan(pan, sizeof pan);
+      printf("t=%lds pos=%ldms fin=%d rc=%d fb0-pan=%s\n", (long)(time(NULL) - t0), pos, fin, rc, pan); }
     fflush(stdout);
     n++;
   }
@@ -76,9 +85,26 @@ int main(int argc, char **argv) {
     int stale = 0;
     while (SDL_PollEvent(&ev)) stale++;
     printf("sdl: %d stale events flushed after player_stop\n", stale);
-    fill(0, 160, 0);
-    LOGI("pp_play: screen handed back (green) for 5 s");
-    sleep(5);
+    /* Like the app's UI after playback: keep presenting at vsync. A moving white bar over green;
+     * if the renderer and the display disagree on the front buffer, this tears or flickers. */
+    LOGI("pp_play: screen handed back: animating green + moving bar for 10 s");
+    {
+      Uint32 start = SDL_GetTicks();
+      int frame = 0;
+      while (SDL_GetTicks() - start < 10000) {
+        SDL_Rect bar = { (frame * 8) % 640, 0, 40, 480 };
+        char pan[32];
+        SDL_SetRenderDrawColor(ren, 0, 160, 0, 255);
+        SDL_RenderClear(ren);
+        SDL_SetRenderDrawColor(ren, 255, 255, 255, 255);
+        SDL_RenderFillRect(ren, &bar);
+        SDL_RenderPresent(ren);
+        if (frame < 6 || frame % 60 == 0) { fb_pan(pan, sizeof pan); printf("frame %d fb0-pan=%s\n", frame, pan); }
+        frame++;
+        while (SDL_PollEvent(&ev)) {}
+      }
+      printf("animated %d frames in 10 s\n", frame);
+    }
     SDL_Quit();
   }
 #endif

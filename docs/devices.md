@@ -86,6 +86,27 @@ both anyway.
 owner's 1865674), so `player_poll` positions can be used directly as Plex resume points.
 After `transcode/universal/stop?session=…`, `/transcode/sessions` is empty.
 
+### Post-playback tearing in the integrated app (2026-10-05)
+
+Owner report: playback is fine, but after leaving it the UI shows **tearing / half-screen updates on every screen
+until the app restarts**. A sample taken afterwards: fb0 `virtual_size 640,960`, `pan 0,480`, 640×480-60, 32 bpp.
+
+Analysis: the app (SDL2 GLES2 renderer, vsync) and mpv (`--vo=sdl`, also GLES2) are separate EGL clients of the same
+Mali fbdev. Mali double-buffers inside the 640×960 virtual framebuffer and flips with `FBIOPAN_DISPLAY` between
+y=0 and y=480. Each process tracks its own idea of which half is the front buffer. If mpv exits after an odd number
+of flips relative to the app, the display is left on the half the app's driver now thinks is the *back* buffer. The
+app then draws into the visible half, which matches the tearing / half-updated screen, and it never resyncs
+because both sides keep flipping in lockstep.
+
+Fix (player_mpv.c, Linux device builds): at `player_start`, save fb0's `fb_var_screeninfo` (`FBIOGET_VSCREENINFO`),
+i.e. what the app's renderer last displayed. As soon as mpv's exit is seen (in `player_poll` or `player_stop`,
+which is before the app presents again), compare. If only the offset differs, `FBIOPAN_DISPLAY` back to the saved
+offset. If the geometry or bpp differs, `FBIOPUT_VSCREENINFO` the saved mode. Then `FBIOBLANK` unblank. The saved
+offset is restored rather than y=0, because the app's driver expects the buffer it last flipped to, which can
+be either half. Both states are logged (`player: fb0 before: …` / `player: fb0 after mpv: … -> pan back`).
+`PP_FB_RESTORE=0` disables the restore (logging only) for an A/B test.
+**Status: built into `dist/pocketplex-sp.zip`, not yet verified on the SP (SSH down).**
+
 ### Buttons (evdev)
 
 The controller is `/dev/input/event1` ("Anbernic RG35XX-SP Controller", also `js0`). Measured by reading raw

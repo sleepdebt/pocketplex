@@ -263,23 +263,22 @@ static void fb_save(pp_player *p) {
   close(fd);
 }
 
-/* Called once, as soon as mpv's exit is seen and before the app presents again. PP_FB_RESTORE=0 turns
- * the restore off (logging only), for A/B tests on the device. */
+/* Called once, as soon as mpv's exit is seen and before the app presents again. On the SP, mpv left fb0
+ * unchanged in every logged run (docs/devices.md), so this is a cheap guard plus a log line, not the
+ * fix for the post-playback glitch. */
 static void fb_restore(pp_player *p) {
   struct fb_var_screeninfo v;
   pp_fbinfo cur;
   pp_fb_action act;
-  const char *env = getenv("PP_FB_RESTORE");
-  int fd, on = !(env && strcmp(env, "0") == 0), rc = 0;
+  int fd, rc = 0;
   if (!p->fb_saved_ok || (fd = open("/dev/fb0", O_RDWR | O_CLOEXEC)) < 0) return;
   if (ioctl(fd, FBIOGET_VSCREENINFO, &v) == 0) {
     fb_copy(&cur, &v);
     act = fb_restore_action(&p->fb_saved, &cur);
-    LOGI("player: fb0 after mpv: %ux%u virt %ux%u offset %u,%u bpp %u -> %s%s", v.xres, v.yres,
+    LOGI("player: fb0 after mpv: %ux%u virt %ux%u offset %u,%u bpp %u -> %s", v.xres, v.yres,
          v.xres_virtual, v.yres_virtual, v.xoffset, v.yoffset, v.bits_per_pixel,
-         act == PP_FB_NONE ? "unchanged" : act == PP_FB_PAN ? "pan back" : "mode put back",
-         on ? "" : " (PP_FB_RESTORE=0: not restoring)");
-    if (on && act != PP_FB_NONE) {
+         act == PP_FB_NONE ? "unchanged" : act == PP_FB_PAN ? "pan back" : "mode put back");
+    if (act != PP_FB_NONE) {
       v.xoffset = p->fb_saved.xoffset; v.yoffset = p->fb_saved.yoffset;
       if (act == PP_FB_PUT) {
         v.xres = p->fb_saved.xres; v.yres = p->fb_saved.yres;
@@ -293,7 +292,7 @@ static void fb_restore(pp_player *p) {
       if (rc < 0) LOGW("player: fb0 restore failed: %s", strerror(errno));
     }
   }
-  if (on) ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
+  ioctl(fd, FBIOBLANK, FB_BLANK_UNBLANK);
   close(fd);
 }
 #endif

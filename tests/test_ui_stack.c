@@ -119,6 +119,59 @@ static void test_pop_all(void) {
   CHECK(g_destroyed[SCREEN_HOME] == 1 && g_destroyed[SCREEN_LIST] == 1);
 }
 
+/* §6 'B goes back': drill-downs push, roots reset. Device log 2026-10-05 showed
+ * 'replace Home -> List (depth 1)', so B could not go back one level. */
+static void test_drill_down_and_back(void) {
+  reset_all();
+  ui_stack_go(mk(SCREEN_HOME));
+  CHECK(ui_stack_depth() == 1);
+  ui_stack_go(mk(SCREEN_LIST));          /* library */
+  CHECK(ui_stack_depth() == 2);
+  ui_stack_go(mk(SCREEN_LIST));          /* show -> seasons */
+  CHECK(ui_stack_depth() == 3);
+  ui_stack_go(mk(SCREEN_DETAIL));        /* episode */
+  CHECK(ui_stack_depth() == 4);
+  CHECK(ui_stack_top()->id == SCREEN_DETAIL);
+  ui_stack_finalize();
+  CHECK(g_destroyed[SCREEN_LIST] == 0);  /* parents kept for B */
+
+  CHECK(ui_stack_pop() == 0);  CHECK(ui_stack_depth() == 3 && ui_stack_top()->id == SCREEN_LIST);
+  CHECK(ui_stack_pop() == 0);  CHECK(ui_stack_depth() == 2 && ui_stack_top()->id == SCREEN_LIST);
+  CHECK(ui_stack_pop() == 0);  CHECK(ui_stack_depth() == 1 && ui_stack_top()->id == SCREEN_HOME);
+  CHECK(ui_stack_pop() < 0);   CHECK(ui_stack_depth() == 1);   /* root protected */
+  ui_stack_finalize();
+  CHECK(g_destroyed[SCREEN_DETAIL] == 1 && g_destroyed[SCREEN_LIST] == 2);
+  CHECK(g_destroyed[SCREEN_HOME] == 0);
+}
+
+static void test_go_policy(void) {
+  CHECK(ui_nav_for(SCREEN_LIST) == UI_NAV_PUSH);
+  CHECK(ui_nav_for(SCREEN_DETAIL) == UI_NAV_PUSH);
+  CHECK(ui_nav_for(SCREEN_SETTINGS) == UI_NAV_PUSH);
+  CHECK(ui_nav_for(SCREEN_PLAYER) == UI_NAV_PUSH);
+  CHECK(ui_nav_for(SCREEN_LINK) == UI_NAV_RESET);
+  CHECK(ui_nav_for(SCREEN_SERVERS) == UI_NAV_RESET);
+  CHECK(ui_nav_for(SCREEN_HOME) == UI_NAV_RESET);
+
+  /* Link -> Servers -> Home: each root replaces the last (depth stays 1). */
+  reset_all();
+  ui_stack_go(mk(SCREEN_LINK));
+  ui_stack_go(mk(SCREEN_SERVERS));
+  CHECK(ui_stack_depth() == 1 && ui_stack_top()->id == SCREEN_SERVERS);
+  ui_stack_go(mk(SCREEN_HOME));
+  CHECK(ui_stack_depth() == 1 && ui_stack_top()->id == SCREEN_HOME);
+
+  /* Start from deep inside goes Home as the only screen; auth error -> Link. */
+  ui_stack_go(mk(SCREEN_LIST));
+  ui_stack_go(mk(SCREEN_DETAIL));
+  ui_stack_go(mk(SCREEN_HOME));
+  CHECK(ui_stack_depth() == 1 && ui_stack_top()->id == SCREEN_HOME);
+  ui_stack_go(mk(SCREEN_LIST));
+  ui_stack_go(mk(SCREEN_LINK));
+  CHECK(ui_stack_depth() == 1 && ui_stack_top()->id == SCREEN_LINK);
+  CHECK(ui_stack_go(NULL) < 0);
+}
+
 static void test_names(void) {
   CHECK_STR(ui_screen_name(SCREEN_SERVERS), "Servers");
   CHECK_STR(ui_screen_name(SCREEN_LINK), "Link");
@@ -134,6 +187,8 @@ int main(void) {
   RUN(test_replaced_screen_lives_until_finalize);
   RUN(test_cap_frees_overflow);
   RUN(test_pop_all);
+  RUN(test_drill_down_and_back);
+  RUN(test_go_policy);
   RUN(test_names);
   reset_all();
   return TEST_RESULT();

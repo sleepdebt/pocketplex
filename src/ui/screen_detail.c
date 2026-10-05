@@ -20,7 +20,7 @@ static int is_playable(pp_kind k) {
 static void detail_play(detail_data_t *d, long start_ms) {
   d->choosing = 0;
   pp_screen *p = screen_player_create(&d->item, start_ms, &d->item);
-  if (p) ui_push(p);
+  if (p) ui_go(p);
   else ui_toast("Out of memory");
 }
 
@@ -147,7 +147,7 @@ static void detail_handle(pp_screen *self, pp_btn btn) {
     d->item.watched = !d->item.watched;
     break;
   case BTN_START:
-    ui_replace(screen_home_create());
+    ui_go(screen_home_create());
     break;
   case BTN_MENU:
     ui_pop();

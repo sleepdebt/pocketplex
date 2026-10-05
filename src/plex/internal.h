@@ -10,6 +10,13 @@
 #include <stddef.h>
 #include "plex/plex.h"
 
+/* Client identity used in X-Plex-* headers (http.c) AND in the transcode
+ * query (playback.c): players like mpv fetch start.m3u8 with no headers, and
+ * without these in the URL PMS serves its lowest quality rung. */
+#define PP_PRODUCT   "PocketPlex"
+#define PP_VERSION   "0.1"
+#define PP_PLATFORM  "Chrome" /* a transcode-profile name PMS knows; "Linux" -> 400 */
+
 /* ---- auth.c: pure parsing ---- */
 
 /* plex.tv/api/v2/pins JSON. Fills code (8 bytes), id, and token_out when the

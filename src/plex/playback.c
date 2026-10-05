@@ -16,6 +16,30 @@
 #include <string.h>
 #include "cJSON.h"
 
+/* Percent-encodes src into out (size n) as a query VALUE: unreserved chars
+ * (RFC 3986) pass through, everything else becomes %XX. Always NUL-terminated;
+ * returns -1 if it doesn't fit. Our own constants are plain, but the client
+ * id comes from the INI and may be anything. */
+static int encode_query_value(const char *src, char *out, size_t n) {
+  static const char hex[] = "0123456789ABCDEF";
+  size_t o = 0;
+  for (const unsigned char *p = (const unsigned char *)src; *p; p++) {
+    unsigned char c = *p;
+    int unreserved = (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') ||
+                     (c >= '0' && c <= '9') || c == '-' || c == '.' ||
+                     c == '_' || c == '~';
+    if (o + (size_t)(unreserved ? 1 : 3) + 1 > n) return -1;
+    if (unreserved) out[o++] = (char)c;
+    else {
+      out[o++] = '%';
+      out[o++] = hex[c >> 4];
+      out[o++] = hex[c & 0x0f];
+    }
+  }
+  out[o] = '\0';
+  return 0;
+}
+
 /* Writes the formatted string only when it fits; url_out is left untouched
  * (and untouched means empty on first use) when it doesn't. */
 static int format_if_fits(char *out, size_t n, const char *fmt, ...) {
@@ -31,11 +55,19 @@ static int format_if_fits(char *out, size_t n, const char *fmt, ...) {
 }
 
 /* The query shared by decision and start, so the pre-flight check matches
- * the request the player will actually make. */
+ * the request the player will actually make. The X-Plex identity params are
+ * in the query (not just our headers) because players such as mpv fetch
+ * start.m3u8 with no headers at all — without a client identifier PMS serves
+ * its lowest quality rung regardless of maxVideoBitrate. */
 static int build_transcode_query(const char *path, const char *session_id,
                                  int width, int height, int max_kbps,
                                  long offset_ms, int burn_subtitles,
                                  char *out, size_t n) {
+  char cid[3 * 64 + 1] = "";
+  const char *client_id = pp_internal_client_id();
+  if (client_id[0]) {
+    if (encode_query_value(client_id, cid, sizeof cid) != 0) return PP_ERR_ARG;
+  }
   return format_if_fits(out, n,
       "?path=%s"
       "&mediaIndex=0&partIndex=0"
@@ -43,11 +75,17 @@ static int build_transcode_query(const char *path, const char *session_id,
       "&offset=%ld"
       "&maxVideoBitrate=%d"
       "&videoResolution=%dx%d"
-      "&X-Plex-Platform=Chrome"
+      "&X-Plex-Platform=" PP_PLATFORM
+      "&X-Plex-Product=" PP_PRODUCT
+      "&X-Plex-Device=" PP_PRODUCT
+      "&X-Plex-Version=" PP_VERSION
+      "%s%s"
       "&directPlay=0&directStream=0"
       "&subtitles=%s"
       "&session=%s",
       path, offset_ms / 1000, max_kbps, width, height,
+      cid[0] ? "&X-Plex-Client-Identifier=" : "",
+      cid[0] ? cid : "",
       burn_subtitles ? "burn" : "none", session_id);
 }
 

@@ -74,6 +74,7 @@ static void request_free(pp_request *req) {
   free(req->srv.url);
   free(req->srv.token);
   free(req->srv.client_id);
+  free(req->srv.name);
   free(req->key);
   free(req->token);
   free(req->item);
@@ -184,8 +185,9 @@ static void copy_server(pp_request *req, const pp_server *srv, int *oom) {
   req->srv.url = dup_or_null(srv->url);
   req->srv.token = dup_or_null(srv->token);
   req->srv.client_id = dup_or_null(srv->client_id);
+  req->srv.name = dup_or_null(srv->name);
   *oom |= (srv->url && !req->srv.url) || (srv->token && !req->srv.token) ||
-          (srv->client_id && !req->srv.client_id);
+          (srv->client_id && !req->srv.client_id) || (srv->name && !req->srv.name);
 }
 
 static pp_request *request_alloc(pp_req_type type, int use_fake) {

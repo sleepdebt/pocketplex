@@ -68,6 +68,10 @@ void ui_set_smoke_play(const char *key, long play_ms);
 const char *ui_smoke_play_key(void);
 long ui_smoke_play_ms(void);   /* 0 when not in smoke play */
 
+/* Smoke link mode: walk Link -> Servers -> Home as the owner does after a
+ * PIN link, checking that B on Servers does not quit. */
+void ui_set_smoke_link(int on);
+
 /* Process exit code requested by the UI (non-zero when a smoke run failed). */
 int  ui_exit_code(void);
 /* Player screen reports how playback ended (1 = played, 0 = failed). */
@@ -76,7 +80,10 @@ void ui_play_result(int ok);
 /* Push/pop screens on the global stack. */
 void ui_push(pp_screen *s);
 void ui_push_screen(pp_screen_id id);
-void ui_pop(void);
+void ui_pop(void);                 /* back; on the last screen goes Home, or is ignored on
+                                      Link/Servers/Home (only Menu quits) */
+void ui_replace(pp_screen *s);     /* swap the top screen for s (use instead of pop+push) */
+void ui_reset(pp_screen *s);       /* drop everything, s becomes the only screen */
 
 /* Set the current server (from config or discovery). The server is deep-copied;
  * the caller keeps ownership of srv. NULL clears it. In-flight requests hold

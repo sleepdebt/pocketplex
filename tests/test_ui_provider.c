@@ -10,8 +10,8 @@ static void test_fake_servers(void) {
   CHECK(count >= 1);
   CHECK(servers[0].url != NULL);
   CHECK(servers[0].client_id != NULL);
-  free(servers[0].url); free(servers[0].token); free(servers[0].client_id);
-  free(servers);
+  CHECK_STR(servers[0].name, "Desktop (fake)");
+  pp_servers_free(servers, count);  /* frees name too */
 }
 
 static void test_fake_sections_count(void) {
@@ -20,6 +20,7 @@ static void test_fake_sections_count(void) {
   CHECK(fake_sections(NULL, &out) == 0);
   CHECK(out.count >= 3); /* Movies, TV Shows, Music at minimum */
   CHECK(out.items != NULL);
+  pp_list_free(&out);
 }
 
 static void test_fake_tv_library_2000_items(void) {
@@ -32,6 +33,7 @@ static void test_fake_tv_library_2000_items(void) {
   CHECK(out.items[0].title[0] != 0);
   CHECK(out.items[1999].kind == PP_EPISODE);
   CHECK(out.items[1999].title[0] != 0);
+  pp_list_free(&out);
 }
 
 static void test_fake_movies_library_50_items(void) {
@@ -42,6 +44,7 @@ static void test_fake_movies_library_50_items(void) {
   CHECK(out.items[0].kind == PP_MOVIE);
   CHECK(out.items[0].year > 1900);
   CHECK(out.items[0].duration_ms > 0);
+  pp_list_free(&out);
 }
 
 static void test_fake_on_deck_has_resume(void) {
@@ -55,6 +58,7 @@ static void test_fake_on_deck_has_resume(void) {
     if (out.items[i].view_offset_ms > 0) has_resume = 1;
   }
   CHECK(has_resume);
+  pp_list_free(&out);
 }
 
 static void test_fake_item_detail(void) {

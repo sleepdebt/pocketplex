@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+  <!-- PocketPlex GitHub social preview: Dirtywave-inspired -->
+  <rect width="1280" height="640" fill="#18181c"/>
+  <!-- fast-forward mark -->
+  <path d="M170 210 L268 306 L170 402" fill="none" stroke="#00e5ff" stroke-width="56" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M286 210 L384 306 L286 402" fill="none" stroke="#e0e0e0" stroke-width="56" stroke-linecap="square" stroke-linejoin="miter"/>
+  <!-- wordmark -->
+  <text x="470" y="350" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="118" font-weight="800" letter-spacing="18" fill="#e0e0e0" textLength="740" lengthAdjust="spacing">POCKET<tspan fill="#00e5ff">PLEX</tspan></text>
+  <!-- tagline: tracked-out small caps, dim -->
+  <text x="474" y="446" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="24" font-weight="600" letter-spacing="6" fill="#808080">TEXT-FIRST PLEX FOR RETRO HANDHELDS</text>
+</svg>

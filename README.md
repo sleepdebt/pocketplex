@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/logo/logo.svg" alt="PocketPlex" width="600"></p>
+
 # PocketPlex
 
 A lightweight, text-first Plex client for Linux retro handhelds. It streams from your own Plex Media Server (PMS) over home Wi-Fi: the server transcodes everything to a small 480p H.264 stream, and the handheld shows a text menu and plays it with mpv.

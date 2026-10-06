@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320">
+  <!-- PocketPlex wordmark: fast-forward mark + tracked-out bold caps -->
+  <rect width="1200" height="320" fill="#18181c"/>
+  <path d="M72 100 L140 160 L72 220" fill="none" stroke="#00e5ff" stroke-width="40" stroke-linecap="square" stroke-linejoin="miter"/>
+  <path d="M150 100 L218 160 L150 220" fill="none" stroke="#e0e0e0" stroke-width="40" stroke-linecap="square" stroke-linejoin="miter"/>
+  <text x="280" y="195" font-family="'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="92" font-weight="800" letter-spacing="16" fill="#e0e0e0" textLength="820" lengthAdjust="spacing">POCKET<tspan fill="#00e5ff">PLEX</tspan></text>
+</svg>

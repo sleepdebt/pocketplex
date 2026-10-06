@@ -223,8 +223,11 @@ static void test_list_free_null_safe(void) {
 /* ---------- transcode URL ---------- */
 
 static void test_build_transcode_url_offset_zero(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
   char url[1024];
+  /* players (mpv) fetch start.m3u8 with NO headers: identity must be in the
+   * query or PMS serves its lowest quality rung */
+  CHECK(pp_init("cid-1234") == PP_OK);
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/53834", "sess-1",
                                640, 480, 1500, 0, 1, url, sizeof url) == 0);
   CHECK_STR(url,
@@ -236,10 +239,24 @@ static void test_build_transcode_url_offset_zero(void) {
     "&maxVideoBitrate=1500"
     "&videoResolution=640x480"
     "&X-Plex-Platform=Chrome"
+    "&X-Plex-Product=PocketPlex"
+    "&X-Plex-Device=PocketPlex"
+    "&X-Plex-Version=0.1"
+    "&X-Plex-Client-Identifier=cid-1234"
     "&directPlay=0&directStream=0"
     "&subtitles=burn"
     "&session=sess-1"
     "&X-Plex-Token=tok123");
+  pp_cleanup();
+}
+
+static void test_build_transcode_url_without_init_omits_client_id(void) {
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  char url[1024];
+  CHECK(pp_build_transcode_url(&srv, "/library/metadata/1", "s", 640, 480, 1500, 0, 1,
+                               url, sizeof url) == 0);
+  CHECK(strstr(url, "X-Plex-Product=PocketPlex") != NULL);
+  CHECK(strstr(url, "X-Plex-Client-Identifier=") == NULL); /* unknown: omit */
 }
 
 static void test_build_transcode_url_subtitles_off(void) {
@@ -349,6 +366,7 @@ int main(void) {
   RUN(test_parse_items_bad);
   RUN(test_list_free_null_safe);
   RUN(test_build_transcode_url_offset_zero);
+  RUN(test_build_transcode_url_without_init_omits_client_id);
   RUN(test_build_transcode_url_subtitles_off);
   RUN(test_build_transcode_url_offset_seconds);
   RUN(test_build_transcode_url_errors);

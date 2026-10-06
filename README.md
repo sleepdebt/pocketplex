@@ -110,8 +110,5 @@ Merge gate: 0 warnings in `make`, `make test` **and** `make docker-sp` (GCC catc
 
 ## Project docs
 
-- [`the spec`](the spec): spec, architecture decisions, module contracts, workstreams, and the coordination log (§10, full history).
 - [`docs/devices.md`](docs/devices.md): measured RG35XX SP findings (player, buttons, display hand-off, soak results).
-- [`the docs`](the docs): the multi-agent workflow (lanes, cross-model review, merge gate).
 - [`docs/BACKLOG.md`](docs/BACKLOG.md): minor findings not yet fixed.
-- [`AGENTS.md`](AGENTS.md): rules for coding agents working in this repo.

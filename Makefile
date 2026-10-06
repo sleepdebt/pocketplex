@@ -85,7 +85,7 @@ clean:
 
 # ---- core: container builds (Docker / OrbStack) --------------------------------
 # Auto-detect the Docker CLI: prefer an on-PATH `docker`, otherwise use the
-# OrbStack CLI shim that ships with the OrbStack app (the spec).
+# OrbStack CLI shim that ships with the OrbStack app.
 DOCKER ?= $(shell command -v docker 2>/dev/null)
 ifeq ($(DOCKER),)
   _ORBSTACK_DOCKER := /Applications/OrbStack.app/Contents/MacOS/xbin/docker

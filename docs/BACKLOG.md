@@ -1,8 +1,8 @@
 # Backlog
 
-Minor review findings that didn't block a merge (process §7 step 4). Newest at the bottom. Whoever owns the file picks them up; tick them off when fixed.
+Minor review findings that didn't block a merge. Newest at the bottom; tick them off when fixed.
 
-## core (review@ cb6b95e, 2026-10-03)
+## core (review @ cb6b95e, 2026-10-03)
 - [x] `src/plex/http.c:106`: the log line always says "GET". Pass the method through.
 - [x] `src/plex/playback.c:46-51,92-95,105-107`: unchecked `snprintf` truncation for the decision/timeline/scrobble URLs. Return `PP_ERR_ARG` like `pp_build_transcode_url` does.
 - [x] `src/plex/auth.c:149`: every non-2xx PIN poll maps to `PP_ERR_AUTH`. Only 404 should; 429/5xx → `PP_ERR_HTTP`/`PP_ERR_NET`.
@@ -38,4 +38,4 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] `src/ui/ui.c`: video_recreate_mode() calls getenv on every playback. Cache it at startup.
 
 ## Post-v1 (owner-reported)
-- [ ] **Shared / non-LAN servers don't play (e.g. LATENITE).** Discovery always picks the `local=true` connection (the spec), but a shared server (`owned=false`, `publicAddressMatches=false`) has a local address on *its* LAN (unreachable here; times out). Its remote-direct (public plex.direct :32400) and relay (:8443) connections are reachable (lead check 2026-10-05). Fix: rank connections local (only if `publicAddressMatches`) → remote direct → relay, probe each with a short timeout, persist the working URI. Use the resource's `accessToken` for shared servers (ties in with the single-token item above: store a separate `server_token`). UI: show unreachable servers as such, and mark relay as lower quality. The same path is needed later for away-from-home playback (v1 out of scope).
+- [ ] **Shared / non-LAN servers don't play (e.g. LATENITE).** Discovery always picks the `local=true` connection (by design), but a shared server (`owned=false`, `publicAddressMatches=false`) has a local address on *its* LAN (unreachable here; times out). Its remote-direct (public plex.direct :32400) and relay (:8443) connections are reachable (checked 2026-10-05). Fix: rank connections local (only if `publicAddressMatches`) → remote direct → relay, probe each with a short timeout, persist the working URI. Use the resource's `accessToken` for shared servers (ties in with the single-token item above: store a separate `server_token`). UI: show unreachable servers as such, and mark relay as lower quality. The same path is needed later for away-from-home playback (v1 out of scope).

@@ -7,7 +7,7 @@ SP sections: core. MMP sections: core. Measurements only; each claim has the com
 ## Anbernic RG35XX SP
 
 Firmware: Knulli `gladiator-ii` (Batocera base), kernel 4.9.170, glibc 2.40, mpv 0.39.0, ffmpeg 7.1.
-Access: `ssh knulli` (shared connection, see the spec). EmulationStation (ES) stays running in the background.
+Access: `ssh knulli`. EmulationStation (ES) stays running in the background.
 
 ### Playback spike (2026-10-03)
 
@@ -122,9 +122,8 @@ renders into.
 
 **Working hypothesis (not proven):** while mpv's own SDL/EGL instance owns fb0, the app's EGL window surface, its
 swap chain, or its GPU-side textures stop matching what the Mali fbdev driver scans out. So the app's presents
-partly land on the screen and partly show mpv's last frames. The lead asked core to release the app's SDL window and
-renderer before `player_start` and recreate them, and the texture cache, after `player_stop`. core will verify that
-build on the SP with the owner.
+partly land on the screen and partly show mpv's last frames. The fix: release the app's SDL window and
+renderer before `player_start` and recreate them, and the texture cache, after `player_stop`.
 
 ### Final core criterion run in the integrated app (2026-10-05)
 
@@ -273,4 +272,4 @@ runs (the spike tables and the soak below) describe the player (decode, drops, s
 screen looks like.
 
 The 18 stale events are the button presses the app's own SDL queue also received. The UI has to drop them after
-`player_stop` (the spec).
+`player_stop`.

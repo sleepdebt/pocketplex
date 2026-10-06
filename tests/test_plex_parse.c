@@ -223,7 +223,7 @@ static void test_list_free_null_safe(void) {
 /* ---------- transcode URL ---------- */
 
 static void test_build_transcode_url_offset_zero(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
   char url[1024];
   /* players (mpv) fetch start.m3u8 with NO headers: identity must be in the
    * query or PMS serves its lowest quality rung */
@@ -251,7 +251,7 @@ static void test_build_transcode_url_offset_zero(void) {
 }
 
 static void test_build_transcode_url_without_init_omits_client_id(void) {
-  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid"};
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
   char url[1024];
   CHECK(pp_build_transcode_url(&srv, "/library/metadata/1", "s", 640, 480, 1500, 0, 1,
                                url, sizeof url) == 0);

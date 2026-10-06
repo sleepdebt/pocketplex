@@ -36,3 +36,6 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] `src/platform/sdl2.c`: one global pad layout, so with several controllers the last one connected wins. Make it per-device if multi-pad matters.
 - [ ] `src/ui/screen_player.c`: the −1 return of ui_video_after_player() is ignored on the start-failure path (safe: g_video_lost drives a bounded retry). Check it explicitly for clarity.
 - [ ] `src/ui/ui.c`: video_recreate_mode() calls getenv on every playback. Cache it at startup.
+
+## Post-v1 (owner-reported)
+- [ ] **Shared / non-LAN servers don't play (e.g. LATENITE).** Discovery always picks the `local=true` connection (the spec), but a shared server (`owned=false`, `publicAddressMatches=false`) has a local address on *its* LAN (unreachable here; times out). Its remote-direct (public plex.direct :32400) and relay (:8443) connections are reachable (lead check 2026-10-05). Fix: rank connections local (only if `publicAddressMatches`) → remote direct → relay, probe each with a short timeout, persist the working URI. Use the resource's `accessToken` for shared servers (ties in with the single-token item above: store a separate `server_token`). UI: show unreachable servers as such, and mark relay as lower quality. The same path is needed later for away-from-home playback (v1 out of scope).

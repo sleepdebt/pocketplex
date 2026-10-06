@@ -1,5 +1,8 @@
 ## PocketPlex for Onion (Miyoo Mini Plus)
 
+> **Untested on the device.** This package builds in CI, but it hasn't run on a Mini Plus yet. It probably needs a newer glibc and libcurl than Onion ships. Don't
+> expect it to work yet.
+
 Drop the `App/PocketPlex/` folder from the zip onto the root of the SD card
 (`/mnt/SDCARD/App/PocketPlex/`). It appears in the Apps menu on next boot.
 

@@ -29,3 +29,4 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] sdl2.c: close GameController/Joystick handles on SDL_JOYDEVICEREMOVED; drop unused g_quit_requested.
 - [ ] cJSON.c: 6 sprintf deprecation warnings under clang sanitizer builds.
 - [ ] `src/plex/playback.c`: a client id longer than 64 chars makes pp_transcode_url fail (PP_ERR_ARG); skip the param or size the buffer from strlen.
+- [ ] `src/ui/screen_detail.c`: Y ("Toggled watched") only flips a local flag; it should call pp_scrobble / an unscrobble on the server. Not documented until it does.

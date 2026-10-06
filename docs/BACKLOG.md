@@ -28,3 +28,4 @@ Minor review findings that didn't block a merge (process §7 step 4). Newest at 
 - [ ] Config has one token. Saving a shared server's accessToken overwrites the account token (equal for owned servers). Add a separate server_token if shared servers matter.
 - [ ] sdl2.c: close GameController/Joystick handles on SDL_JOYDEVICEREMOVED; drop unused g_quit_requested.
 - [ ] cJSON.c: 6 sprintf deprecation warnings under clang sanitizer builds.
+- [ ] `src/plex/playback.c`: a client id longer than 64 chars makes pp_transcode_url fail (PP_ERR_ARG); skip the param or size the buffer from strlen.

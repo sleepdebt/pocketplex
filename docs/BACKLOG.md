@@ -38,4 +38,14 @@ Minor review findings that didn't block a merge. Newest at the bottom; tick them
 - [ ] `src/ui/ui.c`: video_recreate_mode() calls getenv on every playback. Cache it at startup.
 
 ## Post-v1 (owner-reported)
-- [ ] **Shared / non-LAN servers don't play (e.g. LATENITE).** Discovery always picks the `local=true` connection (by design), but a shared server (`owned=false`, `publicAddressMatches=false`) has a local address on *its* LAN (unreachable here; times out). Its remote-direct (public plex.direct :32400) and relay (:8443) connections are reachable (checked 2026-10-05). Fix: rank connections local (only if `publicAddressMatches`) → remote direct → relay, probe each with a short timeout, persist the working URI. Use the resource's `accessToken` for shared servers (ties in with the single-token item above: store a separate `server_token`). UI: show unreachable servers as such, and mark relay as lower quality. The same path is needed later for away-from-home playback (v1 out of scope).
+- [x] **Shared / non-LAN servers don't play (e.g. LATENITE).** Discovery always picks the `local=true` connection (by design), but a shared server (`owned=false`, `publicAddressMatches=false`) has a local address on *its* LAN (unreachable here; times out). Its remote-direct (public plex.direct :32400) and relay (:8443) connections are reachable (checked 2026-10-05). Fixed 2026-10-07 (ws-a core ranking + probing + server_token, ws-b UI); needs the device check. Original plan: rank connections local (only if `publicAddressMatches`) → remote direct → relay, probe each with a short timeout, persist the working URI. Use the resource's `accessToken` for shared servers (ties in with the single-token item above: store a separate `server_token`). UI: show unreachable servers as such, and mark relay as lower quality. The same path is needed later for away-from-home playback (v1 out of scope).
+
+## Shared-server follow-ups (Kimi / GLM reviews, 2026-10-07)
+- [ ] `src/plex/http.c` pp_http_probe: dead ternary (~line 142).
+- [ ] `src/plex/auth.c` pp_discover_servers: calloc(0) edge case when no server resources (~line 301).
+- [ ] `tools/pp-cli.c`: `--server N` is ignored for `login`/`servers` (~line 374); document or reject.
+- [ ] Relay connections show no badge in the Servers list: `pp_server` would need a connection-class field (contract change) so the UI can mark relay/remote and unreachable servers.
+- [ ] `src/main.c` casts away const from `pp_config_pms_token()` to fill `pp_server.token` (char *); make the field `const char *` (contract) or keep the documented cast.
+- [ ] `tests/test_ui_session.c`: add a rejection test for an over-long server token (300 chars → -1, cfg unchanged).
+- [ ] `tests/fixtures/resources.json` still contains private 192.168.1.x LAN addresses (harmless, but swap for 198.51.100.x placeholders).
+- [ ] Discovery now probes up to ~8 s per unreachable server: a retry-on-failure loop in the Servers screen may feel slow; consider a visible "still looking" message.

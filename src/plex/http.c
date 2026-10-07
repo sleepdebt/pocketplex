@@ -133,6 +133,41 @@ void pp_http_free(pp_http_response *r) {
   r->size = 0;
 }
 
+/* Discovery probe: GET {url}/identity with a short timeout (connect 3 s,
+ * total 4 s). The token rides in the X-Plex-Token header and nothing is
+ * logged, not even failures - ranking just moves to the next candidate.
+ * 1 only on HTTP 200. */
+static size_t discard_cb(char *ptr, size_t size, size_t nmemb, void *ud) {
+  (void)ptr; (void)ud;
+  return size * nmemb;
+}
+
+int pp_http_probe(const char *url, const char *token, void *ud) {
+  (void)ud;
+  if (!url || !url[0]) return 0;
+  char full[600];
+  size_t ulen = strlen(url);
+  snprintf(full, sizeof full, "%s%s/identity", url, (ulen && url[ulen - 1] == '/') ? "" : "");
+
+  CURL *curl = curl_easy_init();
+  if (!curl) return 0;
+  struct curl_slist *headers = build_headers(token);
+  curl_easy_setopt(curl, CURLOPT_URL, full);
+  curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+  curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_cb);
+  curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 3L);
+  curl_easy_setopt(curl, CURLOPT_TIMEOUT, 4L);
+  curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+  curl_easy_setopt(curl, CURLOPT_USERAGENT, PP_PRODUCT "/" PP_VERSION);
+
+  CURLcode cc = curl_easy_perform(curl);
+  long status = 0;
+  curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &status);
+  curl_slist_free_all(headers);
+  curl_easy_cleanup(curl);
+  return (cc == CURLE_OK && status == 200) ? 1 : 0;
+}
+
 const char *pp_internal_client_id(void) { return g_client_id; }
 
 int pp_init(const char *client_id) {

@@ -60,13 +60,16 @@ static void test_parse_servers(void) {
   CHECK(pp_parse_servers(j, &servers, &count) == 0);
   CHECK(count == 2); /* only resources providing "server" */
   CHECK(servers != NULL);
-  /* local=true connection preferred */
+  /* owned server: local=true connection preferred */
   CHECK(strstr(servers[0].url, "plex.direct") != NULL);
   CHECK(strncmp(servers[0].url, "https://", 8) == 0);
+  CHECK(strstr(servers[0].url, "999-999-9-999") != NULL); /* the local uri */
   CHECK_STR(servers[0].token, "REDACTED");
   CHECK(strlen(servers[0].client_id) > 0);
   CHECK_STR(servers[0].name, "Living Room Server");
+  /* shared, publicAddressMatches=false: local is NOT eligible -> remote direct */
   CHECK_STR(servers[1].name, "Cabin Server");
+  CHECK(strstr(servers[1].url, "99-999-999-999") != NULL); /* the remote uri */
   pp_servers_free(servers, count);
   free_fixture(j);
 }
@@ -220,6 +223,165 @@ static void test_list_free_null_safe(void) {
   CHECK(1);
 }
 
+/* ---------- resources / connection ranking (shared servers) ---------- */
+
+static int read_shared(pp_resource *res, int max, int *count) {
+  char *j = read_fixture("resources_shared.json");
+  int rc = pp_parse_resources(j, res, max, count);
+  free_fixture(j);
+  return rc;
+}
+
+static void test_parse_resources_shared_fixture(void) {
+  pp_resource res[4];
+  int count = 0;
+  CHECK(read_shared(res, 4, &count) == 0);
+  CHECK(count == 3);
+  CHECK_STR(res[0].name, "Home Server");
+  CHECK(res[0].owned == 1 && res[0].public_address_matches == 1);
+  CHECK(res[0].conn_count == 2);
+  CHECK(res[0].conns[0].local == 1 && res[0].conns[0].relay == 0);
+  CHECK_STR(res[0].token, "REDACTED");
+  CHECK_STR(res[0].client_id, "eg-homeserver01");
+  CHECK_STR(res[1].name, "Nightowl"); /* shared: owned=false, pam=false */
+  CHECK(res[1].owned == 0 && res[1].public_address_matches == 0);
+  CHECK(res[1].conn_count == 3);
+  CHECK(res[1].conns[0].local == 1 && res[1].conns[0].relay == 0);
+  CHECK(res[1].conns[1].local == 0 && res[1].conns[1].relay == 0);
+  CHECK(res[1].conns[2].local == 0 && res[1].conns[2].relay == 1);
+  CHECK(strstr(res[1].conns[2].uri, ":8443") != NULL);
+  CHECK_STR(res[2].name, "Friend Server"); /* pam=true even though owned=false */
+  CHECK(res[2].owned == 0 && res[2].public_address_matches == 1);
+}
+
+static void test_parse_resources_caps_and_errors(void) {
+  pp_resource res[2];
+  int count = 0;
+  /* more servers than max: parsed without overflow, count capped */
+  CHECK(read_shared(res, 2, &count) == 0);
+  CHECK(count == 2);
+  CHECK(pp_parse_resources("not json", res, 2, &count) == PP_ERR_PARSE);
+  CHECK(pp_parse_resources(NULL, res, 2, &count) == PP_ERR_ARG);
+  /* non-server resources are skipped entirely */
+  const char *j = "[{\"name\":\"Plexamp\",\"provides\":\"client,player\","
+                  "\"connections\":[{\"local\":true,\"uri\":\"https://192.0.2.1:32400\"}],"
+                  "\"accessToken\":\"t\",\"clientIdentifier\":\"c\"}]";
+  CHECK(pp_parse_resources(j, res, 2, &count) == 0);
+  CHECK(count == 0);
+  /* a server with no connections is still returned (conn_count 0) */
+  j = "[{\"name\":\"Bare\",\"provides\":\"server\",\"owned\":true,"
+      "\"accessToken\":\"t\",\"clientIdentifier\":\"c\"}]";
+  CHECK(pp_parse_resources(j, res, 2, &count) == 0);
+  CHECK(count == 1);
+  CHECK(res[0].conn_count == 0);
+}
+
+static void test_rank_conns_shared_server(void) {
+  pp_resource res[4];
+  int count = 0;
+  CHECK(read_shared(res, 4, &count) == 0);
+  int order[PP_MAX_CONNS];
+  /* Nightowl: local is on the *other owner's* LAN (owned=false, pam=false):
+   * remote direct first, then relay, unreachable-local only as last resort */
+  int n = pp_rank_conns(&res[1], order);
+  CHECK(n == 3);
+  CHECK(order[0] == 1); /* remote direct */
+  CHECK(order[1] == 2); /* relay */
+  CHECK(order[2] == 0); /* disallowed local demoted to last */
+  /* owned server: local first, then remote */
+  n = pp_rank_conns(&res[0], order);
+  CHECK(n == 2);
+  CHECK(order[0] == 0);
+  CHECK(order[1] == 1);
+  /* shared but publicAddressMatches=true: client is on the same public IP,
+   * so local is allowed */
+  n = pp_rank_conns(&res[2], order);
+  CHECK(n == 2);
+  CHECK(order[0] == 0);
+  CHECK(order[1] == 1);
+}
+
+typedef struct {
+  const char **ok_urls;    /* NULL-terminated list that answers 200 */
+  char seen[8][512];       /* urls probed, in order */
+  int nseen;
+} fake_probe;
+
+static int fake_probe_fn(const char *url, const char *token, void *ud) {
+  fake_probe *p = ud;
+  (void)token;
+  if (p->nseen < 8) snprintf(p->seen[p->nseen], sizeof p->seen[0], "%s", url);
+  p->nseen++;
+  for (const char **ok = p->ok_urls; ok && *ok; ok++)
+    if (strcmp(*ok, url) == 0) return 1;
+  return 0;
+}
+
+static void test_choose_conn_probes_ranked_order(void) {
+  pp_resource res[4];
+  int count = 0;
+  CHECK(read_shared(res, 4, &count) == 0);
+  /* only the remote direct connection answers */
+  const char *ok[] = {"https://198-51-100-20.00000000000000000000000000000000.plex.direct:32400", NULL};
+  fake_probe p = {ok, {{0}}, 0};
+  int reachable = 1, cls = -1;
+  int idx = pp_choose_conn(&res[1], fake_probe_fn, &p, 8000, &reachable, &cls);
+  CHECK(idx == 1); /* remote direct */
+  CHECK(reachable == 1);
+  CHECK(cls == PP_CONN_REMOTE);
+  CHECK(p.nseen == 1); /* first candidate answered: no relay probe */
+
+  /* nothing direct: fall through to relay */
+  const char *ok2[] = {"https://203-0-113-68.00000000000000000000000000000000.plex.direct:8443", NULL};
+  fake_probe p2 = {ok2, {{0}}, 0};
+  idx = pp_choose_conn(&res[1], fake_probe_fn, &p2, 8000, &reachable, &cls);
+  CHECK(idx == 2);
+  CHECK(cls == PP_CONN_RELAY);
+  CHECK(p2.nseen == 2); /* direct tried first, then relay */
+  CHECK(strcmp(p2.seen[0], p2.seen[1]) != 0);
+
+  /* owned server: local answers first */
+  const char *ok3[] = {"https://192-0-2-10.00000000000000000000000000000000.plex.direct:32400", NULL};
+  fake_probe p3 = {ok3, {{0}}, 0};
+  idx = pp_choose_conn(&res[0], fake_probe_fn, &p3, 8000, &reachable, &cls);
+  CHECK(idx == 0);
+  CHECK(cls == PP_CONN_LOCAL);
+}
+
+static void test_choose_conn_unreachable_falls_back_to_best_ranked(void) {
+  pp_resource res[4];
+  int count = 0;
+  CHECK(read_shared(res, 4, &count) == 0);
+  fake_probe p = {NULL, {{0}}, 0}; /* nothing answers */
+  int reachable = 1, cls = -1;
+  int idx = pp_choose_conn(&res[1], fake_probe_fn, &p, 8000, &reachable, &cls);
+  CHECK(idx == 1); /* best-ranked kept so the UI can show an error */
+  CHECK(reachable == 0);
+  CHECK(cls == PP_CONN_REMOTE);
+  CHECK(p.nseen == 3); /* every candidate was tried */
+
+  /* no connections at all */
+  const char *j = "[{\"name\":\"Bare\",\"provides\":\"server\",\"owned\":true,"
+                  "\"accessToken\":\"t\",\"clientIdentifier\":\"c\"}]";
+  pp_resource bare[1];
+  CHECK(pp_parse_resources(j, bare, 1, &count) == 0);
+  CHECK(pp_choose_conn(&bare[0], fake_probe_fn, &p, 8000, &reachable, &cls) == -1);
+  CHECK(reachable == 0);
+}
+
+static void test_choose_conn_respects_time_budget(void) {
+  pp_resource res[4];
+  int count = 0;
+  CHECK(read_shared(res, 4, &count) == 0);
+  fake_probe p = {NULL, {{0}}, 0};
+  int reachable = 1, cls = -1;
+  /* zero budget: probing is skipped entirely, best-ranked fallback returned */
+  CHECK(pp_choose_conn(&res[1], fake_probe_fn, &p, 0, &reachable, &cls) == 1);
+  CHECK(p.nseen == 0);
+  CHECK(reachable == 0);
+  CHECK(pp_choose_conn(NULL, fake_probe_fn, &p, 8000, &reachable, &cls) == -1);
+}
+
 /* ---------- transcode URL ---------- */
 
 static void test_build_transcode_url_offset_zero(void) {
@@ -356,6 +518,12 @@ int main(void) {
   RUN(test_parse_servers);
   RUN(test_parse_servers_name_null_safe);
   RUN(test_parse_servers_bad);
+  RUN(test_parse_resources_shared_fixture);
+  RUN(test_parse_resources_caps_and_errors);
+  RUN(test_rank_conns_shared_server);
+  RUN(test_choose_conn_probes_ranked_order);
+  RUN(test_choose_conn_unreachable_falls_back_to_best_ranked);
+  RUN(test_choose_conn_respects_time_budget);
   RUN(test_parse_sections);
   RUN(test_parse_shows);
   RUN(test_parse_seasons);

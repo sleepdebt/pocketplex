@@ -1,0 +1,116 @@
+[
+ {
+   "name": "Home Server",
+   "product": "Plex Media Server",
+   "productVersion": "1.43.3.10896-cb3ebc72d",
+   "platform": "MacOSX",
+   "clientIdentifier": "eg-homeserver01",
+   "provides": "server",
+   "owned": true,
+   "home": false,
+   "relay": true,
+   "presence": true,
+   "publicAddress": "198.51.100.10",
+   "publicAddressMatches": true,
+   "accessToken": "REDACTED",
+   "connections": [
+    {
+     "protocol": "https",
+     "address": "192.0.2.10",
+     "port": 32400,
+     "uri": "https://192-0-2-10.00000000000000000000000000000000.plex.direct:32400",
+     "local": true,
+     "relay": false,
+     "IPv6": false
+    },
+    {
+     "protocol": "https",
+     "address": "198.51.100.10",
+     "port": 32400,
+     "uri": "https://198-51-100-10.00000000000000000000000000000000.plex.direct:32400",
+     "local": false,
+     "relay": false,
+     "IPv6": false
+    }
+   ]
+  },
+  {
+   "name": "Nightowl",
+   "product": "Plex Media Server",
+   "productVersion": "1.43.0.10492-121068a07",
+   "platform": "Windows",
+   "clientIdentifier": "eg-nightowl01",
+   "provides": "server",
+   "owned": false,
+   "home": false,
+   "relay": true,
+   "presence": true,
+   "publicAddress": "198.51.100.20",
+   "publicAddressMatches": false,
+   "accessToken": "REDACTED",
+   "connections": [
+    {
+     "protocol": "https",
+     "address": "192.0.2.133",
+     "port": 32400,
+     "uri": "https://192-0-2-133.00000000000000000000000000000000.plex.direct:32400",
+     "local": true,
+     "relay": false,
+     "IPv6": false
+    },
+    {
+     "protocol": "https",
+     "address": "198.51.100.20",
+     "port": 32400,
+     "uri": "https://198-51-100-20.00000000000000000000000000000000.plex.direct:32400",
+     "local": false,
+     "relay": false,
+     "IPv6": false
+    },
+    {
+     "protocol": "https",
+     "address": "203.0.113.68",
+     "port": 8443,
+     "uri": "https://203-0-113-68.00000000000000000000000000000000.plex.direct:8443",
+     "local": false,
+     "relay": true,
+     "IPv6": false
+    }
+   ]
+  },
+  {
+   "name": "Friend Server",
+   "product": "Plex Media Server",
+   "productVersion": "1.43.1.10111-aa11bb22c",
+   "platform": "Linux",
+   "clientIdentifier": "eg-friendserver1",
+   "provides": "server",
+   "owned": false,
+   "home": true,
+   "relay": false,
+   "presence": true,
+   "publicAddress": "198.51.100.30",
+   "publicAddressMatches": true,
+   "accessToken": "REDACTED",
+   "connections": [
+    {
+     "protocol": "https",
+     "address": "192.0.2.30",
+     "port": 32400,
+     "uri": "https://192-0-2-30.00000000000000000000000000000000.plex.direct:32400",
+     "local": true,
+     "relay": false,
+     "IPv6": false
+    },
+    {
+     "protocol": "https",
+     "address": "198.51.100.30",
+     "port": 32400,
+     "uri": "https://198-51-100-30.00000000000000000000000000000000.plex.direct:32400",
+     "local": false,
+     "relay": false,
+     "IPv6": false
+    }
+   ]
+  }
+]

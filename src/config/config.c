@@ -48,6 +48,7 @@ static void assign(pp_config *cfg, const char *section, const char *key, char *v
   if (strcmp(section, "plex") == 0) {
     if (strcmp(key, "server_url") == 0) copy_field(cfg->server_url, sizeof cfg->server_url, value);
     else if (strcmp(key, "token") == 0) copy_field(cfg->token, sizeof cfg->token, value);
+    else if (strcmp(key, "server_token") == 0) copy_field(cfg->server_token, sizeof cfg->server_token, value);
     else if (strcmp(key, "client_id") == 0) copy_field(cfg->client_id, sizeof cfg->client_id, value);
   } else if (strcmp(section, "ui") == 0) {
     if (strcmp(key, "quality") == 0) copy_field(cfg->quality, sizeof cfg->quality, value);
@@ -95,17 +96,21 @@ int pp_config_save(const pp_config *cfg, const char *path) {
       fprintf(f,
               "# PocketPlex config. Copy to pocketplex.ini next to the binary.\n"
               "# Dev shortcut: server_url + token set = PIN login and discovery are skipped.\n"
+              "# token = plex.tv account token; server_token = token for the saved\n"
+              "# server (resource accessToken); empty server_token falls back to token.\n"
               "\n"
               "[plex]\n"
               "server_url = %s\n"
               "token = %s\n"
+              "server_token = %s\n"
               "client_id = %s\n"
               "\n"
               "[ui]\n"
               "quality = %s        ; 360p | 480p\n"
               "subtitles = %s      ; burn | off\n"
               "swap_ab = %s\n",
-              cfg->server_url, cfg->token, cfg->client_id, cfg->quality, cfg->subtitles,
+              cfg->server_url, cfg->token, cfg->server_token, cfg->client_id,
+              cfg->quality, cfg->subtitles,
               cfg->swap_ab ? "true" : "false") >= 0 &&
       fclose(f) == 0;
   if (!ok || rename(tmp, path) != 0) { remove(tmp); return -1; }
@@ -120,4 +125,9 @@ void pp_config_ensure_client_id(pp_config *cfg) {
   srandom((unsigned)(a ^ (a >> 32)));
   snprintf(cfg->client_id, sizeof cfg->client_id, "pp-%08lx-%08lx-%08lx",
            (unsigned long)random(), (unsigned long)random(), (unsigned long)random());
+}
+
+const char *pp_config_pms_token(const pp_config *cfg) {
+  if (!cfg) return "";
+  return cfg->server_token[0] ? cfg->server_token : cfg->token;
 }

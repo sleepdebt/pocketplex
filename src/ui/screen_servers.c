@@ -38,7 +38,7 @@ static void servers_persist(const pp_server *srv) {
   pp_config_load(&cfg, ui_ini_path());
   int ok = session_apply_server(&cfg, srv) == 0 && pp_config_save(&cfg, ui_ini_path()) == 0;
   memset(&cfg, 0, sizeof cfg);
-  if (ok) LOGI("servers: saved choice (server token %s)", srv->token && srv->token[0] ? "set" : "kept");
+  if (ok) LOGI("servers: saved choice (server token %s)", srv->token && srv->token[0] ? "set" : "none");
   else { LOGW("servers: could not save the chosen server"); ui_toast("Could not save server"); }
 }
 
@@ -48,10 +48,12 @@ static void servers_render(pp_screen *self) {
   ui_draw_text("Servers", PP_MARGIN_L, 10, PP_COLOR_FG);
   ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
-  /* Check async result */
+  /* Check async result (discovery probes every server: several seconds) */
   if (d->req && !worker_is_done(d->req)) {
     self->loading = 1;
+    ui_draw_text("Looking for servers...", PP_MARGIN_L, PP_SCREEN_H / 2 - 30, PP_COLOR_FG);
     ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
+    ui_draw_text("B: back", PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
     g_spinner_frame++;
     return;
   }

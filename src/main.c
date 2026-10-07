@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
   } else if (play_key) {
     ui_set_smoke_play(play_key, play_s * 1000);
     srv.url = cfg.server_url;
-    srv.token = cfg.token;
+    srv.token = (char *)pp_config_pms_token(&cfg);  /* const; ui_set_server deep-copies */
     srv.client_id = cfg.client_id;
     ui_set_server(&srv);
     ui_set_auth_token(cfg.token);
@@ -125,7 +125,7 @@ int main(int argc, char **argv) {
   } else if (walk) {
     ui_set_smoke_walk(1);
     srv.url = cfg.server_url;
-    srv.token = cfg.token;
+    srv.token = (char *)pp_config_pms_token(&cfg);  /* const; ui_set_server deep-copies */
     srv.client_id = cfg.client_id;
     ui_set_server(&srv);
     ui_set_auth_token(cfg.token);
@@ -140,7 +140,7 @@ int main(int argc, char **argv) {
     if (start != SCREEN_LINK) ui_set_auth_token(cfg.token);
     if (start == SCREEN_HOME) {
       srv.url = cfg.server_url;
-      srv.token = cfg.token;
+      srv.token = (char *)pp_config_pms_token(&cfg);  /* const; ui_set_server deep-copies */
       srv.client_id = cfg.client_id;
       ui_set_server(&srv);
     }

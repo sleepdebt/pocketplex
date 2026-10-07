@@ -71,15 +71,15 @@
   "dnsRebindingProtection": false,
   "natLoopbackSupported": true,
   "connections": [
-   {
-    "protocol": "https",
-    "address": "10.0.0.133",
-    "port": 32400,
-    "uri": "https://99-9-9-999.00000000000000000000000000000000.plex.direct:32400",
-    "local": true,
-    "relay": false,
-    "IPv6": false
-   },
+    {
+     "protocol": "https",
+     "address": "198.51.100.50",
+     "port": 32400,
+     "uri": "https://198-51-100-50.00000000000000000000000000000000.plex.direct:32400",
+     "local": true,
+     "relay": false,
+     "IPv6": false
+    },
    {
     "protocol": "https",
     "address": "203.0.113.20",

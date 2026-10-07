@@ -25,9 +25,82 @@ int pp_parse_pin(const char *json, char code_out[8], long *id_out,
                  char *token_out, size_t token_n);
 
 /* plex.tv/api/v2/resources JSON -> servers that provide "server".
- * url = the local=true connection if present, else the first connection.
+ * url = the best-ranked connection (see pp_rank_conns) without probing.
  * token = the resource accessToken; client_id = the resource clientIdentifier. */
 int pp_parse_servers(const char *json, pp_server **out, int *count);
+
+/* ---- auth.c: discovery model (connection ranking for shared servers) ---- */
+
+/* How a connection was classified when it was chosen. */
+enum { PP_CONN_LOCAL = 0, PP_CONN_REMOTE = 1, PP_CONN_RELAY = 2 };
+
+#define PP_MAX_CONNS 8
+#define PP_MAX_RESOURCES 16
+#define PP_PROBE_BUDGET_MS 8000 /* worst-case total probe time per server */
+
+/* One connections[] entry of a resource: where to reach a PMS and how plex.tv
+ * classifies it. Fixed-size so resource parsing stays allocation-free. */
+typedef struct {
+  char uri[512];
+  int local; /* resource says we're on the server's LAN */
+  int relay; /* plex.tv relay (plex.direct:8443 style) */
+} pp_conn;
+
+/* A server resource from plex.tv/api/v2/resources, pre-allocation. */
+typedef struct {
+  char name[256];
+  char token[256]; /* resource accessToken: the PMS token, NOT the account token */
+  char client_id[80];
+  int owned;
+  int public_address_matches; /* client's public IP == server's: local conns plausible */
+  pp_conn conns[PP_MAX_CONNS];
+  int conn_count;
+} pp_resource;
+
+/* Reachability probe: return 1 when url answers GET /identity with 200 using
+ * token in the X-Plex-Token header. Injected so tests never touch the network. */
+typedef int (*pp_probe_fn)(const char *url, const char *token, void *ud);
+
+/* Pure: resources JSON (same array pp_parse_servers reads) into res[0..max-1].
+ * Resources that don't provide "server" are skipped; excess servers/conns are
+ * truncated, not overflowed. 0 = ok, <0 = PP_ERR_*. */
+int pp_parse_resources(const char *json, pp_resource *res, int max, int *count);
+
+/* Pure: connection indices of res ordered best-first:
+ *  1. local, but only when res->owned || res->public_address_matches
+ *  2. remote direct (local=0, relay=0)
+ *  3. relay
+ *  4. local that is not allowed (a shared server's LAN address we can't route
+ *     to) - kept as a display-only last resort.
+ * Returns the number of indices written (== res->conn_count). */
+int pp_rank_conns(const pp_resource *res, int order[PP_MAX_CONNS]);
+
+/* Probes the ranked candidates in order and returns the index of the first
+ * that answers 200. When none does (or the budget_ms runs out), returns the
+ * best-ranked index anyway with *reachable_out = 0, so callers can still show
+ * the server. Both out params are always written (class from the chosen
+ * connection; PP_CONN_REMOTE when there is none). -1 only when res has
+ * no connections or is NULL. */
+int pp_choose_conn(const pp_resource *res, pp_probe_fn probe, void *ud,
+                   long budget_ms, int *reachable_out, int *class_out);
+
+/* pp_server plus what discovery learned about the chosen connection. */
+typedef struct {
+  pp_server server;
+  int conn_class; /* PP_CONN_* of the chosen connection */
+  int reachable;  /* 1 when the probe got a 200 */
+} pp_server_info;
+
+/* Discovery with ranking + probing (the network probe from http.c). The
+ * pp_server_infos array is owned by the caller; free with the *_free below.
+ * This is what pp_discover_servers (the frozen contract) calls internally. */
+int pp_discover_servers_ex(const char *token, pp_probe_fn probe, void *ud,
+                           pp_server_info **out, int *count);
+void pp_server_infos_free(pp_server_info *servers, int count);
+
+/* http.c: the real probe - GET {url}/identity, connect timeout 3 s, total 4 s,
+ * token in a header, nothing logged. Returns 1 only on HTTP 200. */
+int pp_http_probe(const char *url, const char *token, void *ud);
 
 /* ---- library.c: pure parsing ---- */
 

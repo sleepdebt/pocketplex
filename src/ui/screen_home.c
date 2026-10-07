@@ -26,7 +26,14 @@ static void home_collect(home_data_t *d, pp_request **req, pp_list *out) {
   int st = worker_status(*req);
   if (st == PP_OK) worker_take_list(*req, out);
   else if (st == PP_ERR_AUTH) { if (!d->auth_failed) d->auth_failed = 1; }
-  else if (worker_error(*req)[0]) ui_toast(worker_error(*req));
+  else {
+    /* Unreachable saved server: name it and point at the way out. */
+    const pp_server *srv = ui_current_server();
+    const char *name = srv && srv->name && srv->name[0] ? srv->name : "server";
+    char msg[128];
+    snprintf(msg, sizeof msg, "Can't reach %s — L1: servers", name);
+    ui_toast(msg);
+  }
   worker_release(*req);
   *req = NULL;
 }

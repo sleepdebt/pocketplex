@@ -1,4 +1,4 @@
-<p align="center"><img src="assets/logo/logo.svg" alt="PocketPlex" width="600"></p>
+<p align="center"><img src="assets/logo/pocketplexlogo.png" alt="PocketPlex" width="600"></p>
 
 # PocketPlex
 

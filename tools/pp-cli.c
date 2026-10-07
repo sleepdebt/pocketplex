@@ -348,13 +348,13 @@ int main(int argc, char **argv) {
   server_from_config();
 
   int server_idx = -1;
+  char *nargv[64]; /* function scope: argv points here for the rest of main */
   if (strcmp(argv[1], "--server") == 0) {
     if (argc < 4) { usage(); return 1; }
     char *end = NULL;
     long n = strtol(argv[2], &end, 10);
     if (!end || *end != '\0' || n < 0) { usage(); return 1; }
     server_idx = (int)n;
-    char *nargv[64];
     int na = 0;
     nargv[na++] = argv[0];
     for (int i = 3; i < argc && na < 63; i++) nargv[na++] = argv[i];

@@ -2,43 +2,41 @@
 
 # PocketPlex
 
-A lightweight, text-first Plex client for Linux retro handhelds. It streams from your own Plex Media Server (PMS) over home Wi-Fi: the server transcodes everything to a small 480p H.264 stream, and the handheld shows a text menu and plays it with mpv.
+Watch your own Plex library on an Anbernic RG35XX SP. PocketPlex is a small text-menu client: your Plex server transcodes to a 480p H.264 stream over home Wi-Fi, and the handheld plays it with mpv. No Plex Pass needed.
 
-- **Primary target:** Anbernic RG35XX SP on Knulli (verified, v1 complete)
-- **Secondary target:** Miyoo Mini Plus on Onion (music-first; not yet tested on the device)
-- Not affiliated with Plex Inc.
+Built for the RG35XX SP on Knulli (v1 is done and verified on the device). A Miyoo Mini Plus port is in progress, music-first, but hasn't been tested on the hardware yet. Not affiliated with Plex Inc.
 
 **Status:** v1 works on the RG35XX SP: PIN login, server choice, browsing Movies and TV, playback with resume, and watch-progress sync with Plex. Music mode and the Mini Plus are next. See [Status and roadmap](#status-and-roadmap).
 
 ---
 
-## Requirements
+## What you need
 
-- A Plex Media Server on your home network, with enough CPU to transcode (or hardware transcoding). Plex Pass isn't needed.
+- A Plex Media Server on your home network with enough CPU to transcode (or hardware transcoding). Plex Pass isn't needed.
 - On the server: **Settings → Network → Secure connections = "Preferred"** (not "Required").
-- An RG35XX SP running **Knulli** with Wi-Fi set up. It uses the system SDL2, SDL2_ttf, libcurl and mpv, which Knulli already ships.
+- An RG35XX SP running **Knulli** with Wi-Fi set up. PocketPlex uses the system SDL2, SDL2_ttf, libcurl and mpv, which Knulli already ships.
 
-## Install on the RG35XX SP (Knulli)
+## Install on the RG35XX SP
 
-1. Get `pocketplex-sp.zip`: either the `pocketplex-sp-zip` artifact from the latest green GitHub Actions run, or build it yourself (see [Building](#building)).
+1. Get `pocketplex-sp.zip`, either from the `pocketplex-sp-zip` artifact of the latest green GitHub Actions run, or by building it yourself (see [Building](#building)).
 2. Copy the zip's contents to `/userdata/roms/ports/` on the SD card (or over SSH), so you have:
    ```
    /userdata/roms/ports/PocketPlex.sh
    /userdata/roms/ports/pocketplex/   (PocketPlex binary, assets/, port.json, ...)
    ```
-3. In EmulationStation, refresh the list once: **Start → Game Settings → Update Gamelists**. **PocketPlex** then shows up under **Ports**.
+3. In EmulationStation, refresh the list once: **Start → Game Settings → Update Gamelists**. PocketPlex then shows up under **Ports**.
 
-To update later, copy the new zip over the old files. Your `pocketplex/pocketplex.ini` (login and settings) is kept, because the zip doesn't contain one.
+To update later, copy the new zip over the old files. Your `pocketplex/pocketplex.ini` (login and settings) survives, because the zip doesn't contain one.
 
 ## First run
 
 1. Open **Ports → PocketPlex**. The **Link** screen shows a 4-character code.
 2. On your phone, go to **plex.tv/link** and enter the code. The handheld saves its own login to `pocketplex/pocketplex.ini`.
-3. Pick your server from the list (shown by name). The choice is saved, so later launches open straight on **Home**.
+3. Pick your server from the list. The choice is saved, so later launches open straight on **Home**.
 
 ## Using it
 
-**Home** shows Continue Watching and your libraries. Browse Library → Show → Season → Episode (or Movies → Movie), and press A on an item to open its **Detail** screen. If you've watched part of it, A offers **Resume** or **Play from start** (Up/Down to choose).
+**Home** shows Continue Watching and your libraries. Browse Library → Show → Season → Episode (or Movies → Movie) and press A on an item to open its **Detail** screen. If you've watched part of it, A offers **Resume** or **Play from start** (Up/Down to choose).
 
 | Button | Menus | During playback |
 |---|---|---|
@@ -72,7 +70,7 @@ Progress is reported to your server while you watch and when you stop, so Plex (
 
 ## Configuration file
 
-`pocketplex/pocketplex.ini` (next to the binary; the launcher points `POCKETPLEX_INI` at it). Normally the app writes it for you. Keys: `[plex] server_url, token, client_id` and `[ui] quality = 480p|360p, subtitles = burn|off, swap_ab = true|false`. See `pocketplex.ini.example`. **It contains your Plex token: don't share it or commit it** (it's gitignored).
+`pocketplex/pocketplex.ini` lives next to the binary; the launcher points `POCKETPLEX_INI` at it. You shouldn't have to edit it by hand, but the keys are: `[plex] server_url, token, client_id` and `[ui] quality = 480p|360p, subtitles = burn|off, swap_ab = true|false`. See `pocketplex.ini.example`. **It contains your Plex token, so don't share it or commit it** (it's gitignored).
 
 ---
 
@@ -96,7 +94,7 @@ make docker-mmp      # → dist/pocketplex-mmp.zip  (armhf, Miyoo Mini Plus / On
 CI (`.github/workflows/build.yml`) builds desktop, SP and MMP on every push and uploads the zips as artifacts.
 
 **Developer tools:**
-- `build/pp-cli`: headless client for the real server. `login | servers | ls [key] | ondeck | url <rk> | stop <session> | progress <rk> <ms> | watched <rk>`. It uses `pocketplex.ini` (or `POCKETPLEX_INI`).
+- `build/pp-cli`: headless client for the real server. `login | servers | ls [key] | ondeck | url <rk> | stop <session> | progress <rk> <ms> | watched <rk>`. It reads `pocketplex.ini` (or `POCKETPLEX_INI`).
 - App smoke modes: `--smoke-scroll`, `--smoke-walk` (real server, Library → Episode and back), `--smoke-link` (fake data), `--smoke-play <ratingKey> [--play-seconds N]`, `--exit-after-ms N`.
 
 Merge gate: 0 warnings in `make`, `make test` **and** `make docker-sp` (GCC catches warnings macOS clang doesn't).

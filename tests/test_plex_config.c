@@ -29,6 +29,7 @@ static void test_loads_all_fields(void) {
       "[plex]\n"
       "server_url = http://192.0.2.10:32400\n"
       "token = abc123xyz\n"
+      "server_token = srv-tok-456\n"
       "client_id = my-uuid-1\n"
       "\n"
       "[ui]\n"
@@ -39,10 +40,50 @@ static void test_loads_all_fields(void) {
   CHECK(load(&cfg) == 0);
   CHECK_STR(cfg.server_url, "http://192.0.2.10:32400");
   CHECK_STR(cfg.token, "abc123xyz");
+  CHECK_STR(cfg.server_token, "srv-tok-456");
   CHECK_STR(cfg.client_id, "my-uuid-1");
   CHECK_STR(cfg.quality, "360p");
   CHECK_STR(cfg.subtitles, "off");
   CHECK(cfg.swap_ab == 1);
+}
+
+static void test_pms_token_falls_back_to_account_token(void) {
+  pp_config cfg;
+  pp_config_defaults(&cfg);
+  CHECK(cfg.server_token[0] == '\0');
+  CHECK_STR(pp_config_pms_token(&cfg), ""); /* nothing set: empty, not NULL */
+  snprintf(cfg.token, sizeof cfg.token, "acct-tok");
+  CHECK_STR(pp_config_pms_token(&cfg), "acct-tok"); /* old ini files: token wins */
+  snprintf(cfg.server_token, sizeof cfg.server_token, "srv-tok");
+  CHECK_STR(pp_config_pms_token(&cfg), "srv-tok"); /* set: server token wins */
+  CHECK_STR(pp_config_pms_token(NULL), ""); /* NULL-safe */
+}
+
+static void test_save_roundtrip_keeps_both_tokens(void) {
+  pp_config cfg;
+  pp_config_defaults(&cfg);
+  snprintf(cfg.server_url, sizeof cfg.server_url, "http://192.0.2.3:32400");
+  snprintf(cfg.token, sizeof cfg.token, "account-roundtrip");
+  snprintf(cfg.server_token, sizeof cfg.server_token, "server-roundtrip");
+  snprintf(cfg.client_id, sizeof cfg.client_id, "cid-42");
+  char path[512];
+  snprintf(path, sizeof path, "%s/pp_test_config.ini", tmpdir);
+  CHECK(pp_config_save(&cfg, path) == 0);
+
+  pp_config back;
+  CHECK(pp_config_load(&back, path) == 0);
+  /* saving the server token must not clobber the account token */
+  CHECK_STR(back.token, "account-roundtrip");
+  CHECK_STR(back.server_token, "server-roundtrip");
+  CHECK_STR(back.server_url, "http://192.0.2.3:32400");
+  CHECK_STR(back.client_id, "cid-42");
+
+  /* and a re-save of the loaded config is stable */
+  CHECK(pp_config_save(&back, path) == 0);
+  pp_config again;
+  CHECK(pp_config_load(&again, path) == 0);
+  CHECK_STR(again.token, "account-roundtrip");
+  CHECK_STR(again.server_token, "server-roundtrip");
 }
 
 static void test_missing_file_gives_defaults(void) {
@@ -167,6 +208,8 @@ int main(void) {
   const char *t = getenv("TMPDIR");
   snprintf(tmpdir, sizeof tmpdir, "%s", (t && *t) ? t : "/tmp");
   RUN(test_loads_all_fields);
+  RUN(test_pms_token_falls_back_to_account_token);
+  RUN(test_save_roundtrip_keeps_both_tokens);
   RUN(test_missing_file_gives_defaults);
   RUN(test_quoted_values_and_spaces);
   RUN(test_save_roundtrip);

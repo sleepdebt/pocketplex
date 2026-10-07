@@ -2,17 +2,21 @@
  *
  * Reads pocketplex.ini (POCKETPLEX_INI env overrides; then ./, then next to
  * the binary). If [plex] server_url + token are set, login/discovery are
- * skipped - the dev fallback from the spec.
+ * skipped - the dev fallback from the spec. PMS calls use server_token when
+ * set, else the account token.
  *
  * Commands:
  *   login                       PIN flow against plex.tv, then pick a server
- *   servers                     list servers on the account
+ *   servers                     list servers (chosen url, class, reachable)
  *   ls [key]                    sections, or children of key/ratingKey
  *   ondeck                      Continue Watching / On Deck
  *   url <ratingKey> [session]   transcode URL (plays in mpv); offset 0
  *   stop <session>              stop the PMS transcode session
  *   progress <ratingKey> <ms> [playing|paused|stopped]   report a resume point
  *   watched <ratingKey>         mark watched (scrobble)
+ *
+ * pp-cli --server N <command>  runs <command> against discovered server N
+ * (url + that resource's accessToken) instead of the ini's saved server.
  */
 #include "config/config.h"
 #include "plex/internal.h"
@@ -24,7 +28,14 @@
 #include <time.h>
 
 static pp_config cfg;
-static pp_server srv; /* filled from cfg */
+static pp_server srv; /* filled from cfg, or from --server N */
+
+static char *picked_url, *picked_token, *picked_cid, *picked_name;
+
+static void free_picked(void) {
+  free(picked_url); free(picked_token); free(picked_cid); free(picked_name);
+  picked_url = picked_token = picked_cid = picked_name = NULL;
+}
 
 static const char *err_name(int rc) {
   switch (rc) {
@@ -66,7 +77,7 @@ static char *ini_path(const char *argv0) {
 
 static void server_from_config(void) {
   srv.url = cfg.server_url;
-  srv.token = cfg.token;
+  srv.token = (char *)pp_config_pms_token(&cfg); /* server_token, else token */
   srv.client_id = cfg.client_id;
 }
 
@@ -136,16 +147,87 @@ static int cmd_ondeck(void) {
   return 0;
 }
 
+/* Host part of a URL ("https://h:1/x" -> "h"). */
+static void url_host(const char *url, char *out, size_t n) {
+  out[0] = '\0';
+  if (!url) return;
+  const char *p = strstr(url, "://");
+  p = p ? p + 3 : url;
+  size_t len = strcspn(p, ":/?");
+  if (len >= n) len = n - 1;
+  memcpy(out, p, len);
+  out[len] = '\0';
+}
+
+static char *dupstr(const char *s) {
+  size_t n = strlen(s) + 1;
+  char *p = malloc(n);
+  if (p) memcpy(p, s, n);
+  return p;
+}
+
+static const char *conn_class_name(int c) {
+  switch (c) {
+    case PP_CONN_LOCAL: return "local";
+    case PP_CONN_RELAY: return "relay";
+    case PP_CONN_REMOTE: return "remote";
+  }
+  return "?";
+}
+
 static int cmd_servers(void) {
-  pp_server *servers = NULL;
+  pp_server_info *servers = NULL;
   int count = 0;
-  int rc = pp_discover_servers(cfg.token, &servers, &count);
+  int rc = pp_discover_servers_ex(cfg.token, pp_http_probe, NULL, &servers, &count);
   if (rc != PP_OK) return fail("servers", rc);
-  for (int i = 0; i < count; i++)
-    printf("%d  %s  %s  (%s)\n", i, servers[i].name ? servers[i].name : "(unnamed)",
-           servers[i].url, servers[i].client_id);
+  for (int i = 0; i < count; i++) {
+    char host[256];
+    url_host(servers[i].server.url, host, sizeof host);
+    printf("%d  %-24s %-12s %-7s %s\n", i,
+           servers[i].server.name ? servers[i].server.name : "(unnamed)",
+           conn_class_name(servers[i].conn_class),
+           servers[i].reachable ? "yes" : "NO", host);
+  }
   printf("(%d servers)\n", count);
-  pp_servers_free(servers, count);
+  pp_server_infos_free(servers, count);
+  return 0;
+}
+
+/* --server N: run the command against discovered server N. */
+static int pick_server(int idx) {
+  if (!cfg.token[0]) {
+    fprintf(stderr, "pp-cli: --server needs the account token; run 'pp-cli login' first\n");
+    return 2;
+  }
+  pp_server_info *servers = NULL;
+  int count = 0;
+  int rc = pp_discover_servers_ex(cfg.token, pp_http_probe, NULL, &servers, &count);
+  if (rc != PP_OK) return fail("servers", rc);
+  if (idx < 0 || idx >= count) {
+    fprintf(stderr, "pp-cli: no server %d (0..%d)\n", idx, count - 1);
+    pp_server_infos_free(servers, count);
+    return 2;
+  }
+  free_picked();
+  picked_url = dupstr(servers[idx].server.url);
+  picked_token = dupstr(servers[idx].server.token);
+  picked_cid = dupstr(servers[idx].server.client_id);
+  picked_name = dupstr(servers[idx].server.name ? servers[idx].server.name : "");
+  if (picked_url && picked_token && picked_cid && picked_name) {
+    srv.url = picked_url;
+    srv.token = picked_token;
+    srv.client_id = picked_cid;
+    srv.name = picked_name;
+    printf("server %d: %s (%s, reachable %s)\n", idx, picked_name,
+           conn_class_name(servers[idx].conn_class),
+           servers[idx].reachable ? "yes" : "no");
+  } else {
+    free_picked();
+    fprintf(stderr, "pp-cli: out of memory\n");
+    pp_server_infos_free(servers, count);
+    return 2;
+  }
+  pp_server_infos_free(servers, count);
   return 0;
 }
 
@@ -172,13 +254,16 @@ static int cmd_login(const char *ini) {
   printf("\nlinked.\n");
   snprintf(cfg.token, sizeof cfg.token, "%s", token);
 
-  pp_server *servers = NULL;
+  pp_server_info *servers = NULL;
   int count = 0;
-  rc = pp_discover_servers(cfg.token, &servers, &count);
+  rc = pp_discover_servers_ex(cfg.token, pp_http_probe, NULL, &servers, &count);
   if (rc == PP_OK && count > 0) {
-    snprintf(cfg.server_url, sizeof cfg.server_url, "%s", servers[0].url);
-    printf("server: %s\n", servers[0].url);
-    pp_servers_free(servers, count);
+    snprintf(cfg.server_url, sizeof cfg.server_url, "%s", servers[0].server.url);
+    /* the resource accessToken is the PMS token; the account token stays in
+     * cfg.token for plex.tv */
+    snprintf(cfg.server_token, sizeof cfg.server_token, "%s", servers[0].server.token);
+    printf("server: %s\n", servers[0].server.url);
+    pp_server_infos_free(servers, count);
   } else {
     fprintf(stderr, "warning: no server found (%s); set server_url in %s\n",
             err_name(rc), ini);
@@ -242,9 +327,10 @@ static int cmd_watched(int argc, char **argv) {
 }
 
 static void usage(void) {
-  fputs("usage: pp-cli <command> [args]\n"
+  fputs("usage: pp-cli [--server N] <command> [args]\n"
         "  login | servers | ls [key] | ondeck | url <rk> [session] |\n"
-        "  stop <session> | progress <rk> <ms> [state] | watched <rk>\n",
+        "  stop <session> | progress <rk> <ms> [state] | watched <rk>\n"
+        "--server N runs the command against discovered server N\n",
         stderr);
 }
 
@@ -261,8 +347,24 @@ int main(int argc, char **argv) {
   }
   server_from_config();
 
+  int server_idx = -1;
+  if (strcmp(argv[1], "--server") == 0) {
+    if (argc < 4) { usage(); return 1; }
+    char *end = NULL;
+    long n = strtol(argv[2], &end, 10);
+    if (!end || *end != '\0' || n < 0) { usage(); return 1; }
+    server_idx = (int)n;
+    char *nargv[64];
+    int na = 0;
+    nargv[na++] = argv[0];
+    for (int i = 3; i < argc && na < 63; i++) nargv[na++] = argv[i];
+    nargv[na] = NULL;
+    argc = na;
+    argv = nargv;
+  }
+
   int needs_server = strcmp(argv[1], "login") != 0 && strcmp(argv[1], "servers") != 0;
-  if (needs_server && (!cfg.server_url[0] || !cfg.token[0])) {
+  if (needs_server && server_idx < 0 && (!cfg.server_url[0] || !cfg.token[0])) {
     fprintf(stderr, "pp-cli: %s has no server_url/token; run 'pp-cli login' first\n", ini);
     return 2;
   }
@@ -270,6 +372,16 @@ int main(int argc, char **argv) {
   int rc = pp_init(cfg.client_id);
   if (rc != PP_OK) return fail("init", rc);
   atexit(pp_cleanup);
+  atexit(free_picked);
+
+  if (server_idx >= 0 && strcmp(argv[1], "login") != 0 && strcmp(argv[1], "servers") != 0) {
+    rc = pick_server(server_idx);
+    if (rc != 0) return rc;
+    if (!srv.url[0]) { /* chosen server has no usable URL */
+      fprintf(stderr, "pp-cli: server %d has no connection URL\n", server_idx);
+      return 2;
+    }
+  }
 
   if (strcmp(argv[1], "login") == 0) rc = cmd_login(ini);
   else if (strcmp(argv[1], "servers") == 0) rc = cmd_servers();

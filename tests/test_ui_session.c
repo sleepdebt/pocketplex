@@ -20,16 +20,20 @@ static void test_apply_server_choice(void) {
   pp_server srv = { "https://10-0-0-2.abc.plex.direct:32400", "server-REDACTED", "cid", NULL };
   CHECK(session_apply_server(&cfg, &srv) == 0);
   CHECK_STR(cfg.server_url, "https://10-0-0-2.abc.plex.direct:32400");
-  CHECK_STR(cfg.token, "server-REDACTED");          /* resource accessToken wins */
+  CHECK_STR(cfg.server_token, "server-REDACTED");   /* resource accessToken -> server_token */
+  CHECK_STR(cfg.token, "account-REDACTED");         /* the account token is never touched */
+  CHECK_STR(pp_config_pms_token(&cfg), "server-REDACTED");
   CHECK(session_start_screen(cfg.token, cfg.server_url) == SCREEN_HOME);
 
   pp_server no_tok = { "http://192.168.1.10:32400", NULL, NULL, NULL };
   CHECK(session_apply_server(&cfg, &no_tok) == 0);
   CHECK_STR(cfg.server_url, "http://192.168.1.10:32400");
-  CHECK_STR(cfg.token, "server-REDACTED");          /* kept when the resource has none */
+  CHECK(cfg.server_token[0] == '\0');               /* cleared: a stale one would be wrong */
+  CHECK_STR(pp_config_pms_token(&cfg), "account-REDACTED");  /* falls back to the account token */
   pp_server empty_tok = { "http://h", "", NULL, NULL };
   CHECK(session_apply_server(&cfg, &empty_tok) == 0);
-  CHECK_STR(cfg.token, "server-REDACTED");
+  CHECK(cfg.server_token[0] == '\0');
+  CHECK_STR(cfg.token, "account-REDACTED");
 
   pp_server no_url = { NULL, "x", NULL, NULL };
   CHECK(session_apply_server(&cfg, &no_url) < 0);   /* nothing to persist */
@@ -41,6 +45,23 @@ static void test_apply_server_choice(void) {
   pp_server too_long = { longurl, NULL, NULL, NULL };
   CHECK(session_apply_server(&cfg, &too_long) < 0);  /* would truncate */
   CHECK_STR(cfg.server_url, "http://h");            /* unchanged on failure */
+}
+
+/* Startup with a saved shared server: token + server_url + server_token goes
+ * straight to Home and PMS calls use the server token; an old ini (no
+ * server_token) still works off the account token. */
+static void test_startup_with_server_token(void) {
+  pp_config cfg;
+  pp_config_defaults(&cfg);
+  snprintf(cfg.token, sizeof cfg.token, "account-REDACTED");
+  snprintf(cfg.server_url, sizeof cfg.server_url, "https://203-0-113-9.abc.plex.direct:32400");
+  snprintf(cfg.server_token, sizeof cfg.server_token, "shared-REDACTED");
+  CHECK(session_start_screen(cfg.token, cfg.server_url) == SCREEN_HOME);
+  CHECK_STR(pp_config_pms_token(&cfg), "shared-REDACTED");
+
+  cfg.server_token[0] = '\0';                        /* old ini file */
+  CHECK(session_start_screen(cfg.token, cfg.server_url) == SCREEN_HOME);
+  CHECK_STR(pp_config_pms_token(&cfg), "account-REDACTED");
 }
 
 static const char *label(const char *url, const char *name) {
@@ -73,6 +94,7 @@ static void test_server_label(void) {
 int main(void) {
   RUN(test_start_screen);
   RUN(test_apply_server_choice);
+  RUN(test_startup_with_server_token);
   RUN(test_server_label);
   return TEST_RESULT();
 }

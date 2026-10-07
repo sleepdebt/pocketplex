@@ -13,11 +13,11 @@ pp_screen_id session_start_screen(const char *token, const char *server_url) {
 
 int session_apply_server(pp_config *cfg, const pp_server *srv) {
   if (!cfg || !srv || !srv->url || !srv->url[0]) return -1;
-  int has_tok = srv->token && srv->token[0];
+  const char *tok = srv->token ? srv->token : "";
   if (strlen(srv->url) >= sizeof cfg->server_url) return -1;
-  if (has_tok && strlen(srv->token) >= sizeof cfg->token) return -1;
+  if (strlen(tok) >= sizeof cfg->server_token) return -1;
   strcpy(cfg->server_url, srv->url);
-  if (has_tok) strcpy(cfg->token, srv->token);
+  strcpy(cfg->server_token, tok);  /* the account token stays untouched */
   return 0;
 }
 

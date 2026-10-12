@@ -16,7 +16,7 @@ Minor review findings that didn't block a merge. Newest at the bottom; tick them
 ## core (peer review of a feature branch, 2026-10-04)
 - [x] `src/ui/ui.c:181-184`: ui_push at the 16-screen cap leaks the screen object. Destroy and free it instead.
 - [x] `src/main.c:112` + `src/ui/ui.c:322`: skip pp_cleanup() when worker_live_count() > 0 after worker_wait_idle times out (exit-path race with curl teardown).
-- [ ] `src/platform/sdl2.c:134-136`: plat_suspend_hook never fires on_resume. Hook SDL foreground/resume events during SP bring-up.
+- [x] `src/platform/sdl2.c:134-136`: plat_suspend_hook never fires on_resume. Fixed 2026-10-11: SDL foreground events + >10 s wall-clock gap fire it; main.c rejoins Wi-Fi with connmanctl (src/platform/wifi.c) and the next request waits for it. Device-verified on the SP.
 - [x] `src/ui/screen_detail.c:96-98`: A on Detail is a toast stub. Wire up player_start + pp_transcode_url (offset 0 + start_ms) with a resume / play-from-start choice.
 - [x] `src/ui/fake_provider.c:17-19`: unchecked strdup (smoke/test path).
 - [ ] `.clangd` at the repo root: decide and add on main if wanted.
@@ -29,7 +29,7 @@ Minor review findings that didn't block a merge. Newest at the bottom; tick them
 - [ ] sdl2.c: close GameController/Joystick handles on SDL_JOYDEVICEREMOVED; drop unused g_quit_requested.
 - [ ] cJSON.c: 6 sprintf deprecation warnings under clang sanitizer builds.
 - [ ] `src/plex/playback.c`: a client id longer than 64 chars makes pp_transcode_url fail (PP_ERR_ARG); skip the param or size the buffer from strlen.
-- [ ] `src/ui/screen_detail.c`: Y ("Toggled watched") only flips a local flag; it should call pp_scrobble / an unscrobble on the server. Not documented until it does.
+- [x] `src/ui/screen_detail.c`: Y now calls pp_scrobble / pp_unscrobble on the server (fixed 2026-10-11, device-verified).
 
 ## core nits (peer reviews, 2026-10-05)
 - [ ] `src/ui/screen_settings.c`: the Swap A/B help text ("Off = buttons follow their printed labels") could be clearer, e.g. "Swaps confirm and back".
@@ -49,3 +49,10 @@ Minor review findings that didn't block a merge. Newest at the bottom; tick them
 - [ ] `tests/test_ui_session.c`: add a rejection test for an over-long server token (300 chars → -1, cfg unchanged).
 - [ ] `tests/fixtures/resources.json` still contains private 192.168.1.x LAN addresses (harmless, but swap for 198.51.100.x placeholders).
 - [ ] Discovery now probes up to ~8 s per unreachable server: a retry-on-failure loop in the Servers screen may feel slow; consider a visible "still looking" message.
+
+## Y button / resume follow-ups (reviews, 2026-10-11)
+- [ ] `src/plex/playback.c`: pp_build_scrobble_url returns PP_ERR_ARG on truncation (conflates bad args with a short buffer; same convention as the decision URL).
+- [ ] `tools/pp-cli.c`: cmd_unwatch duplicates cmd_watched's stub-item boilerplate.
+- [ ] Detail keeps a copy of the list item, so re-entering it from a list that wasn't reloaded shows the old watched flag (lists show no watched markers today).
+- [ ] `fire_resume` (sdl2.c): dedupe when the wall clock jumps backwards.
+- [ ] Wi-Fi rejoin is connman-specific (Knulli); other firmware (Onion/MMP) needs its own path.

@@ -94,7 +94,7 @@ make docker-mmp      # → dist/pocketplex-mmp.zip  (armhf, Miyoo Mini Plus / On
 CI (`.github/workflows/build.yml`) builds desktop, SP and MMP on every push and uploads the zips as artifacts.
 
 **Developer tools:**
-- `build/pp-cli`: headless client for the real server. `login | servers | ls [key] | ondeck | url <rk> | stop <session> | progress <rk> <ms> | watched <rk>`. It reads `pocketplex.ini` (or `POCKETPLEX_INI`).
+- `build/pp-cli`: headless client for the real server. `login | servers | ls [key] | ondeck | url <rk> | stop <session> | progress <rk> <ms> | watched <rk> | unwatch <rk>`. It reads `pocketplex.ini` (or `POCKETPLEX_INI`).
 - App smoke modes: `--smoke-scroll`, `--smoke-walk` (real server, Library → Episode and back), `--smoke-link` (fake data), `--smoke-play <ratingKey> [--play-seconds N]`, `--exit-after-ms N`.
 
 Merge gate: 0 warnings in `make`, `make test` **and** `make docker-sp` (GCC catches warnings macOS clang doesn't).

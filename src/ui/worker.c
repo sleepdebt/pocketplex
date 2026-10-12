@@ -4,6 +4,7 @@
  */
 #include "ui/worker.h"
 #include "ui/fake_provider.h"
+#include "platform/wifi.h"
 #include "log.h"
 
 #include <pthread.h>
@@ -61,11 +62,13 @@ static int fake_delay_ms(void) {
   return v > 0 ? v : 0;
 }
 
-/* Wi-Fi takes a few seconds to reconnect after a resume; envs keep tests fast. */
+/* After a resume the next request waits for the async Wi-Fi reconnect (wifi.c)
+ * to finish, capped at this; where connmanctl is absent the wait is an immediate
+ * no-op. The reconnect itself has a ~15 s budget, hence the default. */
 static int resume_delay_ms(void) {
   const char *s = getenv("PP_RESUME_DELAY_MS");
   if (s) { int v = atoi(s); return v >= 0 ? v : 0; }
-  return 3000;
+  return 15000;
 }
 
 static int resume_retry_ms(void) {
@@ -174,8 +177,9 @@ static void *worker_thread(void *arg) {
   int delay = fake_delay_ms();
   if (delay > 0 && !is_cancelled(req)) sleep_ms(delay);
 
-  /* First request after a resume: Wi-Fi is still reconnecting, so wait a
-   * moment and retry a network error once. */
+  /* First request after a resume: wait for the Wi-Fi reconnect to finish
+   * (started by pp_wifi_reconnect_async in on_resume), then retry a network
+   * error once. */
   int after_resume = 0;
   if (!is_cancelled(req))
     after_resume = __atomic_exchange_n(&g_resume_pending, 0, __ATOMIC_ACQ_REL);
@@ -185,10 +189,8 @@ static void *worker_thread(void *arg) {
     if (after_resume)  /* never ran: hand the flag to the next request */
       __atomic_store_n(&g_resume_pending, 1, __ATOMIC_RELEASE);
   } else {
-    if (after_resume) {
-      int d = resume_delay_ms();
-      if (d > 0 && !is_cancelled(req)) sleep_ms(d);
-    }
+    if (after_resume && !is_cancelled(req))
+      pp_wifi_reconnect_wait(resume_delay_ms());
     if (is_cancelled(req)) {
       req->status = PP_ERR_ARG;
     } else {

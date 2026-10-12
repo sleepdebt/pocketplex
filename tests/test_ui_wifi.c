@@ -162,10 +162,20 @@ static void test_connman_state(void) {
   CHECK(pp_wifi_connman_state(NULL, &powered, &connected) == -1);
 }
 
+/* Where connmanctl is absent (desktop/CI), async + wait + reconnect are no-ops. */
+static void test_reconnect_noop_off_device(void) {
+  if (pp_wifi_available()) return;  /* a host with connman: not a no-op there */
+  pp_wifi_reconnect_async();        /* must not start anything */
+  CHECK(pp_wifi_reconnect_wait(0) == 1);
+  CHECK(pp_wifi_reconnect_wait(500) == 1);
+  CHECK(pp_wifi_reconnect() == 0);
+}
+
 int main(void) {
   RUN(test_iw_link);
   RUN(test_favorite_service);
   RUN(test_rfkill);
   RUN(test_connman_state);
+  RUN(test_reconnect_noop_off_device);
   return TEST_RESULT();
 }

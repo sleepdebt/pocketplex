@@ -10,6 +10,7 @@
 #include <time.h>
 #include "test.h"
 #include "ui/worker.h"
+#include "platform/wifi.h"
 #include "plex/plex.h"
 
 static void sleep_ms(int ms) {
@@ -268,6 +269,25 @@ static void test_resume_retry_once(void) {
   unsetenv("PP_RESUME_RETRY_MS");
 }
 
+/* Where connmanctl is absent (desktop/CI), the post-resume wait on the Wi-Fi
+ * reconnect is an immediate no-op: even with PP_RESUME_DELAY_MS unset (the
+ * 15 s default) the request runs right away and still retries once. */
+static void test_resume_wait_noop_off_device(void) {
+  if (pp_wifi_available()) return;  /* a host with connman: not a no-op there */
+  unsetenv("PP_RESUME_DELAY_MS");
+  setenv("PP_RESUME_RETRY_MS", "1", 1);
+  worker_note_resume();
+  int ran = worker_ran_count();
+  pp_server srv = { "http://127.0.0.1:1", "REDACTED", "test-client", NULL };
+  pp_request *req = worker_start(REQ_CHILDREN, &srv, "tv", NULL, 0, 0);
+  CHECK(wait_done(req, 5000));               /* would time out if it waited 15 s */
+  CHECK(worker_status(req) == PP_ERR_NET);
+  CHECK(worker_ran_count() == ran + 2);      /* ran, then retried once */
+  worker_release(req);
+  CHECK(worker_wait_idle(1000) == 0);
+  unsetenv("PP_RESUME_RETRY_MS");
+}
+
 int main(void) {
   pp_init("test-client");
   RUN(test_complete_and_take);
@@ -281,6 +301,7 @@ int main(void) {
   RUN(test_detach_runs_release_cancels);
   RUN(test_unscrobble_fake_and_real_error);
   RUN(test_resume_retry_once);
+  RUN(test_resume_wait_noop_off_device);
   pp_cleanup();
   return TEST_RESULT();
 }

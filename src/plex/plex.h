@@ -65,7 +65,8 @@ int  pp_transcode_url_ex(const pp_server*, const pp_item*, const char *session_i
 int  pp_transcode_stop(const pp_server*, const char *session_id);
 
 int  pp_timeline(const pp_server*, const pp_item*, const char *state /*playing|paused|stopped*/, long time_ms);
-int  pp_scrobble(const pp_server*, const pp_item*);
+int  pp_scrobble(const pp_server*, const pp_item*);            /* mark watched */
+int  pp_unscrobble(const pp_server*, const pp_item*);          /* mark unwatched (/:/unscrobble) */
 
 void pp_list_free(pp_list*);
 

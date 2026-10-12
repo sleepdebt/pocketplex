@@ -48,15 +48,6 @@ static int g_live = 0;      /* live requests, for shutdown and tests */
 static int g_ran = 0;       /* provider calls that actually ran */
 static int g_resume_pending = 0;  /* set by worker_note_resume; next request consumes it */
 
-/* ws-a implements pp_unscrobble in parallel; until the strong definition
- * lands in src/plex/, this weak stub keeps the UI lane linking (the request
- * fails cleanly with a network error instead of toggling anything). */
-__attribute__((weak))
-int pp_unscrobble(const pp_server *srv, const pp_item *item) {
-  (void)srv; (void)item;
-  return PP_ERR_NET;
-}
-
 static void sleep_ms(int ms) {
   struct timespec ts = { ms / 1000, (long)(ms % 1000) * 1000000L };
   while (nanosleep(&ts, &ts) != 0) {}

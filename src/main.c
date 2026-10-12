@@ -22,6 +22,7 @@
 #include "ui/play_state.h"
 #include "ui/session.h"
 #include "ui/ui_stack.h"
+#include "ui/worker.h"
 #include "plex/plex.h"
 #include "config/config.h"
 #include "log.h"
@@ -34,6 +35,15 @@ static long g_exit_after_ms = -1;
 void ui_set_exit_after_ms(long ms) { g_exit_after_ms = ms; }
 
 long  ui_get_exit_after_ms(void) { return g_exit_after_ms; }
+
+/* plat_suspend_hook callback (fires inside plat_poll_button, on the UI thread).
+ * Sleep drops Wi-Fi, so the next request waits for the reconnect and retries
+ * a network error once (see worker_note_resume). */
+static void on_resume(void) {
+  LOGI("resume: reconnecting");
+  worker_note_resume();
+  ui_toast("Reconnecting...");
+}
 
 static const char *ini_path(const char *argv0) {
   (void)argv0;
@@ -100,6 +110,7 @@ int main(int argc, char **argv) {
     pp_cleanup();
     return 1;
   }
+  plat_suspend_hook(on_resume);
 
   pp_server srv;  /* ui_set_server deep-copies it */
   memset(&srv, 0, sizeof srv);

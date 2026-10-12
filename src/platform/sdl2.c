@@ -3,6 +3,7 @@
  * so the UI layer can draw with SDL_Renderer directly.
  */
 #include "platform/platform.h"
+#include "platform/suspend.h"
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include "ui/input_map.h"
@@ -16,6 +17,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 static SDL_Window *g_win = NULL;
 static SDL_Renderer *g_ren = NULL;
@@ -25,6 +27,29 @@ static void (*g_on_resume)(void) = NULL;
 /* Return the renderer for the UI drawing layer. NULL until plat_init. */
 SDL_Renderer *plat_renderer(void) { return g_ren; }
 SDL_Window *plat_window(void) { return g_win; }
+
+/* Wall clock in ms. Monotonic clocks (SDL_GetTicks) freeze across suspend, so
+ * sleep/wake detection has to use the wall clock. */
+static long wall_now_ms(void) {
+  struct timespec ts;
+  clock_gettime(CLOCK_REALTIME, &ts);
+  return ts.tv_sec * 1000L + ts.tv_nsec / 1000000L;
+}
+
+/* on_resume fires once per wake: SDL_APP_WILLENTERFOREGROUND and
+ * SDL_APP_DIDENTERFOREGROUND both arrive for the same resume, and the
+ * wall-clock gap check can coincide with them. */
+static long g_resume_fired_at = 0;
+static long g_last_tick_wall_ms = 0;
+
+static void fire_resume(const char *why) {
+  if (!g_on_resume) return;
+  long now = wall_now_ms();
+  if (g_resume_fired_at && now - g_resume_fired_at < 2000) return;
+  g_resume_fired_at = now;
+  LOGI("resume: %s (Wi-Fi reconnect pending)", why);
+  g_on_resume();
+}
 
 /* Window + renderer (also used to rebuild them after the external player). */
 static int create_video(int ww, int hh) {
@@ -174,6 +199,14 @@ static int pad_repeats(pp_btn b) {
 }
 
 pp_btn plat_poll_button(void) {
+  /* Sleep/wake: this runs once per main-loop tick. On the SP, suspend freezes
+   * the process; the first tick after wake sees a wall-clock jump. (SDL's
+   * SDL_APP_* foreground events below cover platforms that send them.) */
+  long wall = wall_now_ms();
+  if (pp_wall_gap_is_resume(g_last_tick_wall_ms, wall, PP_RESUME_GAP_MS))
+    fire_resume("wall-clock gap");
+  g_last_tick_wall_ms = wall;
+
   SDL_Event ev;
   pp_btn b;
   while (SDL_PollEvent(&ev)) {
@@ -182,6 +215,12 @@ pp_btn plat_poll_button(void) {
       g_quit_requested = 1;
       LOGI("input: SDL_QUIT (window close or signal)");
       return BTN_MENU;
+    case SDL_APP_WILLENTERFOREGROUND:
+      fire_resume("SDL_APP_WILLENTERFOREGROUND");
+      break;
+    case SDL_APP_DIDENTERFOREGROUND:
+      fire_resume("SDL_APP_DIDENTERFOREGROUND");
+      break;
     case SDL_KEYDOWN:
       return log_press("key", (int)ev.key.keysym.sym, pp_keycode_to_btn(ev.key.keysym.sym));
     case SDL_JOYDEVICEADDED:

@@ -14,6 +14,7 @@
  *   stop <session>              stop the PMS transcode session
  *   progress <ratingKey> <ms> [playing|paused|stopped]   report a resume point
  *   watched <ratingKey>         mark watched (scrobble)
+ *   unwatch <ratingKey>         mark unwatched (unscrobble)
  *
  * pp-cli --server N <command>  runs <command> against discovered server N
  * (url + that resource's accessToken) instead of the ini's saved server.
@@ -326,10 +327,21 @@ static int cmd_watched(int argc, char **argv) {
   return 0;
 }
 
+static int cmd_unwatch(int argc, char **argv) {
+  if (argc < 3) { fprintf(stderr, "usage: pp-cli unwatch <ratingKey>\n"); return 1; }
+  pp_item item;
+  memset(&item, 0, sizeof item);
+  snprintf(item.rating_key, sizeof item.rating_key, "%s", argv[2]);
+  int rc = pp_unscrobble(&srv, &item);
+  if (rc != PP_OK) return fail("unscrobble", rc);
+  printf("marked unwatched: %s\n", argv[2]);
+  return 0;
+}
+
 static void usage(void) {
   fputs("usage: pp-cli [--server N] <command> [args]\n"
         "  login | servers | ls [key] | ondeck | url <rk> [session] |\n"
-        "  stop <session> | progress <rk> <ms> [state] | watched <rk>\n"
+        "  stop <session> | progress <rk> <ms> [state] | watched <rk> | unwatch <rk>\n"
         "--server N runs the command against discovered server N\n",
         stderr);
 }
@@ -391,6 +403,7 @@ int main(int argc, char **argv) {
   else if (strcmp(argv[1], "stop") == 0) rc = cmd_stop(argc, argv);
   else if (strcmp(argv[1], "progress") == 0) rc = cmd_progress(argc, argv);
   else if (strcmp(argv[1], "watched") == 0) rc = cmd_watched(argc, argv);
+  else if (strcmp(argv[1], "unwatch") == 0) rc = cmd_unwatch(argc, argv);
   else { usage(); rc = 1; }
 
   return rc;

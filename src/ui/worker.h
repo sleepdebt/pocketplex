@@ -29,6 +29,7 @@ typedef enum {
   REQ_TIMELINE,        /* pp_timeline(state, time_ms) */
   REQ_SCROBBLE,        /* pp_scrobble */
   REQ_PLAY_STOP,       /* pp_timeline(state, time_ms) then pp_transcode_stop */
+  REQ_UNSCROBBLE,      /* pp_unscrobble (mark unwatched) */
 } pp_req_type;
 
 /* Inputs for playback requests; everything is copied at submit. */
@@ -81,7 +82,16 @@ void worker_release(pp_request *req);
  * scrobble, stop). Safe on NULL. */
 void worker_detach(pp_request *req);
 
-/* Requests whose provider call actually ran (not skipped by a cancel). */
+/* Note a resume from suspend (Wi-Fi dropped on sleep): the next request waits
+ * PP_RESUME_DELAY_MS (default 3000) for the reconnect, and retries a network
+ * error once after PP_RESUME_RETRY_MS (default 1000). Consumed by one request. */
+void worker_note_resume(void);
+
+/* 1 while a resume is still waiting for a request to consume it. */
+int  worker_resume_pending(void);
+
+/* Provider calls that actually ran (not skipped by a cancel; a resume retry
+ * counts as a second call). */
 int  worker_ran_count(void);
 
 /* Number of live requests (allocated, not yet freed). */

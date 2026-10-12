@@ -273,7 +273,10 @@ static void test_resume_retry_once(void) {
  * reconnect is an immediate no-op: even with PP_RESUME_DELAY_MS unset (the
  * 15 s default) the request runs right away and still retries once. */
 static void test_resume_wait_noop_off_device(void) {
-  if (pp_wifi_available()) return;  /* a host with connman: not a no-op there */
+  if (pp_wifi_available()) {  /* a host with connman: not a no-op there */
+    fprintf(stderr, "  skip: connmanctl present on this host\n");
+    return;
+  }
   unsetenv("PP_RESUME_DELAY_MS");
   setenv("PP_RESUME_RETRY_MS", "1", 1);
   worker_note_resume();

@@ -63,7 +63,7 @@ Progress is reported to your server while you watch and when you stop, so Plex (
 ## Troubleshooting
 
 - **PocketPlex isn't in Ports:** run **Update Gamelists** in EmulationStation.
-- **Can't reach the server / errors after waking the device:** sleep drops Wi-Fi. Wait for it to reconnect, then go back and retry.
+- **Can't reach the server / errors after waking the device:** sleep drops Wi-Fi. PocketPlex asks Knulli to rejoin it when the device wakes (you'll see "Reconnecting..."); give it up to ~15 seconds, then go back and retry if it still fails.
 - **Low quality or stutter:** check Settings → Video Quality, and that your server can transcode in real time.
 - **Logs:** `/userdata/roms/ports/pocketplex/log.txt` (screen changes, button presses, playback). Tokens are redacted.
 - The line `/usr/lib64/libcurl.so.4: no version information available` at startup is harmless.

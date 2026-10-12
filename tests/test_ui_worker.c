@@ -215,6 +215,59 @@ static void test_detach_runs_release_cancels(void) {
   unsetenv("PP_FAKE_DELAY_MS");
 }
 
+/* REQ_UNSCROBBLE: fake succeeds; the real path errors cleanly on a dead server
+ * (until ws-a's pp_unscrobble lands, a weak stub answers PP_ERR_NET — either
+ * way the UI must see a clean failure, never a crash). */
+static void test_unscrobble_fake_and_real_error(void) {
+  unsetenv("PP_FAKE_DELAY_MS");
+  pp_item it;
+  memset(&it, 0, sizeof it);
+  snprintf(it.rating_key, sizeof it.rating_key, "53835");
+  pp_play_args a = { &it, NULL, NULL, 0, 0, 0 };
+  pp_request *req = worker_start_play(REQ_UNSCROBBLE, NULL, &a, 1);
+  CHECK(req != NULL);
+  CHECK(wait_done(req, 5000));
+  CHECK(worker_status(req) == PP_OK);
+  worker_release(req);
+
+  pp_server srv = { "http://127.0.0.1:1", "REDACTED", "test-client", NULL };
+  req = worker_start_play(REQ_UNSCROBBLE, &srv, &a, 0);
+  CHECK(wait_done(req, 10000));
+  CHECK(worker_status(req) < 0);
+  CHECK(worker_error(req)[0] != '\0');
+  worker_release(req);
+  CHECK(worker_wait_idle(1000) == 0);
+}
+
+/* After a resume, the next request waits for Wi-Fi (PP_RESUME_DELAY_MS) and
+ * retries a network error once (PP_RESUME_RETRY_MS); the request after that
+ * is back to normal. */
+static void test_resume_retry_once(void) {
+  setenv("PP_RESUME_DELAY_MS", "1", 1);
+  setenv("PP_RESUME_RETRY_MS", "1", 1);
+  CHECK(worker_resume_pending() == 0);
+  worker_note_resume();
+  CHECK(worker_resume_pending() == 1);
+
+  int ran = worker_ran_count();
+  pp_server srv = { "http://127.0.0.1:1", "REDACTED", "test-client", NULL };
+  pp_request *req = worker_start(REQ_CHILDREN, &srv, "tv", NULL, 0, 0);
+  CHECK(wait_done(req, 10000));
+  CHECK(worker_status(req) == PP_ERR_NET);
+  CHECK(worker_ran_count() == ran + 2);      /* ran, then retried once */
+  CHECK(worker_resume_pending() == 0);       /* consumed by that request */
+  worker_release(req);
+
+  req = worker_start(REQ_CHILDREN, &srv, "tv", NULL, 0, 0);
+  CHECK(wait_done(req, 10000));
+  CHECK(worker_status(req) == PP_ERR_NET);
+  CHECK(worker_ran_count() == ran + 3);      /* no retry without a resume */
+  worker_release(req);
+  CHECK(worker_wait_idle(1000) == 0);
+  unsetenv("PP_RESUME_DELAY_MS");
+  unsetenv("PP_RESUME_RETRY_MS");
+}
+
 int main(void) {
   pp_init("test-client");
   RUN(test_complete_and_take);
@@ -226,6 +279,8 @@ int main(void) {
   RUN(test_play_requests_fake);
   RUN(test_play_stop_released_in_flight);
   RUN(test_detach_runs_release_cancels);
+  RUN(test_unscrobble_fake_and_real_error);
+  RUN(test_resume_retry_once);
   pp_cleanup();
   return TEST_RESULT();
 }

@@ -45,7 +45,8 @@ struct pp_request {
 };
 
 static int g_live = 0;      /* live requests, for shutdown and tests */
-static int g_ran = 0;       /* requests whose provider call actually ran */
+static int g_ran = 0;       /* provider calls that actually ran */
+static int g_resume_pending = 0;  /* set by worker_note_resume; next request consumes it */
 
 static void sleep_ms(int ms) {
   struct timespec ts = { ms / 1000, (long)(ms % 1000) * 1000000L };
@@ -58,6 +59,19 @@ static int fake_delay_ms(void) {
   if (!s) return 0;
   int v = atoi(s);
   return v > 0 ? v : 0;
+}
+
+/* Wi-Fi takes a few seconds to reconnect after a resume; envs keep tests fast. */
+static int resume_delay_ms(void) {
+  const char *s = getenv("PP_RESUME_DELAY_MS");
+  if (s) { int v = atoi(s); return v >= 0 ? v : 0; }
+  return 3000;
+}
+
+static int resume_retry_ms(void) {
+  const char *s = getenv("PP_RESUME_RETRY_MS");
+  if (s) { int v = atoi(s); return v >= 0 ? v : 0; }
+  return 1000;
 }
 
 static void set_error(pp_request *req, const char *msg) {
@@ -114,6 +128,7 @@ static void run_fake(pp_request *req) {
     break;
   case REQ_TIMELINE:
   case REQ_SCROBBLE:
+  case REQ_UNSCROBBLE:
   case REQ_PLAY_STOP: req->status = PP_OK; break;
   default:            req->status = PP_ERR_ARG; break;
   }
@@ -135,6 +150,7 @@ static void run_real(pp_request *req) {
     break;
   case REQ_TIMELINE:  req->status = pp_timeline(srv, req->item, req->state, req->time_ms); break;
   case REQ_SCROBBLE:  req->status = pp_scrobble(srv, req->item); break;
+  case REQ_UNSCROBBLE: req->status = pp_unscrobble(srv, req->item); break;
   case REQ_PLAY_STOP: {
     /* Report the final position first, then end the transcode regardless. */
     int tl = pp_timeline(srv, req->item, req->state, req->time_ms);
@@ -146,18 +162,46 @@ static void run_real(pp_request *req) {
   }
 }
 
+static void run(pp_request *req) {
+  if (req->use_fake) run_fake(req);
+  else run_real(req);
+  __atomic_add_fetch(&g_ran, 1, __ATOMIC_ACQ_REL);
+}
+
 static void *worker_thread(void *arg) {
   pp_request *req = (pp_request *)arg;
 
   int delay = fake_delay_ms();
   if (delay > 0 && !is_cancelled(req)) sleep_ms(delay);
 
+  /* First request after a resume: Wi-Fi is still reconnecting, so wait a
+   * moment and retry a network error once. */
+  int after_resume = 0;
+  if (!is_cancelled(req))
+    after_resume = __atomic_exchange_n(&g_resume_pending, 0, __ATOMIC_ACQ_REL);
+
   if (is_cancelled(req)) {
     req->status = PP_ERR_ARG;
+    if (after_resume)  /* never ran: hand the flag to the next request */
+      __atomic_store_n(&g_resume_pending, 1, __ATOMIC_RELEASE);
   } else {
-    if (req->use_fake) run_fake(req);
-    else run_real(req);
-    __atomic_add_fetch(&g_ran, 1, __ATOMIC_ACQ_REL);
+    if (after_resume) {
+      int d = resume_delay_ms();
+      if (d > 0 && !is_cancelled(req)) sleep_ms(d);
+    }
+    if (is_cancelled(req)) {
+      req->status = PP_ERR_ARG;
+    } else {
+      run(req);
+      if (after_resume && req->status == PP_ERR_NET && !is_cancelled(req)) {
+        int d = resume_retry_ms();
+        if (d > 0) sleep_ms(d);
+        if (!is_cancelled(req)) {
+          LOGI("resume: network error, retrying once");
+          run(req);
+        }
+      }
+    }
   }
 
   if (req->status != PP_OK && req->status != 1) {
@@ -287,6 +331,14 @@ void worker_release(pp_request *req) {
 
 void worker_detach(pp_request *req) {
   if (req) request_unref(req);
+}
+
+void worker_note_resume(void) {
+  __atomic_store_n(&g_resume_pending, 1, __ATOMIC_RELEASE);
+}
+
+int worker_resume_pending(void) {
+  return __atomic_load_n(&g_resume_pending, __ATOMIC_ACQUIRE);
 }
 
 int worker_ran_count(void) {

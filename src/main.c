@@ -18,6 +18,7 @@
  * skipped and the app goes straight to Home. Otherwise, PIN link flow.
  */
 #include "platform/platform.h"
+#include "platform/wifi.h"
 #include "ui/ui.h"
 #include "ui/play_state.h"
 #include "ui/session.h"
@@ -37,10 +38,13 @@ void ui_set_exit_after_ms(long ms) { g_exit_after_ms = ms; }
 long  ui_get_exit_after_ms(void) { return g_exit_after_ms; }
 
 /* plat_suspend_hook callback (fires inside plat_poll_button, on the UI thread).
- * Sleep drops Wi-Fi, so the next request waits for the reconnect and retries
- * a network error once (see worker_note_resume). */
+ * Sleep drops Wi-Fi and Knulli does not reconnect it by itself, so kick the
+ * connmanctl rejoin on a detached thread (pp_wifi_reconnect_async); the next
+ * request also waits for the reconnect and retries a network error once
+ * (see worker_note_resume). */
 static void on_resume(void) {
   LOGI("resume: reconnecting");
+  pp_wifi_reconnect_async();  /* no-op where /usr/bin/connmanctl is absent */
   worker_note_resume();
   ui_toast("Reconnecting...");
 }

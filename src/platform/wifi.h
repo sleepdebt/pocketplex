@@ -13,6 +13,14 @@
 /* 1 = /usr/bin/connmanctl exists (Linux handheld running connman); 0 elsewhere. */
 int pp_wifi_available(void);
 
+/* Builds a fixed connmanctl argv into argv (cap counts slots incl. the terminator):
+ * {/usr/bin/connmanctl, op, arg, NULL}. op must be "enable", "disable" or
+ * "connect"; arg is required (enable/disable take the technology "wifi"; a bare
+ * 'enable' exits 22 on connmanctl). The service id for connect is validated
+ * separately (pp_wifi_favorite_service). 0 = ok, -1 = unknown op / missing arg /
+ * cap too small. */
+int pp_wifi_connman_argv(char *argv[], size_t cap, const char *op, const char *arg);
+
 /* First line of `iw dev wlan0 link`: 1 = "Connected to ...", 0 = "Not connected.",
  * -1 = anything else. */
 int pp_wifi_iw_link_connected(const char *text);

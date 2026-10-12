@@ -189,8 +189,13 @@ static void *worker_thread(void *arg) {
     if (after_resume)  /* never ran: hand the flag to the next request */
       __atomic_store_n(&g_resume_pending, 1, __ATOMIC_RELEASE);
   } else {
-    if (after_resume && !is_cancelled(req))
-      pp_wifi_reconnect_wait(resume_delay_ms());
+    if (after_resume) {
+      /* Wait for the async Wi-Fi reconnect (wifi.c) in slices so a release
+       * cancels the wait too; a no-op where connmanctl is absent. */
+      int cap = resume_delay_ms(), waited = 0;
+      while (!is_cancelled(req) && waited < cap && !pp_wifi_reconnect_wait(200))
+        waited += 200;
+    }
     if (is_cancelled(req)) {
       req->status = PP_ERR_ARG;
     } else {

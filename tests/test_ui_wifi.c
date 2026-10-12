@@ -162,9 +162,41 @@ static void test_connman_state(void) {
   CHECK(pp_wifi_connman_state(NULL, &powered, &connected) == -1);
 }
 
+/* connmanctl argv builder: fixed path, whitelisted ops, technology argument. */
+static void test_connman_argv(void) {
+  char *argv[4];
+  CHECK(pp_wifi_connman_argv(argv, 4, "enable", "wifi") == 0);
+  CHECK_STR(argv[0], "/usr/bin/connmanctl");
+  CHECK_STR(argv[1], "enable");
+  CHECK_STR(argv[2], "wifi");
+  CHECK(argv[3] == NULL);
+
+  CHECK(pp_wifi_connman_argv(argv, 4, "disable", "wifi") == 0);
+  CHECK_STR(argv[1], "disable");
+  CHECK_STR(argv[2], "wifi");
+  CHECK(argv[3] == NULL);
+
+  CHECK(pp_wifi_connman_argv(argv, 4, "connect",
+                             "wifi_aabbccddeeff_546573744e6574_managed_psk") == 0);
+  CHECK_STR(argv[1], "connect");
+  CHECK_STR(argv[2], "wifi_aabbccddeeff_546573744e6574_managed_psk");
+  CHECK(argv[3] == NULL);
+
+  /* enable/disable without a technology would exit 22: rejected here */
+  CHECK(pp_wifi_connman_argv(argv, 4, "enable", NULL) == -1);
+  CHECK(pp_wifi_connman_argv(argv, 4, "connect", NULL) == -1);   /* needs a service */
+  CHECK(pp_wifi_connman_argv(argv, 4, "toggle", "wifi") == -1);  /* unknown op */
+  CHECK(pp_wifi_connman_argv(argv, 4, NULL, "wifi") == -1);
+  CHECK(pp_wifi_connman_argv(argv, 3, "connect", "wifi_aabbccddeeff__managed_psk") == -1); /* no room for NULL */
+  CHECK(pp_wifi_connman_argv(NULL, 4, "enable", "wifi") == -1);
+}
+
 /* Where connmanctl is absent (desktop/CI), async + wait + reconnect are no-ops. */
 static void test_reconnect_noop_off_device(void) {
-  if (pp_wifi_available()) return;  /* a host with connman: not a no-op there */
+  if (pp_wifi_available()) {  /* a host with connman: not a no-op there */
+    fprintf(stderr, "  skip: connmanctl present on this host\n");
+    return;
+  }
   pp_wifi_reconnect_async();        /* must not start anything */
   CHECK(pp_wifi_reconnect_wait(0) == 1);
   CHECK(pp_wifi_reconnect_wait(500) == 1);
@@ -176,6 +208,7 @@ int main(void) {
   RUN(test_favorite_service);
   RUN(test_rfkill);
   RUN(test_connman_state);
+  RUN(test_connman_argv);
   RUN(test_reconnect_noop_off_device);
   return TEST_RESULT();
 }

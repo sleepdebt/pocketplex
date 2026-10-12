@@ -1,6 +1,7 @@
 /* screen_detail.c: item detail — title, year, duration, summary, resume/play. */
 #include "ui.h"
 #include "ui/play_state.h"
+#include "ui/worker.h"
 #include "log.h"
 
 #include <stdlib.h>
@@ -11,10 +12,40 @@ typedef struct {
   pp_item item;
   int choosing;   /* 1 while the resume / play-from-start choice is open */
   int choice;     /* 0 = resume, 1 = from start */
+  pp_request *req;  /* Y = mark watched/unwatched, in flight (owned ref) */
 } detail_data_t;
 
 static int is_playable(pp_kind k) {
   return k == PP_EPISODE || k == PP_MOVIE;
+}
+
+/* Y: toggle watched on the server (worker thread; never block the UI).
+ * The state flips only when the server confirms — see detail_render. */
+static void detail_toggle_watched(pp_screen *self) {
+  detail_data_t *d = (detail_data_t *)self->data;
+  if (d->req) return;  /* one toggle at a time */
+  pp_play_args a = { &d->item, NULL, NULL, 0, 0, 0 };
+  d->req = worker_start_play(d->item.watched ? REQ_UNSCROBBLE : REQ_SCROBBLE,
+                             ui_current_server(), &a, ui_is_smoke_scroll());
+  if (!d->req) ui_toast("Out of memory");
+}
+
+/* Poll the toggle request: apply the new state + toast on success, toast the
+ * error and leave d->item.watched unchanged on failure. */
+static void detail_poll_toggle(pp_screen *self) {
+  detail_data_t *d = (detail_data_t *)self->data;
+  if (!d->req || !worker_is_done(d->req)) return;
+  if (worker_status(d->req) == PP_OK) {
+    d->item.watched = !d->item.watched;
+    ui_toast(d->item.watched ? "Marked watched" : "Marked unwatched");
+    LOGI("detail: marked %s %s", d->item.watched ? "watched" : "unwatched", d->item.rating_key);
+  } else if (worker_error(d->req)[0]) {
+    ui_toast(worker_error(d->req));
+  } else {
+    ui_toast("Mark watched failed");
+  }
+  worker_release(d->req);
+  d->req = NULL;
 }
 
 static void detail_play(detail_data_t *d, long start_ms) {
@@ -40,7 +71,7 @@ static void draw_choice(detail_data_t *d) {
 static void detail_render(pp_screen *self) {
   detail_data_t *d = (detail_data_t *)self->data;
   pp_item *it = &d->item;
-  (void)d;
+  detail_poll_toggle(self);
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
   ui_draw_text("Details", PP_MARGIN_L, 10, PP_COLOR_FG);
 
@@ -114,7 +145,9 @@ static void detail_render(pp_screen *self) {
 
   /* Footer button hints */
   ui_draw_text(d->choosing ? "D-pad: choose  A: play  B: cancel"
-                           : "A: play  B: back  Y: mark watched",
+               : d->req    ? "A: play  B: back  (marking...)"
+               : it->watched ? "A: play  B: back  Y: mark unwatched"
+                             : "A: play  B: back  Y: mark watched",
                PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
 }
 
@@ -145,8 +178,7 @@ static void detail_handle(pp_screen *self, pp_btn btn) {
     }
     break;
   case BTN_Y:
-    ui_toast("Toggled watched");
-    d->item.watched = !d->item.watched;
+    detail_toggle_watched(self);
     break;
   case BTN_START:
     ui_go(screen_home_create());
@@ -160,6 +192,8 @@ static void detail_handle(pp_screen *self, pp_btn btn) {
 }
 
 static void detail_destroy(pp_screen *self) {
+  detail_data_t *d = (detail_data_t *)self->data;
+  if (d) worker_release(d->req);  /* a still-running worker frees it on exit */
   free(self->data);
 }
 

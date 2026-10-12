@@ -130,6 +130,12 @@ int pp_build_decision_url(const pp_server *srv, const char *path,
                           int max_kbps, long offset_ms, int burn_subtitles,
                           char *url_out, size_t n);
 
+/* Scrobble/unscrobble query (mark watched/unwatched by ratingKey). Pure so
+ * tests can check the URL without network. unscrobble 0 = /:/scrobble,
+ * 1 = /:/unscrobble. */
+int pp_build_scrobble_url(const pp_server *srv, const char *rating_key,
+                          int unscrobble, char *url_out, size_t n);
+
 /* Decision response: PP_OK when the server will transcode; PP_ERR_HTTP when
  * it refused (generalDecisionCode or transcodeDecisionCode >= 2000);
  * PP_ERR_PARSE on unusable JSON. */

@@ -216,16 +216,33 @@ int pp_timeline(const pp_server *srv, const pp_item *item, const char *state,
   return rc;
 }
 
-int pp_scrobble(const pp_server *srv, const pp_item *item) {
+int pp_build_scrobble_url(const pp_server *srv, const char *rating_key,
+                          int unscrobble, char *url_out, size_t n) {
   if (!srv || !srv->url || !srv->token) return PP_ERR_ARG;
-  if (!item || item->rating_key[0] == '\0') return PP_ERR_ARG;
+  if (!rating_key || rating_key[0] == '\0') return PP_ERR_ARG;
+  int written = snprintf(url_out, n, "%s/:/%s?key=%s&identifier=com.plexapp.plugins.library",
+      srv->url, unscrobble ? "unscrobble" : "scrobble", rating_key);
+  if (written < 0 || (size_t)written >= n) return PP_ERR_ARG;
+  return PP_OK;
+}
+
+static int scrobble_request(const pp_server *srv, const pp_item *item,
+                            int unscrobble) {
+  if (!item) return PP_ERR_ARG;
   char url[512];
-  int written = snprintf(url, sizeof url,
-      "%s/:/scrobble?key=%s&identifier=com.plexapp.plugins.library",
-      srv->url, item->rating_key);
-  if (written < 0 || (size_t)written >= sizeof url) return PP_ERR_ARG;
+  if (pp_build_scrobble_url(srv, item->rating_key, unscrobble,
+                            url, sizeof url) != PP_OK)
+    return PP_ERR_ARG;
   pp_http_response r;
   int rc = pp_http_get(url, srv->token, &r);
   pp_http_free(&r);
   return rc;
+}
+
+int pp_scrobble(const pp_server *srv, const pp_item *item) {
+  return scrobble_request(srv, item, 0);
+}
+
+int pp_unscrobble(const pp_server *srv, const pp_item *item) {
+  return scrobble_request(srv, item, 1);
 }

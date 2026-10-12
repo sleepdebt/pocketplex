@@ -450,6 +450,36 @@ static void test_build_transcode_url_errors(void) {
                                small, sizeof small) == PP_ERR_ARG);
 }
 
+/* ---------- scrobble / unscrobble ---------- */
+
+static void test_build_scrobble_url(void) {
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
+  char url[512];
+  CHECK(pp_build_scrobble_url(&srv, "53834", 0, url, sizeof url) == PP_OK);
+  CHECK_STR(url,
+    "http://192.0.2.10:32400/:/scrobble?key=53834&identifier=com.plexapp.plugins.library");
+}
+
+static void test_build_unscrobble_url(void) {
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
+  char url[512];
+  CHECK(pp_build_scrobble_url(&srv, "53834", 1, url, sizeof url) == PP_OK);
+  CHECK_STR(url,
+    "http://192.0.2.10:32400/:/unscrobble?key=53834&identifier=com.plexapp.plugins.library");
+}
+
+static void test_build_scrobble_url_errors(void) {
+  pp_server srv = {"http://192.0.2.10:32400", "tok123", "cid", NULL};
+  pp_server no_token = {"http://192.0.2.10:32400", NULL, "cid", NULL};
+  char url[512];
+  char small[16];
+  CHECK(pp_build_scrobble_url(NULL, "53834", 0, url, sizeof url) == PP_ERR_ARG);
+  CHECK(pp_build_scrobble_url(&no_token, "53834", 0, url, sizeof url) == PP_ERR_ARG);
+  CHECK(pp_build_scrobble_url(&srv, "", 0, url, sizeof url) == PP_ERR_ARG);
+  CHECK(pp_build_scrobble_url(&srv, NULL, 1, url, sizeof url) == PP_ERR_ARG);
+  CHECK(pp_build_scrobble_url(&srv, "53834", 0, small, sizeof small) == PP_ERR_ARG);
+}
+
 /* ---------- transcode decision ---------- */
 
 static void test_parse_decision_ok(void) {
@@ -538,6 +568,9 @@ int main(void) {
   RUN(test_build_transcode_url_subtitles_off);
   RUN(test_build_transcode_url_offset_seconds);
   RUN(test_build_transcode_url_errors);
+  RUN(test_build_scrobble_url);
+  RUN(test_build_unscrobble_url);
+  RUN(test_build_scrobble_url_errors);
   RUN(test_parse_decision_ok);
   RUN(test_parse_decision_subtitles_none_fixture);
   RUN(test_parse_decision_refused);

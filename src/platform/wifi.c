@@ -9,8 +9,11 @@
 #include "platform/wifi.h"
 #include "log.h"
 
+#include <errno.h>
 #include <fcntl.h>
+#include <poll.h>
 #include <pthread.h>
+#include <signal.h>
 #include <stdio.h>
 #include <string.h>
 #include <time.h>
@@ -25,6 +28,7 @@
 #define WIFI_BUDGET_MS  15000  /* total */
 #define WIFI_POLL_MS    3000   /* connectivity re-check after each step */
 #define WIFI_POLL_STEP_MS 200
+#define WIFI_CMD_TIMEOUT_MS 4000  /* per subprocess; a wedged connmanctl is killed */
 
 /* ---------------- pure parsers (unit-tested) ---------------- */
 
@@ -162,6 +166,20 @@ int pp_wifi_available(void) {
   return access(CONNMANCTL, X_OK) == 0;
 }
 
+int pp_wifi_connman_argv(char *argv[], size_t cap, const char *op, const char *arg) {
+  int known = op && (strcmp(op, "enable") == 0 || strcmp(op, "disable") == 0 ||
+                     strcmp(op, "connect") == 0);
+  if (!known) return -1;
+  if (!arg) return -1;  /* enable/disable need the technology; connect a service */
+  size_t need = 4;
+  if (!argv || cap < need) return -1;
+  argv[0] = (char *)CONNMANCTL;
+  argv[1] = (char *)op;
+  argv[2] = (char *)arg;
+  argv[need - 1] = NULL;
+  return 0;
+}
+
 static long now_ms(void) {
   struct timespec ts;
   clock_gettime(CLOCK_MONOTONIC, &ts);
@@ -174,7 +192,11 @@ static void sleep_ms(int ms) {
 }
 
 /* fork/execv with a fixed argv; captures stdout (capped, NUL-terminated).
- * The child's stderr goes to /dev/null. Returns the exit status, or -1. */
+ * The child's stderr goes to /dev/null. Bounded: the pipe is poll()ed with a
+ * WIFI_CMD_TIMEOUT_MS deadline and an overdue child gets SIGKILL + reap, so a
+ * wedged connmanctl can never hang the reconnect thread. Returns the exit
+ * status, or -1 on failure/timeout. argv[0]/argv[1] are fixed strings and may
+ * appear in logs; argv[2] never does. */
 static int run_capture(char *const argv[], char *out, size_t n) {
   int pipefd[2];
   if (out && n > 0) out[0] = '\0';
@@ -195,23 +217,67 @@ static int run_capture(char *const argv[], char *out, size_t n) {
     _exit(127);
   }
   close(pipefd[1]);
+  long deadline = now_ms() + WIFI_CMD_TIMEOUT_MS;
+  int timed_out = 0;
   size_t used = 0;
   for (;;) {
-    char buf[512];
-    ssize_t r = read(pipefd[0], buf, sizeof buf);
-    if (r <= 0) break;
-    if (out && used < n - 1) {
-      size_t room = n - 1 - used;
-      size_t take = (size_t)r < room ? (size_t)r : room;
-      memcpy(out + used, buf, take);
-      used += take;
+    long remain = deadline - now_ms();
+    if (remain <= 0) { timed_out = 1; break; }
+    struct pollfd pfd = { pipefd[0], POLLIN, 0 };
+    int pr = poll(&pfd, 1, (int)remain);
+    if (pr == 0) { timed_out = 1; break; }
+    if (pr < 0) {
+      if (errno == EINTR) continue;
+      timed_out = 1;
+      break;
+    }
+    if (pfd.revents & (POLLIN | POLLHUP)) {
+      char buf[512];
+      ssize_t r = read(pipefd[0], buf, sizeof buf);
+      if (r < 0) {
+        if (errno == EINTR) continue;
+        break;
+      }
+      if (r == 0) break;  /* EOF: the child closed stdout */
+      if (out && used < n - 1) {
+        size_t room = n - 1 - used;
+        size_t take = (size_t)r < room ? (size_t)r : room;
+        memcpy(out + used, buf, take);
+        used += take;
+      }
+    } else if (pfd.revents & (POLLERR | POLLNVAL)) {
+      break;
     }
   }
   close(pipefd[0]);
   if (out && n > 0) out[used] = '\0';
-  int status = 0;
-  while (waitpid(pid, &status, 0) < 0) { /* EINTR */ }
-  return WIFEXITED(status) ? WEXITSTATUS(status) : -1;
+
+  int status = 0, reaped = 0;
+  if (timed_out) {
+    LOGW("wifi: %s %s timed out after %d ms, killed", argv[0], argv[1],
+         WIFI_CMD_TIMEOUT_MS);
+    kill(pid, SIGKILL);
+    while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+    reaped = 1;
+  } else {
+    /* stdout hit EOF; give the child a short grace to exit, then kill it. */
+    long grace = now_ms() + 500;
+    for (;;) {
+      pid_t w = waitpid(pid, &status, WNOHANG);
+      if (w == pid) { reaped = 1; break; }
+      if (w < 0) break;  /* already reaped or bad pid */
+      if (now_ms() >= grace) {
+        LOGW("wifi: %s %s did not exit, killed", argv[0], argv[1]);
+        kill(pid, SIGKILL);
+        while (waitpid(pid, &status, 0) < 0 && errno == EINTR) {}
+        reaped = 1;
+        break;
+      }
+      sleep_ms(10);
+    }
+  }
+  if (!reaped || !WIFEXITED(status)) return -1;
+  return WEXITSTATUS(status);
 }
 
 static int link_connected(void) {
@@ -256,9 +322,12 @@ static int poll_connected(long deadline_ms) {
   return link_connected() == 1;
 }
 
-static void connman(const char *arg) {
-  char *argv[] = { (char *)CONNMANCTL, (char *)arg, NULL };
-  run_capture(argv, NULL, 0);
+/* connmanctl enable/disable wifi. A non-zero exit is logged (fixed strings only). */
+static void connman_op(const char *op, const char *tech) {
+  char *argv[4];
+  if (pp_wifi_connman_argv(argv, 4, op, tech) != 0) return;
+  int rc = run_capture(argv, NULL, 0);
+  if (rc != 0) LOGI("wifi: connmanctl %s %s exit %d", op, tech, rc);
 }
 
 /* Step (b): connect the favorite service. 1 = connected. */
@@ -270,8 +339,11 @@ static int connect_favorite(long deadline_ms) {
     LOGW("wifi: no favorite service found");
     return 0;
   }
-  char *argv[] = { (char *)CONNMANCTL, (char *)"connect", service, NULL };
-  run_capture(argv, NULL, 0);  /* the id is validated; never logged (pairs with an SSID) */
+  char *argv[4];
+  if (pp_wifi_connman_argv(argv, 4, "connect", service) != 0) return 0;
+  int rc = run_capture(argv, NULL, 0);
+  /* the service id is validated; never logged (pairs with an SSID) */
+  if (rc != 0) LOGI("wifi: connmanctl connect exit %d", rc);
   return poll_connected(deadline_ms);
 }
 
@@ -285,7 +357,7 @@ int pp_wifi_reconnect(void) {
     return 0;
   }
   LOGI("wifi: reconnect step 1: enable wifi");
-  connman("enable");
+  connman_op("enable", "wifi");
   ok = poll_connected(deadline);
   if (!ok && now_ms() < deadline) {
     LOGI("wifi: reconnect step 2: connect favorite");
@@ -293,8 +365,8 @@ int pp_wifi_reconnect(void) {
   }
   if (!ok && now_ms() < deadline) {
     LOGI("wifi: reconnect step 3: disable/enable + connect favorite");
-    connman("disable");
-    connman("enable");
+    connman_op("disable", "wifi");
+    connman_op("enable", "wifi");
     ok = connect_favorite(deadline);
   }
   pp_wifi_log_state("after");
@@ -319,13 +391,14 @@ void pp_wifi_reconnect_async(void) {
     return;  /* one already in flight */
   pthread_t t;
   pthread_attr_t attr;
-  if (pthread_attr_init(&attr) != 0 ||
+  int inited = pthread_attr_init(&attr) == 0;
+  if (!inited ||
       pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED) != 0 ||
       pthread_create(&t, &attr, reconnect_thread, NULL) != 0) {
     LOGW("wifi: could not start the reconnect thread");
     __atomic_store_n(&g_reconnect_running, 0, __ATOMIC_RELEASE);
   }
-  pthread_attr_destroy(&attr);
+  if (inited) pthread_attr_destroy(&attr);
 }
 
 int pp_wifi_reconnect_wait(int timeout_ms) {

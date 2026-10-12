@@ -82,9 +82,10 @@ void worker_release(pp_request *req);
  * scrobble, stop). Safe on NULL. */
 void worker_detach(pp_request *req);
 
-/* Note a resume from suspend (Wi-Fi dropped on sleep): the next request waits
- * PP_RESUME_DELAY_MS (default 3000) for the reconnect, and retries a network
- * error once after PP_RESUME_RETRY_MS (default 1000). Consumed by one request. */
+/* Note a resume from suspend (Wi-Fi dropped on sleep): the next request waits for
+ * the async Wi-Fi reconnect (pp_wifi_reconnect_wait, capped at PP_RESUME_DELAY_MS,
+ * default 15000; an immediate no-op where connmanctl is absent) and retries a
+ * network error once after PP_RESUME_RETRY_MS (default 1000). Consumed by one request. */
 void worker_note_resume(void);
 
 /* 1 while a resume is still waiting for a request to consume it. */

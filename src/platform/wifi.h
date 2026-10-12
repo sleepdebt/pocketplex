@@ -45,4 +45,8 @@ int pp_wifi_reconnect(void);
  * reconnect in flight at a time). No-op when unavailable. */
 void pp_wifi_reconnect_async(void);
 
+/* 1 once no reconnect thread is running (immediately where connmanctl is absent),
+ * 0 on timeout with a reconnect still in flight. timeout_ms <= 0 checks once. */
+int pp_wifi_reconnect_wait(int timeout_ms);
+
 #endif /* PP_WIFI_H */

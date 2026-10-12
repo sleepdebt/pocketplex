@@ -327,3 +327,13 @@ void pp_wifi_reconnect_async(void) {
   }
   pthread_attr_destroy(&attr);
 }
+
+int pp_wifi_reconnect_wait(int timeout_ms) {
+  if (!pp_wifi_available()) return 1;
+  long deadline = now_ms() + (timeout_ms > 0 ? timeout_ms : 0);
+  while (__atomic_load_n(&g_reconnect_running, __ATOMIC_ACQUIRE)) {
+    if (now_ms() >= deadline) return 0;
+    sleep_ms(20);
+  }
+  return 1;
+}

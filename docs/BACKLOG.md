@@ -56,3 +56,6 @@ Minor review findings that didn't block a merge. Newest at the bottom; tick them
 - [ ] Detail keeps a copy of the list item, so re-entering it from a list that wasn't reloaded shows the old watched flag (lists show no watched markers today).
 - [ ] `fire_resume` (sdl2.c): dedupe when the wall clock jumps backwards.
 - [ ] Wi-Fi rejoin is connman-specific (Knulli); other firmware (Onion/MMP) needs its own path.
+
+## Device support (2026-10-17)
+- [ ] TrimUI Brick Pro running NextUI: not targeted yet. Needs: the device's CPU architecture (`uname -m`), the NextUI library and mpv versions (SDL2, SDL2_ttf, libcurl), button/controller mapping, and a launch path (NextUI ports/ folder). Then a build target (toolchain, `make docker-*`), packaging, and a device pass.

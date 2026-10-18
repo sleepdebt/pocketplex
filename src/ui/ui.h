@@ -175,14 +175,18 @@ pp_screen *screen_settings_create(void);
  * must outlive the player screen (Detail passes its own item; it sits below). */
 pp_screen *screen_player_create(const pp_item *item, long start_ms, pp_item *update);
 
-/* Layout constants for 640x480. */
-#define PP_SCREEN_W 640
-#define PP_SCREEN_H 480
-#define PP_MARGIN_L 16
-#define PP_MARGIN_R 16
-#define PP_HEADER_H 40
-#define PP_FOOTER_H 32
-#define PP_LINE_H   26
-#define PP_VISIBLE  ((PP_SCREEN_H - PP_HEADER_H - PP_FOOTER_H) / PP_LINE_H)
+/* Layout metrics: the UI is designed at 640x480 and scales by h/480 with the
+ * real display size (pp_layout_set_display, called by ui_init from plat_init's
+ * size; PP_FAKE_DISPLAY=WxH fakes it on the desktop for layout checks). */
+#define PP_SCREEN_W pp_layout_w()
+#define PP_SCREEN_H pp_layout_h()
+#define PP_MARGIN_L pp_layout_margin_l()
+#define PP_MARGIN_R pp_layout_margin_r()
+#define PP_HEADER_H pp_layout_header_h()
+#define PP_FOOTER_H pp_layout_footer_h()
+#define PP_LINE_H   pp_layout_line_h()
+#define PP_VISIBLE  pp_layout_visible()
+/* Scale a 480p-design pixel value (padding, offset) to the real display. */
+#define PP_PX(px)   pp_layout_px(px)
 
 #endif /* PP_UI_H */

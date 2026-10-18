@@ -2,6 +2,7 @@
 #include "ui/input_map.h"
 
 #include <ctype.h>
+#include <stdio.h>
 
 pp_keymap pp_default_keys[] = {
   { PP_SDLK_DOWN,     BTN_DOWN },
@@ -102,4 +103,44 @@ pp_btn pp_keycode_to_btn(int sdl_keycode) {
     }
   }
   return swap_ab(btn);
+}
+
+/* ---- Display layout: one scale factor, h/480 ------------------------------ */
+
+static int g_disp_w = 640, g_disp_h = 480;
+
+void pp_layout_set_display(int w, int h) {
+  if (w <= 0 || h <= 0) { w = 640; h = 480; }
+  g_disp_w = w;
+  g_disp_h = h;
+}
+
+double pp_layout_scale(void) { return g_disp_h / 480.0; }
+
+int pp_layout_px(int px) { return (int)(px * pp_layout_scale() + 0.5); }
+
+int pp_layout_w(void) { return g_disp_w; }
+int pp_layout_h(void) { return g_disp_h; }
+int pp_layout_margin_l(void) { return pp_layout_px(16); }
+int pp_layout_margin_r(void) { return pp_layout_px(16); }
+int pp_layout_header_h(void) { return pp_layout_px(40); }
+int pp_layout_footer_h(void) { return pp_layout_px(32); }
+int pp_layout_line_h(void) { return pp_layout_px(26); }
+int pp_layout_font_pt(void) { return pp_layout_px(20); }
+int pp_layout_font_bold_pt(void) { return pp_layout_px(22); }
+
+int pp_layout_visible(void) {
+  int v = (g_disp_h - pp_layout_header_h() - pp_layout_footer_h()) / pp_layout_line_h();
+  return v > 1 ? v : 1;
+}
+
+int pp_parse_display_size(const char *s, int *w, int *h) {
+  if (!s || !*s) return -1;
+  int tw = 0, th = 0;
+  char tail = 0;
+  if (sscanf(s, "%dx%d%c", &tw, &th, &tail) != 2) return -1;
+  if (tw < 320 || th < 240 || tw > 4096 || th > 4096) return -1;
+  if (w) *w = tw;
+  if (h) *h = th;
+  return 0;
 }

@@ -153,6 +153,63 @@ static void test_mapping_both_layouts(void) {
   pp_pad_set_layout(PP_LAYOUT_POSITIONAL);
 }
 
+/* ---- Display layout (scale = h/480) --------------------------------------- */
+
+static void test_layout_default_is_640x480(void) {
+  pp_layout_set_display(0, 0);   /* reset to the design size */
+  CHECK(pp_layout_w() == 640);
+  CHECK(pp_layout_h() == 480);
+  CHECK(pp_layout_scale() > 0.999 && pp_layout_scale() < 1.001);
+  CHECK(pp_layout_px(20) == 20);
+  CHECK(pp_layout_font_pt() == 20);
+  CHECK(pp_layout_font_bold_pt() == 22);
+  CHECK(pp_layout_line_h() == 26);
+  CHECK(pp_layout_header_h() == 40);
+  CHECK(pp_layout_footer_h() == 32);
+  CHECK(pp_layout_margin_l() == 16);
+  CHECK(pp_layout_margin_r() == 16);
+  CHECK(pp_layout_visible() == 15);   /* (480-40-32)/26 */
+}
+
+/* The Brick Pro panel: 1024x768 = 1.6x the design height. */
+static void test_layout_scales_for_1024x768(void) {
+  pp_layout_set_display(1024, 768);
+  CHECK(pp_layout_w() == 1024);
+  CHECK(pp_layout_h() == 768);
+  CHECK(pp_layout_scale() > 1.599 && pp_layout_scale() < 1.601);
+  CHECK(pp_layout_font_pt() == 32);        /* 20 * 1.6 */
+  CHECK(pp_layout_font_bold_pt() == 35);   /* 22 * 1.6 = 35.2 */
+  CHECK(pp_layout_line_h() == 42);         /* 26 * 1.6 = 41.6 */
+  CHECK(pp_layout_header_h() == 64);       /* 40 * 1.6 */
+  CHECK(pp_layout_footer_h() == 51);       /* 32 * 1.6 = 51.2 */
+  CHECK(pp_layout_margin_l() == 26);       /* 16 * 1.6 = 25.6 */
+  CHECK(pp_layout_px(24) == 38);           /* 38.4 */
+  CHECK(pp_layout_visible() == 15);        /* (768-64-51)/42 */
+  pp_layout_set_display(640, 480);         /* back to the design size */
+  CHECK(pp_layout_font_pt() == 20);
+  CHECK(pp_layout_px(24) == 24);
+  pp_layout_set_display(-1, -1);           /* invalid resets too */
+  CHECK(pp_layout_w() == 640 && pp_layout_h() == 480);
+}
+
+/* PP_FAKE_DISPLAY=WxH parsing (desktop layout checks). */
+static void test_parse_display_size(void) {
+  int w = 0, h = 0;
+  CHECK(pp_parse_display_size("1024x768", &w, &h) == 0);
+  CHECK(w == 1024 && h == 768);
+  CHECK(pp_parse_display_size("640x480", &w, &h) == 0);
+  CHECK(w == 640 && h == 480);
+  CHECK(pp_parse_display_size(NULL, &w, &h) == -1);
+  CHECK(pp_parse_display_size("", &w, &h) == -1);
+  CHECK(pp_parse_display_size("abc", &w, &h) == -1);
+  CHECK(pp_parse_display_size("1024", &w, &h) == -1);
+  CHECK(pp_parse_display_size("1024x768junk", &w, &h) == -1);
+  CHECK(pp_parse_display_size("100x100", &w, &h) == -1);      /* below minimum */
+  CHECK(pp_parse_display_size("9999x9999", &w, &h) == -1);    /* above maximum */
+  CHECK(pp_parse_display_size("0x0", &w, &h) == -1);
+  CHECK(pp_parse_display_size("-640x480", &w, &h) == -1);
+}
+
 int main(void) {
   RUN(test_arrow_keys_map_to_dpad);
   RUN(test_enter_is_a);
@@ -169,5 +226,8 @@ int main(void) {
   RUN(test_btn_names);
   RUN(test_layout_detection);
   RUN(test_mapping_both_layouts);
+  RUN(test_layout_default_is_640x480);
+  RUN(test_layout_scales_for_1024x768);
+  RUN(test_parse_display_size);
   return TEST_RESULT();
 }

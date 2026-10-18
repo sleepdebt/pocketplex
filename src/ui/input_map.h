@@ -71,4 +71,28 @@ const char *pp_btn_name(pp_btn b);
 void ui_set_swap_ab(int swap);
 int  ui_is_swap_ab(void);
 
+/* ---- Display layout ----------------------------------------------------- */
+/* The UI is designed at 640x480; on larger panels (the 1024x768 Brick Pro)
+ * everything scales by one factor, h/480. Set once from the plat_init size
+ * (ui_init does this). Pure, no SDL, so tests can drive it. */
+
+/* Set the real display size; w/h <= 0 resets to the 640x480 design size. */
+void   pp_layout_set_display(int w, int h);
+double pp_layout_scale(void);        /* h / 480.0 */
+int    pp_layout_px(int px);         /* design pixel -> display pixel, rounded */
+int    pp_layout_w(void);
+int    pp_layout_h(void);
+int    pp_layout_margin_l(void);
+int    pp_layout_margin_r(void);
+int    pp_layout_header_h(void);
+int    pp_layout_footer_h(void);
+int    pp_layout_line_h(void);
+int    pp_layout_visible(void);      /* list rows between header and footer */
+int    pp_layout_font_pt(void);      /* 20 pt at 480p */
+int    pp_layout_font_bold_pt(void); /* 22 pt at 480p */
+
+/* "WxH" for PP_FAKE_DISPLAY (desktop layout checks), bounded to
+ * 320x240..4096x4096. 0 = parsed into w/h, -1 = malformed or out of bounds. */
+int pp_parse_display_size(const char *s, int *w, int *h);
+
 #endif /* PP_INPUT_MAP_H */

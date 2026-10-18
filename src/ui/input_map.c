@@ -144,3 +144,41 @@ int pp_parse_display_size(const char *s, int *w, int *h) {
   if (h) *h = th;
   return 0;
 }
+
+/* ---- tg5040 raw evdev: Brick Pro pad (TRIMUI Player1) -------------------- */
+/* Codes measured by tg-0 on the device (ops/LOG.md 2026-10-18). Do NOT reuse
+ * the SP codes: Y is 308 (BTN_WEST) here vs 306 (BTN_C) on the SP, and
+ * Select/Start/Menu are 314/315/316 vs the SP's 310/311/312. */
+static const struct { int code; pp_btn btn; } pp_tg5040_keys[] = {
+  { 304, BTN_A },      /* BTN_SOUTH, printed A */
+  { 305, BTN_B },      /* BTN_EAST, printed B */
+  { 307, BTN_X },      /* BTN_NORTH, printed X */
+  { 308, BTN_Y },      /* BTN_WEST, printed Y */
+  { 310, BTN_L1 },     /* BTN_TL */
+  { 311, BTN_R1 },     /* BTN_TR */
+  { 314, BTN_SELECT }, /* BTN_SELECT */
+  { 315, BTN_START },  /* BTN_START */
+  { 316, BTN_MENU },   /* BTN_MODE: the only quit key */
+  /* 317/318 (L3/R3) and KEY 59/60 (assignable buttons) are intentionally
+   * absent: pp_btn has no L3/R3, and the owner has not picked actions for
+   * the assignable pair yet (D-input-2 in reviews/tg-0-input.md). */
+};
+
+pp_btn pp_tg5040_key_to_btn(int code) {
+  for (size_t i = 0; i < sizeof pp_tg5040_keys / sizeof pp_tg5040_keys[0]; i++)
+    if (pp_tg5040_keys[i].code == code) return swap_ab(pp_tg5040_keys[i].btn);
+  return BTN_NONE;
+}
+
+pp_btn pp_tg5040_hat_to_btn(int axis, int value) {
+  if (value == 0 || value < -1 || value > 1) return BTN_NONE;   /* hats: -1/0/+1 */
+  if (axis == 16) return value < 0 ? BTN_LEFT : BTN_RIGHT;   /* ABS_HAT0X */
+  if (axis == 17) return value < 0 ? BTN_UP : BTN_DOWN;     /* ABS_HAT0Y */
+  return BTN_NONE;
+}
+
+pp_btn pp_tg5040_trigger_to_btn(int axis) {
+  if (axis == 2) return BTN_L2;
+  if (axis == 5) return BTN_R2;
+  return BTN_NONE;
+}

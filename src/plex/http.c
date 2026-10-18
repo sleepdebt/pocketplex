@@ -73,6 +73,13 @@ static int http_run(const char *url, const char *token, const char *method,
 
   char errbuf[CURL_ERROR_SIZE] = "";
   curl_easy_setopt(curl, CURLOPT_URL, url);
+  /* Bundled-CA platforms (tg5040 pak): CURL_CA_BUNDLE/PP_CA_BUNDLE -> CAINFO,
+  * exactly like pp_http_probe. Without this the probe (discovery) would trust
+   * the pak's CA while every real request (PIN auth, sections, timelines)
+   * failed verification: no system trust store on the device. Unset leaves
+   * libcurl's defaults (system trust store on desktop/SP). */
+  char ca[512];
+  if (pp_http_ca_bundle(ca, sizeof ca)) curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, out);
@@ -152,8 +159,10 @@ int pp_http_probe(const char *url, const char *token, void *ud) {
   CURL *curl = curl_easy_init();
   if (!curl) return 0;
   struct curl_slist *headers = build_headers(token);
+  char ca[512];
   curl_easy_setopt(curl, CURLOPT_URL, full);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
+  if (pp_http_ca_bundle(ca, sizeof ca)) curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_cb);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 3L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 4L);
@@ -169,6 +178,18 @@ int pp_http_probe(const char *url, const char *token, void *ud) {
 }
 
 const char *pp_internal_client_id(void) { return g_client_id; }
+
+int pp_http_ca_bundle(char *out, size_t n) {
+  if (!out || n == 0) return 0;
+  const char *v = getenv("CURL_CA_BUNDLE");
+  if (!v || !v[0]) v = getenv("PP_CA_BUNDLE");
+  if (!v || !v[0]) return 0;
+  if ((size_t)snprintf(out, n, "%s", v) >= n) {
+    out[0] = '\0';
+    return 0; /* path truncated would point at the wrong file: treat as unset */
+  }
+  return 1;
+}
 
 int pp_init(const char *client_id) {
   if (!client_id || !client_id[0]) return PP_ERR_ARG;

@@ -10,9 +10,11 @@
 
 #include "platform/platform.h"
 
-/* Find and open the pad: first /dev/input/event* whose EV_KEY capability
- * bitmap has BTN_SOUTH (the has_gamepad_keys gate player_mpv.c uses; on the
- * Brick Pro that is TRIMUI Player1, event3). 0 = ok, -1 = none found. */
+/* Scan /dev/input/event* and open the pad: prefer the node whose EVIOCGNAME
+ * is exactly "TRIMUI Player1" (the built-in pad; a stale uinput "Xbox 360
+ * Controller" also advertises BTN_SOUTH but emits nothing, tg-0), falling
+ * back to the first BTN_SOUTH-capable node (the has_gamepad_keys gate
+ * player_mpv.c uses). 0 = ok, -1 = none found. */
 int pp_evdev_tg5040_open(void);
 
 /* Non-blocking: drain pending events and return the next queued button press

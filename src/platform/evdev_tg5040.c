@@ -181,6 +181,8 @@ int pp_evdev_tg5040_open(void) {
   }
   struct dirent *e;
   char path[300];
+  int fb_fd = -1;                 /* fallback: first BTN_SOUTH node */
+  char fb_name[128] = "", fb_path[300] = "";
   while ((e = readdir(d)) != NULL) {
     if (strncmp(e->d_name, "event", 5) != 0) continue;
     snprintf(path, sizeof path, "/dev/input/%s", e->d_name);
@@ -188,21 +190,44 @@ int pp_evdev_tg5040_open(void) {
     if (fd < 0) continue;
     unsigned long bits[KEY_MAX / (8 * sizeof(unsigned long)) + 1];
     memset(bits, 0, sizeof bits);
-    if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof bits), bits) < 0 ||
-        !((bits[BTN_SOUTH / (8 * sizeof(unsigned long))] >>
-           (BTN_SOUTH % (8 * sizeof(unsigned long))) & 1))) {
+    int south =
+        ioctl(fd, EVIOCGBIT(EV_KEY, sizeof bits), bits) >= 0 &&
+        ((bits[BTN_SOUTH / (8 * sizeof(unsigned long))] >>
+          (BTN_SOUTH % (8 * sizeof(unsigned long))) & 1));
+    if (!south) {
       close(fd);
       continue;
     }
     char name[128] = "";
     if (ioctl(fd, EVIOCGNAME(sizeof name - 1), name) < 0) name[0] = '\0';
     name[sizeof name - 1] = '\0';
-    g_fd = fd;
-    snprintf(g_path, sizeof g_path, "%s", path);
-    LOGI("input: evdev pad '%s' on %s", name[0] ? name : "?", g_path);
-    break;
+    if (strcmp(name, "TRIMUI Player1") == 0) {
+      /* The real built-in pad: wins over any BTN_SOUTH node seen earlier
+       * (readdir order is unstable; the stale uinput "Xbox 360 Controller"
+       * also advertises BTN_SOUTH and emits nothing - tg-0). */
+      if (fb_fd >= 0) { close(fb_fd); fb_fd = -1; }
+      g_fd = fd;
+      snprintf(g_path, sizeof g_path, "%s", path);
+      LOGI("input: evdev pad '%s' on %s (name match)", name, g_path);
+      break;
+    }
+    if (fb_fd < 0) {
+      fb_fd = fd;
+      snprintf(fb_name, sizeof fb_name, "%s", name[0] ? name : "?");
+      snprintf(fb_path, sizeof fb_path, "%s", path);
+      LOGI("input: evdev candidate '%s' on %s (BTN_SOUTH, not the named pad)",
+           fb_name, fb_path);
+    } else {
+      close(fd);
+    }
   }
   closedir(d);
+  if (g_fd < 0 && fb_fd >= 0) {
+    g_fd = fb_fd;
+    snprintf(g_path, sizeof g_path, "%s", fb_path);
+    LOGW("input: no 'TRIMUI Player1' under /dev/input/event*; using '%s' on %s "
+         "(if the pad is dead this node is stale)", fb_name, g_path);
+  }
   if (g_fd < 0) {
     LOGE("input: no evdev gamepad (BTN_SOUTH) under /dev/input/event*; "
          "pad buttons are dead this run (SDL cannot enumerate the pad on "

@@ -100,7 +100,7 @@ DIST ?= dist
 # is never wiped by `make clean` inside the image.
 ID_U ?= $(shell id -u)
 ID_G ?= $(shell id -g)
-.PHONY: docker-sp docker-mmp inspect-sp inspect-mmp
+.PHONY: docker-sp docker-mmp docker-tg5040 inspect-sp inspect-mmp inspect-tg5040
 docker-sp:
 	@mkdir -p $(DIST)
 	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
@@ -115,6 +115,13 @@ docker-mmp:
 	$(DOCKER) run --rm -u $(ID_U):$(ID_G) -v $(CURDIR):/src -w /src pocketplex:mmp \
 	  sh -c 'make clean BUILD=/tmp/pp-build && make PLATFORM=mmp BUILD=/tmp/pp-build \
 	  && sh /src/toolchains/package.sh mmp /tmp/pp-build/pocketplex dist/pocketplex-mmp.zip'
+docker-tg5040:
+	@mkdir -p $(DIST)
+	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
+	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
+	$(DOCKER) run --rm -u $(ID_U):$(ID_G) -v $(CURDIR):/src -w /src pocketplex:tg5040 \
+	  sh -c 'make clean BUILD=/tmp/pp-build && make PLATFORM=tg5040 BUILD=/tmp/pp-build \
+	  && sh /src/toolchains/package.sh tg5040 /tmp/pp-build/pocketplex dist/pocketplex-tg5040.zip'
 
 # Diagnostic: build in the image and print the real NEEDED list,
 # interpreter, and the SDL2/SDL2_ttf/curl versions the cross toolchain sees.
@@ -132,6 +139,20 @@ inspect-mmp:
 	  sh -c 'make clean BUILD=/tmp/i >/dev/null && make PLATFORM=mmp BUILD=/tmp/i >/dev/null \
 	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
 	  PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig pkg-config --modversion sdl2 SDL2_ttf libcurl && \
+	  file /tmp/i/pocketplex'
+# Like inspect-sp, plus the tg5040 glibc gate: the device runs glibc 2.23, so the
+# highest GLIBC_* version symbol the binary imports must be <= 2.23 (the cross
+# toolchain's sysroot enforces it; this proves it). Fails the target if newer.
+inspect-tg5040:
+	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
+	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:tg5040 \
+	  sh -c 'make clean BUILD=/tmp/i >/dev/null && make PLATFORM=tg5040 BUILD=/tmp/i >/dev/null \
+	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
+	  aarch64-nextui-linux-gnu-readelf -l /tmp/i/pocketplex | grep -i interpreter && \
+	  max=$$(aarch64-nextui-linux-gnu-readelf --dyn-syms -W /tmp/i/pocketplex | grep -o "GLIBC_[0-9.]*" | sed "s/GLIBC_//" | sort -uV | tail -1) && \
+	  echo "highest GLIBC_ symbol: GLIBC_$$max (device has 2.23)" && \
+	  [ "$$(printf "%s\n2.23\n" "$$max" | sort -V | tail -1)" = "2.23" ] || { echo "FAIL: GLIBC_$$max > 2.23"; exit 1; } && \
+	  pkg-config --modversion sdl2 && \
 	  file /tmp/i/pocketplex'
 
 -include $(CORE_OBJS:.o=.d) $(APP_OBJS:.o=.d) $(patsubst %.c,$(OBJ)/%.d,$(TEST_SRCS) $(TOOL_SRCS))

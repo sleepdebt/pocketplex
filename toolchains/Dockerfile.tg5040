@@ -1,0 +1,89 @@
+# toolchains/Dockerfile.tg5040.
+# Build image for the TrimUI Brick Pro / NextUI (platform tg5040, Allwinner A133P,
+# aarch64, device glibc 2.23). Pinned by digest; tag `latest` was pulled 2026-10-18.
+#
+# The base is the LoveRetro tg5040 toolchain: GCC 8.3 (crosstool-NG), TrimUI SDK
+# sysroot ($SYSROOT) with SDL2 2.26 + SDL2_ttf, and env vars already exported
+# (CC, SYSROOT, PKG_CONFIG_PATH, PKG_CONFIG_SYSROOT_DIR). Image is linux/arm64:
+# native under OrbStack on Apple Silicon, emulated (QEMU) on amd64 CI runners.
+#
+# The device has NO libcurl and old TLS libs (OpenSSL 1.1, mbedTLS 2.2.1), so this
+# image builds STATIC mbedTLS + libcurl (HTTP/HTTPS only) into /opt/pp-net. The app
+# links those statically and resolves only SDL2/SDL2_ttf + glibc dynamically, so the
+# target's glibc symbol ceiling (2.23) comes from the cross toolchain's sysroot.
+# cacert.pem is pinned below and shipped in the pak; http.c reads CURL_CA_BUNDLE /
+# PP_CA_BUNDLE at runtime and points libcurl at it (no trust store on the device).
+FROM ghcr.io/loveretro/tg5040-toolchain@sha256:f131c6af64029a8723d0ce8d3c2682642f5f091b04714f6beedda9bec18477ab
+
+# zip/file for toolchains/package.sh, xz-utils + bzip2 to unpack the pinned sources
+# (wget is already in the base image).
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      zip xz-utils bzip2 file ca-certificates \
+ && rm -rf /var/lib/apt/lists/*
+
+ENV PP_NET_PREFIX=/opt/pp-net
+
+# Sanity: cross gcc, the SDK sysroot's SDL2, and SDL2_ttf's header (the SDK ships
+# no SDL2_ttf.pc, so tg5040.mk links it by name - see the note there).
+RUN aarch64-nextui-linux-gnu-gcc --version | head -1 \
+ && pkg-config --modversion sdl2 \
+ && test -f "$SYSROOT/usr/include/SDL2/SDL_ttf.h" \
+ && ls "$SYSROOT/usr/lib/libpthread-2.23.so" >/dev/null
+
+# ---- static mbedTLS 2.28 LTS (pinned; upstream sha256sum.txt cross-checked) ----
+ARG MBEDTLS_VER=2.28.10
+ARG MBEDTLS_SHA256=19e5b81fdac0fe22009b9e2bdcd52d7dcafbf62bc67fc59cf0a76b5b5540d149
+RUN cd /tmp \
+ && wget -q "https://github.com/Mbed-TLS/mbedtls/releases/download/mbedtls-${MBEDTLS_VER}/mbedtls-${MBEDTLS_VER}.tar.bz2" \
+ && echo "${MBEDTLS_SHA256}  mbedtls-${MBEDTLS_VER}.tar.bz2" | sha256sum -c - \
+ && tar xf "mbedtls-${MBEDTLS_VER}.tar.bz2" \
+ && cmake -S "mbedtls-${MBEDTLS_VER}" -B mb-build \
+      -DCMAKE_TOOLCHAIN_FILE=/opt/aarch64-nextui-linux-gnu/Toolchain.cmake \
+      -DCMAKE_INSTALL_PREFIX="$PP_NET_PREFIX" \
+      -DCMAKE_BUILD_TYPE=Release \
+      -DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF \
+      -DUSE_STATIC_MBEDTLS_LIBRARY=ON -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+ && cmake --build mb-build --parallel "$(nproc)" \
+ && cmake --install mb-build \
+ && rm -rf /tmp/mb*
+
+# ---- static libcurl 8.7.1 (pinned), HTTP(S) only, mbedTLS backend ----
+# Everything else is disabled so nothing outside libc gets a dynamic NEEDED entry.
+# No compile-time CA path: the trust root is chosen at runtime (CURLOPT_CAINFO
+# from CURL_CA_BUNDLE/PP_CA_BUNDLE; the pak ships the pinned cacert.pem below).
+ARG CURL_VER=8.7.1
+ARG CURL_SHA256=6fea2aac6a4610fbd0400afb0bcddbe7258a64c63f1f68e5855ebc0c659710cd
+RUN cd /tmp \
+ && wget -q "https://curl.se/download/curl-${CURL_VER}.tar.xz" \
+ && echo "${CURL_SHA256}  curl-${CURL_VER}.tar.xz" | sha256sum -c - \
+ && tar xf "curl-${CURL_VER}.tar.xz" \
+ && cd "curl-${CURL_VER}" \
+ && ./configure --host=aarch64-nextui-linux-gnu --prefix="$PP_NET_PREFIX" \
+      --with-mbedtls="$PP_NET_PREFIX" --without-openssl \
+      --disable-shared --enable-static --enable-http \
+      --disable-ftp --disable-file --disable-ldap --disable-ldaps --disable-rtsp \
+      --disable-dict --disable-telnet --disable-tftp --disable-imap --disable-pop3 \
+      --disable-smtp --disable-gopher --disable-smb --disable-manual \
+      --without-zlib --without-brotli --without-zstd --without-libpsl \
+      --without-libidn2 --without-nghttp2 --without-librtmp --without-libssh2 \
+ && make -j"$(nproc)" && make install \
+ && rm -rf /tmp/curl*
+
+# ---- pinned CA bundle (curl.se extract, dated snapshot) ----
+ARG CACERT_DATE=2026-09-25
+ARG CACERT_SHA256=a41b5d356aea97a529fe27e0f7316d2f9d946d75927476cf9cf1b90637d00505
+RUN install -d -m 755 "$PP_NET_PREFIX/share/pocketplex" \
+ && wget -q "https://curl.se/ca/cacert-${CACERT_DATE}.pem" \
+ && echo "${CACERT_SHA256}  cacert-${CACERT_DATE}.pem" | sha256sum -c - \
+ && install -m 644 "cacert-${CACERT_DATE}.pem" "$PP_NET_PREFIX/share/pocketplex/cacert.pem" \
+ && rm "cacert-${CACERT_DATE}.pem"
+
+# Prove the prefix: static curl+mbedTLS, dynamic SDL2 from the SDK sysroot, and
+# no NEEDED entry for curl/mbed*.
+RUN printf '#include <curl/curl.h>\n#include <SDL2/SDL.h>\n#include <SDL2/SDL_ttf.h>\nint main(void) { (void)curl_version(); (void)SDL_Init(0); (void)TTF_Init(); return 0; }\n' \
+      > /tmp/probe.c \
+ && aarch64-nextui-linux-gnu-gcc -o /tmp/probe /tmp/probe.c \
+      -I"$PP_NET_PREFIX/include" -L"$PP_NET_PREFIX/lib" \
+      -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lpthread -lSDL2 -lSDL2_ttf \
+ && aarch64-nextui-linux-gnu-readelf -d /tmp/probe | grep NEEDED \
+ && rm -f /tmp/probe.c /tmp/probe

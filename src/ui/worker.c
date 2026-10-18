@@ -225,9 +225,10 @@ static void *worker_thread(void *arg) {
     case PP_ERR_AUTH:  set_error(req, "Authentication failed (relink)"); break;
     case PP_ERR_NET:
 #if defined(PP_PLATFORM_TG5040)
-      /* NextUI owns Wi-Fi and connmanctl is absent there, so a dead network
-       * most likely means Wi-Fi is off; only the owner can turn it back on. */
-      if (!pp_wifi_available()) {
+      /* NextUI owns Wi-Fi (no connmanctl here to manage or probe it): only
+       * claim Wi-Fi is off when wlan0 is administratively down. Up-but-no-
+       * route, server down, DNS and TLS failures keep the generic message. */
+      if (pp_wifi_interface_down()) {
         set_error(req, "Wi-Fi is off. Turn it on in NextUI Settings");
         break;
       }

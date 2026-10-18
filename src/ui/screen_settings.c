@@ -28,8 +28,9 @@ static void settings_render(pp_screen *self) {
     ui_draw_text(labels[i], PP_MARGIN_L, y, col);
     char val[64];
     if (i == 0) {
-      int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
-      snprintf(val, sizeof(val), "%s", is_480 ? "480p" : "360p");
+      pp_quality q;
+      pp_quality_get(d->cfg.quality, &q);   /* unknown/disabled preset -> 480p */
+      snprintf(val, sizeof(val), "%s (%dx%d @ %d kbps)", q.name, q.width, q.height, q.kbps);
     } else if (i == 1) {
       snprintf(val, sizeof(val), "%s", play_burn_subtitles(d->cfg.subtitles) ? "on" : "off");
     } else if (i == 2) {
@@ -65,8 +66,8 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
   case BTN_UP:   if (d->sel > 0) d->sel--; break;
   case BTN_A:
     if (d->sel == 0) {
-      int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
-      snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", is_480 ? "360p" : "480p");
+      /* Cycle the enabled presets (768p only with PP_QUALITY_768P=1). */
+      snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", pp_quality_next(d->cfg.quality));
       ui_toast(settings_save(d) ? d->cfg.quality : "Failed to save settings");
     } else if (d->sel == 1) {
       int on = play_burn_subtitles(d->cfg.subtitles);

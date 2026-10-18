@@ -1,5 +1,6 @@
 /* tests/test_ui_play_state.c: playback cadence/scrobble logic. No SDL, no mpv. */
 #include <string.h>
+#include <stdlib.h>
 #include "test.h"
 #include "ui/play_state.h"
 
@@ -63,6 +64,36 @@ static void test_quality_kbps(void) {
   CHECK(play_quality_kbps(NULL) == 1500);
 }
 
+/* Presets carry the transcode canvas (worker uses it for videoResolution).
+ * 768p is hidden until PP_QUALITY_768P=1 (tg5040 Phase 0 soak pending). */
+static void test_quality_presets(void) {
+  unsetenv("PP_QUALITY_768P");
+  CHECK(!pp_quality_768p_enabled());
+  pp_quality q;
+  memset(&q, 0, sizeof q);
+  CHECK(pp_quality_get("480p", &q) == 0);
+  CHECK(q.width == 640 && q.height == 480 && q.kbps == 1500);
+  CHECK(pp_quality_get("360p", &q) == 0);
+  CHECK(q.width == 640 && q.height == 480 && q.kbps == 800);
+  CHECK(pp_quality_get("768p", &q) == 1);              /* hidden -> 480p fallback */
+  CHECK(q.width == 640 && q.kbps == 1500);
+  CHECK(pp_quality_get("bogus", &q) == 1 && q.kbps == 1500);
+  CHECK(pp_quality_get(NULL, &q) == 1 && q.kbps == 1500);
+  CHECK(pp_quality_get("480p", NULL) == 0);            /* NULL out is fine */
+  CHECK_STR(pp_quality_next("480p"), "360p");
+  CHECK_STR(pp_quality_next("360p"), "480p");          /* cycle skips 768p */
+  CHECK_STR(pp_quality_next("768p"), "360p");          /* hidden: falls back to 480p, then next */
+  CHECK_STR(pp_quality_next(NULL), "360p");            /* unknown = 480p -> next */
+
+  setenv("PP_QUALITY_768P", "1", 1);
+  CHECK(pp_quality_768p_enabled());
+  CHECK(pp_quality_get("768p", &q) == 0);
+  CHECK(q.width == 1024 && q.height == 768 && q.kbps == 3000);
+  CHECK_STR(pp_quality_next("360p"), "768p");
+  CHECK_STR(pp_quality_next("768p"), "480p");
+  unsetenv("PP_QUALITY_768P");
+}
+
 static void test_session_id(void) {
   char a[37], b[37];
   play_session_id(a);
@@ -118,6 +149,7 @@ int main(void) {
   RUN(test_early_finish_no_scrobble);
   RUN(test_fmt_time);
   RUN(test_quality_kbps);
+  RUN(test_quality_presets);
   RUN(test_session_id);
   RUN(test_normalize_key);
   RUN(test_burn_subtitles_mapping);

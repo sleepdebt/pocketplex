@@ -39,6 +39,7 @@ typedef struct {
   const char *state;    /* "playing" | "paused" | "stopped" (timeline / stop) */
   long time_ms;         /* timeline position */
   int max_kbps;         /* transcode bitrate */
+  int width, height;    /* REQ_TRANSCODE_URL: videoResolution canvas; 0 = 640x480 */
   int burn_subtitles;   /* REQ_TRANSCODE_URL: 1 = burn Plex's chosen track, 0 = none */
 } pp_play_args;
 

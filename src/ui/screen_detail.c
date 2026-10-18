@@ -24,7 +24,7 @@ static int is_playable(pp_kind k) {
 static void detail_toggle_watched(pp_screen *self) {
   detail_data_t *d = (detail_data_t *)self->data;
   if (d->req) return;  /* one toggle at a time */
-  pp_play_args a = { &d->item, NULL, NULL, 0, 0, 0 };
+  pp_play_args a = { &d->item, NULL, NULL, 0, 0, 0, 0, 0 };
   d->req = worker_start_play(d->item.watched ? REQ_UNSCROBBLE : REQ_SCROBBLE,
                              ui_current_server(), &a, ui_is_smoke_scroll());
   if (!d->req) ui_toast("Out of memory");

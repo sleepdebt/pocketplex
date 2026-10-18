@@ -25,6 +25,7 @@ typedef struct {
   long start_ms;
   char session[37];
   int kbps;
+  int width, height;     /* transcode canvas from the quality preset */
   int burn_subtitles;    /* from [ui] subtitles */
   player_phase phase;
   pp_request *req_url;   /* owned reference while resolving */
@@ -36,7 +37,8 @@ typedef struct {
 } player_data_t;
 
 static pp_play_args play_args(player_data_t *d, const char *state) {
-  pp_play_args a = { &d->item, d->session, state, d->ps.pos_ms, d->kbps, d->burn_subtitles };
+  pp_play_args a = { &d->item, d->session, state, d->ps.pos_ms, d->kbps,
+                     d->width, d->height, d->burn_subtitles };
   return a;
 }
 
@@ -198,7 +200,11 @@ pp_screen *screen_player_create(const pp_item *item, long start_ms, pp_item *upd
   pp_config cfg;
   pp_config_defaults(&cfg);
   pp_config_load(&cfg, ui_ini_path());
-  d->kbps = play_quality_kbps(cfg.quality);
+  pp_quality q;
+  pp_quality_get(cfg.quality, &q);   /* unknown/disabled preset -> 480p */
+  d->kbps = q.kbps;
+  d->width = q.width;
+  d->height = q.height;
   d->burn_subtitles = play_burn_subtitles(cfg.subtitles);
   memset(&cfg, 0, sizeof cfg);   /* holds the token */
 

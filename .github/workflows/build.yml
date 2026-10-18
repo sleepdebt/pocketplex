@@ -59,3 +59,20 @@ jobs:
         with:
           name: pocketplex-mmp-zip-untested
           path: dist/pocketplex-mmp.zip
+
+  # TrimUI Brick Pro / NextUI (tg5040). Interim: no bundled mpv yet (player lane
+  # pending), so the artifact is marked -nompv; HTTPS trust is the pak's pinned
+  # cacert.pem via CURL_CA_BUNDLE. The toolchain image is linux/arm64, so the
+  # amd64 runner executes it under QEMU (slower; still a plain docker build).
+  tg5040:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build tg5040 NextUI pak zip (no mpv yet)
+        run: |
+          make docker-tg5040
+      - name: Upload tg5040 artifact (nompv)
+        uses: actions/upload-artifact@v4
+        with:
+          name: pocketplex-tg5040-zip-nompv
+          path: dist/pocketplex-tg5040.zip

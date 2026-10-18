@@ -43,8 +43,8 @@ static void home_render(pp_screen *self) {
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_SCREEN_H, PP_COLOR_BG);
 
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
-  ui_draw_text("PocketPlex", PP_MARGIN_L, 10, PP_COLOR_FG);
-  ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
+  ui_draw_text("PocketPlex", PP_MARGIN_L, PP_PX(10), PP_COLOR_FG);
+  ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - PP_PX(200), PP_PX(10), PP_COLOR_DIM);
 
   /* Process completed requests */
   if (!d->ondeck_loaded && worker_is_done(d->req_ondeck)) {
@@ -65,7 +65,7 @@ static void home_render(pp_screen *self) {
   /* Still loading? */
   if (!d->ondeck_loaded || !d->sections_loaded) {
     self->loading = 1;
-    ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
+    ui_draw_spinner(PP_SCREEN_W / 2 - PP_PX(40), PP_SCREEN_H / 2, g_spinner_frame);
     g_spinner_frame++;
     return;
   }
@@ -74,8 +74,8 @@ static void home_render(pp_screen *self) {
   int total_top = d->on_deck.count;
 
   /* Continue Watching */
-  ui_draw_text("Continue Watching", PP_MARGIN_L, 52, PP_COLOR_FG);
-  int y = 80;
+  ui_draw_text("Continue Watching", PP_MARGIN_L, PP_PX(52), PP_COLOR_FG);
+  int y = PP_PX(80);
   int i;
   for (i = 0; i < total_top && i < 6; i++) {
     pp_item *it = &d->on_deck.items[i];
@@ -92,22 +92,22 @@ static void home_render(pp_screen *self) {
   }
 
   /* Separator */
-  y += 8;
-  ui_draw_rect(PP_MARGIN_L, y, PP_SCREEN_W - 2*PP_MARGIN_L, 1, PP_COLOR_DIM);
+  y += PP_PX(8);
+  ui_draw_rect(PP_MARGIN_L, y, PP_SCREEN_W - 2*PP_MARGIN_L, PP_PX(1), PP_COLOR_DIM);
 
   /* Sections */
-  ui_draw_text("Libraries", PP_MARGIN_L, y + 12, PP_COLOR_FG);
-  y += 38;
+  ui_draw_text("Libraries", PP_MARGIN_L, y + PP_PX(12), PP_COLOR_FG);
+  y += PP_PX(38);
   for (i = 0; i < d->sections.count; i++) {
     pp_item *it = &d->sections.items[i];
     pp_color col = (d->in_sections == 1 && d->sel - total_top == i)
                    ? PP_COLOR_SEL : PP_COLOR_FG;
-    ui_draw_text(it->title, PP_MARGIN_L + 16, y, col);
+    ui_draw_text(it->title, PP_MARGIN_L + PP_PX(16), y, col);
     y += PP_LINE_H;
   }
 
   ui_draw_text("D-pad: nav  A: open  Select: settings  L1: servers",
-               PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
+               PP_MARGIN_L, PP_SCREEN_H - PP_PX(24), PP_COLOR_DIM);
 }
 
 static void home_handle(pp_screen *self, pp_btn btn) {

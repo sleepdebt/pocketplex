@@ -10,6 +10,11 @@
 SDL_Renderer *plat_renderer(void);
 SDL_Window   *plat_window(void);
 
+/* The window size plat_init chose: the real display size on tg5040
+ * (SDL_GetCurrentDisplayMode), 640x480 on desktop, PP_FAKE_DISPLAY=WxH when
+ * set. The UI scales its layout from this. */
+void plat_display_size(int *w, int *h);
+
 /* Internal (not platform.h): hand the display to an external player process.
  * suspend destroys the renderer + window and quits SDL video; resume brings
  * them back (0 ok, -1 failed; safe to retry). */

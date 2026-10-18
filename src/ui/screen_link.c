@@ -76,9 +76,9 @@ static void link_render(pp_screen *self) {
   int cx = PP_SCREEN_W / 2;
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_SCREEN_H, PP_COLOR_BG);
 
-  ui_draw_text("Link to Plex", cx - 70, 60, PP_COLOR_FG);
-  ui_draw_text("1. Open plex.tv/link on your phone", PP_MARGIN_L, 110, PP_COLOR_FG);
-  ui_draw_text("2. Enter this code:", PP_MARGIN_L, 140, PP_COLOR_FG);
+  ui_draw_text("Link to Plex", cx - PP_PX(70), PP_PX(60), PP_COLOR_FG);
+  ui_draw_text("1. Open plex.tv/link on your phone", PP_MARGIN_L, PP_PX(110), PP_COLOR_FG);
+  ui_draw_text("2. Enter this code:", PP_MARGIN_L, PP_PX(140), PP_COLOR_FG);
 
   link_collect(d);
 
@@ -89,27 +89,27 @@ static void link_render(pp_screen *self) {
   }
 
   if (!d->started) {
-    ui_draw_text("Starting...", PP_MARGIN_L, 180, PP_COLOR_DIM);
-    ui_draw_text("Menu: quit", PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
+    ui_draw_text("Starting...", PP_MARGIN_L, PP_PX(180), PP_COLOR_DIM);
+    ui_draw_text("Menu: quit", PP_MARGIN_L, PP_SCREEN_H - PP_PX(24), PP_COLOR_DIM);
     return;
   }
 
-  ui_draw_text(d->pin, cx - 30, 180, PP_COLOR(0xff, 0xff, 0x00));
+  ui_draw_text(d->pin, cx - PP_PX(30), PP_PX(180), PP_COLOR(0xff, 0xff, 0x00));
 
   if (d->linked) {
-    ui_draw_text("Linked!", cx - 40, 240, PP_COLOR(0x00, 0xff, 0x00));
+    ui_draw_text("Linked!", cx - PP_PX(40), PP_PX(240), PP_COLOR(0x00, 0xff, 0x00));
     if (d->linked == 1) {
       d->linked = 2;
       ui_toast("Account linked");
       ui_go(screen_servers_create());
     }
   } else {
-    ui_draw_text("Waiting for confirmation...", PP_MARGIN_L, 240, PP_COLOR_DIM);
-    ui_draw_spinner(PP_SCREEN_W / 2 - 40, 280, g_spinner_frame);
+    ui_draw_text("Waiting for confirmation...", PP_MARGIN_L, PP_PX(240), PP_COLOR_DIM);
+    ui_draw_spinner(PP_SCREEN_W / 2 - PP_PX(40), PP_PX(280), g_spinner_frame);
     g_spinner_frame++;
   }
 
-  ui_draw_text("Menu: quit", PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
+  ui_draw_text("Menu: quit", PP_MARGIN_L, PP_SCREEN_H - PP_PX(24), PP_COLOR_DIM);
 }
 
 static void link_handle(pp_screen *self, pp_btn btn) {

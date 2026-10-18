@@ -16,11 +16,11 @@ typedef struct {
 static void settings_render(pp_screen *self) {
   settings_data_t *d = (settings_data_t *)self->data;
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
-  ui_draw_text("Settings", PP_MARGIN_L, 10, PP_COLOR_FG);
+  ui_draw_text("Settings", PP_MARGIN_L, PP_PX(10), PP_COLOR_FG);
   ui_draw_text("A: toggle  B: back  Menu: quit",
-               PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
+               PP_SCREEN_W - PP_PX(200), PP_PX(10), PP_COLOR_DIM);
 
-  int y = PP_HEADER_H + 20;
+  int y = PP_HEADER_H + PP_PX(20);
   const char *labels[] = { "Video Quality", "Subtitles", "Swap A/B", "Sign Out", NULL };
   int i;
   for (i = 0; labels[i]; i++) {
@@ -44,13 +44,13 @@ static void settings_render(pp_screen *self) {
 
   if (d->sel == 1)
     ui_draw_text("Uses the subtitle track chosen in Plex",
-                 PP_MARGIN_L, y + 12, PP_COLOR_DIM);
+                 PP_MARGIN_L, y + PP_PX(12), PP_COLOR_DIM);
   else if (d->sel == 2)
     ui_draw_text("Off = buttons follow their printed labels",
-                 PP_MARGIN_L, y + 12, PP_COLOR_DIM);
+                 PP_MARGIN_L, y + PP_PX(12), PP_COLOR_DIM);
 
   ui_draw_text("D-pad: navigate  A: toggle  B: back",
-               PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
+               PP_MARGIN_L, PP_SCREEN_H - PP_PX(24), PP_COLOR_DIM);
 }
 
 static int settings_save(settings_data_t *d) {

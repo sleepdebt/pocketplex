@@ -69,9 +69,9 @@ static void finish_playback(player_data_t *d) {
 
 static void draw_status(const char *msg, int spinner) {
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_SCREEN_H, PP_COLOR_BG);
-  ui_draw_text(msg, PP_MARGIN_L, PP_SCREEN_H / 2 - 30, PP_COLOR_FG);
+  ui_draw_text(msg, PP_MARGIN_L, PP_SCREEN_H / 2 - PP_PX(30), PP_COLOR_FG);
   if (spinner) {
-    ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2 + 10, g_spinner_frame);
+    ui_draw_spinner(PP_SCREEN_W / 2 - PP_PX(40), PP_SCREEN_H / 2 + PP_PX(10), g_spinner_frame);
     g_spinner_frame++;
   }
 }

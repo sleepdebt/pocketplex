@@ -9,7 +9,7 @@
 #include "ui/input_map.h"
 #include "log.h"
 
-#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP)
+#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP) || defined(PP_PLATFORM_TG5040)
 #define PP_HANDHELD_BUILD 1   /* unknown controller = built-in Nintendo-layout pad */
 #else
 #define PP_HANDHELD_BUILD 0
@@ -23,10 +23,17 @@ static SDL_Window *g_win = NULL;
 static SDL_Renderer *g_ren = NULL;
 static int g_quit_requested = 0;
 static void (*g_on_resume)(void) = NULL;
+static int g_win_w = 640, g_win_h = 480;  /* real display size, kept for video resume */
 
 /* Return the renderer for the UI drawing layer. NULL until plat_init. */
 SDL_Renderer *plat_renderer(void) { return g_ren; }
 SDL_Window *plat_window(void) { return g_win; }
+
+/* The window size plat_init chose (real display size on tg5040). */
+void plat_display_size(int *w, int *h) {
+  if (w) *w = g_win_w;
+  if (h) *h = g_win_h;
+}
 
 /* Wall clock in ms. Monotonic clocks (SDL_GetTicks) freeze across suspend, so
  * sleep/wake detection has to use the wall clock. */
@@ -89,7 +96,7 @@ int plat_video_resume(void) {
     LOGE("video: SDL_InitSubSystem: %s", SDL_GetError());
     return -1;
   }
-  if (create_video(640, 480) != 0) {
+  if (create_video(g_win_w, g_win_h) != 0) {
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
     return -1;
   }
@@ -113,11 +120,34 @@ int plat_init(int *w, int *h) {
   }
 
   int ww = 640, hh = 480;
+#if defined(PP_PLATFORM_TG5040)
+  /* The panel is 1024x768; ask SDL for the real mode instead of assuming the
+   * 640x480 design size. */
+  SDL_DisplayMode dm;
+  if (SDL_GetCurrentDisplayMode(0, &dm) == 0 && dm.w > 0 && dm.h > 0) {
+    ww = dm.w;
+    hh = dm.h;
+    LOGI("display: SDL reports %dx%d", ww, hh);
+  } else {
+    LOGW("display: SDL_GetCurrentDisplayMode failed (%s); assuming 640x480",
+         SDL_GetError());
+  }
+#endif
+  {  /* PP_FAKE_DISPLAY=WxH: fake the display for desktop layout checks. */
+    int fw = 0, fh = 0;
+    if (pp_parse_display_size(getenv("PP_FAKE_DISPLAY"), &fw, &fh) == 0) {
+      LOGI("display: PP_FAKE_DISPLAY overrides to %dx%d", fw, fh);
+      ww = fw;
+      hh = fh;
+    }
+  }
   if (create_video(ww, hh) != 0) {
     TTF_Quit();
     SDL_Quit();
     return -1;
   }
+  g_win_w = ww;
+  g_win_h = hh;
 
   if (w) *w = ww;
   if (h) *h = hh;

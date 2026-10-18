@@ -73,6 +73,13 @@ static int http_run(const char *url, const char *token, const char *method,
 
   char errbuf[CURL_ERROR_SIZE] = "";
   curl_easy_setopt(curl, CURLOPT_URL, url);
+  /* Bundled-CA platforms (tg5040 pak): CURL_CA_BUNDLE/PP_CA_BUNDLE -> CAINFO,
+  * exactly like pp_http_probe. Without this the probe (discovery) would trust
+   * the pak's CA while every real request (PIN auth, sections, timelines)
+   * failed verification: no system trust store on the device. Unset leaves
+   * libcurl's defaults (system trust store on desktop/SP). */
+  char ca[512];
+  if (pp_http_ca_bundle(ca, sizeof ca)) curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, out);

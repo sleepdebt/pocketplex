@@ -406,6 +406,10 @@ void ui_render_toast(void) {
 void ui_set_smoke_scroll(int on) { g_smoke_scroll = on; }
 int  ui_is_smoke_scroll(void) { return g_smoke_scroll; }
 
+static int g_ondeck_stale = 0;
+void ui_mark_ondeck_stale(void) { g_ondeck_stale = 1; }
+int  ui_take_ondeck_stale(void) { int s = g_ondeck_stale; g_ondeck_stale = 0; return s; }
+
 void ui_set_smoke_play(const char *key, long play_ms) {
   snprintf(g_smoke_play_key, sizeof(g_smoke_play_key), "%s", key ? key : "");
   g_smoke_play_ms = play_ms;

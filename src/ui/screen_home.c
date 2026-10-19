@@ -44,12 +44,18 @@ static void home_render(pp_screen *self) {
 
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
   ui_draw_text("PocketPlex", PP_MARGIN_L, 10, PP_COLOR_FG);
-  ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   /* Process completed requests */
   if (!d->ondeck_loaded && worker_is_done(d->req_ondeck)) {
+    pp_list_free(&d->on_deck);   /* a refetch replaces the rows; take_list does not free them */
     home_collect(d, &d->req_ondeck, &d->on_deck);
     d->ondeck_loaded = 1;
+    if (d->sel > d->on_deck.count) d->sel = 0;   /* the list may have shrunk */
+  }
+  /* Playback moved a progress value: refetch On Deck. The old rows stay until the new ones arrive. */
+  if (d->ondeck_loaded && !d->req_ondeck && ui_take_ondeck_stale()) {
+    d->req_ondeck = worker_start(REQ_ON_DECK, ui_current_server(), NULL, NULL, 0, ui_is_smoke_scroll());
+    d->ondeck_loaded = 0;
   }
   if (!d->sections_loaded && worker_is_done(d->req_sections)) {
     home_collect(d, &d->req_sections, &d->sections);

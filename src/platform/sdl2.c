@@ -65,11 +65,21 @@ static int create_video(int ww, int hh) {
   SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
   SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
 #endif
+  /* TG5040: fill the panel. The UI keeps its 640x480 layout; the renderer scales it below. */
+  int win_w = ww, win_h = hh;
+#if defined(PP_PLATFORM_TG5040)
+  SDL_DisplayMode dm;
+  if (SDL_GetDesktopDisplayMode(0, &dm) == 0 && dm.w > 0 && dm.h > 0) {
+    win_w = dm.w;
+    win_h = dm.h;
+  }
+  LOGI("video: panel %dx%d, UI layout %dx%d", win_w, win_h, ww, hh);
+#endif
   g_win = SDL_CreateWindow("PocketPlex",
                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                           ww, hh,
+                           win_w, win_h,
 #if defined(PP_PLATFORM_TG5040)
-                           SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
+                           SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL | SDL_WINDOW_FULLSCREEN_DESKTOP
 #else
                            SDL_WINDOW_SHOWN
 #endif
@@ -81,6 +91,10 @@ static int create_video(int ww, int hh) {
   g_ren = SDL_CreateRenderer(g_win, -1,
                              SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
   if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
+#if defined(PP_PLATFORM_TG5040)
+  /* Scale the UI's fixed 640x480 coordinates to the panel. */
+  if (g_ren) SDL_RenderSetLogicalSize(g_ren, ww, hh);
+#endif
   if (!g_ren) {
     LOGE("SDL_CreateRenderer: %s", SDL_GetError());
     SDL_DestroyWindow(g_win);
@@ -232,6 +246,11 @@ static void on_joystick_added(int index) {
 #endif
 #endif
     pp_pad_layout layout = pp_pad_layout_for(name, label_mapped, PP_HANDHELD_BUILD);
+#if defined(PP_PLATFORM_TG5040)
+    /* The built-in TrimUI pad prints A on the east button, but SDL reports it as "Xbox 360
+     * Controller", which the name rules read as positional. It is the only pad in scope here. */
+    layout = PP_LAYOUT_NINTENDO;
+#endif
     pp_pad_set_layout(layout);
     LOGI("input: layout %s for '%s' (%s; swap_ab=%d)", pp_pad_layout_name(layout),
          name ? name : "?",

@@ -46,7 +46,41 @@ mmp)
   rm -f "$zipout"
   ( cd "$staging" && zip -qr "$zipout" App )
   ;;
+tg5040)
+  # NextUI Tool pak (see BRICKPRO_HANDOFF §5 ws-d). The zip's top level is the
+  # pak folder itself: unzip into SDCARD/Tools/tg5040/ and it shows under
+  # Tools -> PocketPlex. No mpv bundle yet (tg-b pending), so this pak is the
+  # interim -nompv one: binary + assets + pinned CA bundle + a minimal launcher.
+  # ws-d owns packaging/nextui/*: once its launch.sh/README land, they win.
+  mkdir -p "$staging/PocketPlex.pak/assets"
+  cp "$bin" "$staging/PocketPlex.pak/PocketPlex"
+  cp -a "$root/assets/." "$staging/PocketPlex.pak/assets/" 2>/dev/null || true
+  find "$staging/PocketPlex.pak/assets" -name .gitkeep -delete 2>/dev/null || true
+  if [ -f "$root/packaging/nextui/launch.sh" ]; then
+    cp "$root/packaging/nextui/launch.sh" "$staging/PocketPlex.pak/launch.sh"
+  else
+    # Interim launcher until ws-d's packaging/nextui/launch.sh lands. Same env
+    # contract the real one must keep: ini in userdata, CA bundle in the pak.
+    cat > "$staging/PocketPlex.pak/launch.sh" <<'EOS'
+#!/bin/sh
+# Interim PocketPlex launcher (tg-a toolchain lane). packaging/nextui/launch.sh
+# (ws-d) replaces this when it lands: CPU governor, syncsettings.elf, logging.
+cd "$(dirname "$0")"
+mkdir -p "${USERDATA_PATH:-$PWD/data}/PocketPlex"
+export POCKETPLEX_INI="${USERDATA_PATH:-$PWD/data}/PocketPlex/pocketplex.ini"
+export CURL_CA_BUNDLE="$PWD/cacert.pem"
+./PocketPlex
+exit $?
+EOS
+  fi
+  # Pinned CA bundle built into the image (Dockerfile.tg5040, cacert-2026-09-25).
+  cp "${PP_CACERT:-/opt/pp-net/share/pocketplex/cacert.pem}" \
+     "$staging/PocketPlex.pak/cacert.pem"
+  chmod +x "$staging/PocketPlex.pak/launch.sh" "$staging/PocketPlex.pak/PocketPlex"
+  rm -f "$zipout"
+  ( cd "$staging" && zip -qr "$zipout" PocketPlex.pak )
+  ;;
 *)
-  echo "package.sh: unknown platform '$platform' (expected sp|mmp)" >&2; exit 2 ;;
+  echo "package.sh: unknown platform '$platform' (expected sp|mmp|tg5040)" >&2; exit 2 ;;
 esac
 echo "packaged: $zipout"

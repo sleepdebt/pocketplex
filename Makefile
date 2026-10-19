@@ -100,7 +100,7 @@ DIST ?= dist
 # is never wiped by `make clean` inside the image.
 ID_U ?= $(shell id -u)
 ID_G ?= $(shell id -g)
-.PHONY: docker-sp docker-mmp inspect-sp inspect-mmp
+.PHONY: docker-sp docker-mmp docker-tg5040 inspect-sp inspect-mmp inspect-tg5040 inspect-libmpv-tg5040
 docker-sp:
 	@mkdir -p $(DIST)
 	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
@@ -133,5 +133,49 @@ inspect-mmp:
 	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
 	  PKG_CONFIG_LIBDIR=/usr/lib/arm-linux-gnueabihf/pkgconfig:/usr/share/pkgconfig pkg-config --modversion sdl2 SDL2_ttf libcurl && \
 	  file /tmp/i/pocketplex'
+
+docker-tg5040:
+	@mkdir -p $(DIST)
+	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
+	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
+	$(DOCKER) run --rm -u $(ID_U):$(ID_G) -v $(CURDIR):/src -w /src pocketplex:tg5040 \
+	  sh -c 'make clean BUILD=/tmp/pp-build && make PLATFORM=tg5040 BUILD=/tmp/pp-build >/tmp/pp-make.log 2>&1 \
+	  || { cat /tmp/pp-make.log; exit 1; }; \
+	  if grep -E "\.c:[0-9]+:[0-9]+: warning:" /tmp/pp-make.log; then echo "FAIL: compiler warnings (gate is 0)"; exit 1; fi \
+	  && sh /src/toolchains/package.sh tg5040 /tmp/pp-build/pocketplex dist/pocketplex-tg5040.zip'
+
+# Like inspect-sp, plus the tg5040 glibc gate: the device runs glibc 2.23, so the
+# highest GLIBC_* version symbol the binary imports must be <= 2.23 (the cross
+# toolchain's sysroot enforces it; this proves it). Fails the target if newer,
+# and also if no GLIBC_* symbols are found at all (a missing binary or a failed
+# readelf must not pass the gate vacuously).
+inspect-tg5040:
+	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
+	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:tg5040 \
+	  sh -c 'make clean BUILD=/tmp/i >/dev/null && make PLATFORM=tg5040 BUILD=/tmp/i >/tmp/i-make.log 2>&1 \
+	  || { cat /tmp/i-make.log; exit 1; }; \
+	  if grep -E "\.c:[0-9]+:[0-9]+: warning:" /tmp/i-make.log; then echo "FAIL: compiler warnings (gate is 0)"; exit 1; fi \
+	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
+	  aarch64-nextui-linux-gnu-readelf -l /tmp/i/pocketplex | grep -i interpreter && \
+	  max=$$(aarch64-nextui-linux-gnu-readelf --dyn-syms -W /tmp/i/pocketplex | grep -oE "GLIBC_[0-9]+(\.[0-9]+)+" | sed "s/GLIBC_//" | sort -uV | tail -1) && \
+	  [ -n "$$max" ] || { echo "FAIL: no GLIBC_ version symbols found (missing binary or failed readelf must not pass the gate)"; exit 1; } && \
+	  echo "highest GLIBC_ symbol: GLIBC_$$max (device has 2.23)" && \
+	  [ "$$(printf "%s\n2.23\n" "$$max" | sort -V | tail -1)" = "2.23" ] || { echo "FAIL: GLIBC_$$max > 2.23"; exit 1; } && \
+	  pkg-config --modversion sdl2 && \
+	  file /tmp/i/pocketplex'
+
+# libmpv render-API gate (lane C / ws-c). Rebuild the image (mpv layers are cached
+# after the first build) and confirm the libmpv.so built in Dockerfile.tg5040
+# exports mpv_render_context_create -- the OpenGL render API entry point paired
+# with MPV_RENDER_API_TYPE_OPENGL. Fails if the symbol is missing. Does NOT wire
+# libmpv into PocketPlex (no contract-header / package changes).
+inspect-libmpv-tg5040:
+	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
+	$(DOCKER) run --rm pocketplex:tg5040 \
+	  sh -c 'l=/opt/mpv/lib/libmpv.so; test -e "$$l" \
+	  && aarch64-nextui-linux-gnu-nm -D "$$l" | grep -q "mpv_render_context_create" \
+	  && aarch64-nextui-linux-gnu-readelf -d "$$l" | grep -q NEEDED \
+	  || { echo "FAIL: mpv_render_context_create missing from $$l"; exit 1; }'
+
 
 -include $(CORE_OBJS:.o=.d) $(APP_OBJS:.o=.d) $(patsubst %.c,$(OBJ)/%.d,$(TEST_SRCS) $(TOOL_SRCS))

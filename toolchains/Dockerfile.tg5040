@@ -48,6 +48,7 @@ RUN cd /tmp \
       -DCMAKE_BUILD_TYPE=Release \
       -DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF \
       -DUSE_STATIC_MBEDTLS_LIBRARY=ON -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
  && cmake --build mb-build --parallel "$(nproc)" \
  && cmake --install mb-build \
  && rm -rf /tmp/mb*
@@ -118,8 +119,9 @@ RUN cd /tmp \
       --enable-cross-compile --cross-prefix=aarch64-nextui-linux-gnu- \
       --target-os=linux --arch=aarch64 --disable-asm \
       --sysroot="$SYSROOT" \
-      --extra-cflags="-O2 -w" \
-      --extra-ldflags="-Wl,-rpath-link,$SYSROOT/lib" \
+      --enable-mbedtls --enable-version3 \
+      --extra-cflags="-O2 -w -I$PP_NET_PREFIX/include" \
+      --extra-ldflags="-Wl,-rpath-link,$SYSROOT/lib -L$PP_NET_PREFIX/lib" \
       --pkg-config=/usr/bin/pkg-config \
       --enable-shared --disable-static --disable-debug --disable-doc \
       --disable-programs --disable-avdevice \

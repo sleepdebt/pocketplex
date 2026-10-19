@@ -144,7 +144,9 @@ inspect-mmp:
 	  file /tmp/i/pocketplex'
 # Like inspect-sp, plus the tg5040 glibc gate: the device runs glibc 2.23, so the
 # highest GLIBC_* version symbol the binary imports must be <= 2.23 (the cross
-# toolchain's sysroot enforces it; this proves it). Fails the target if newer.
+# toolchain's sysroot enforces it; this proves it). Fails the target if newer,
+# and also if no GLIBC_* symbols are found at all (a missing binary or a failed
+# readelf must not pass the gate vacuously).
 inspect-tg5040:
 	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
 	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:tg5040 \
@@ -153,7 +155,8 @@ inspect-tg5040:
 	  if grep -E "\.c:[0-9]+:[0-9]+: warning:" /tmp/i-make.log; then echo "FAIL: compiler warnings (gate is 0)"; exit 1; fi \
 	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
 	  aarch64-nextui-linux-gnu-readelf -l /tmp/i/pocketplex | grep -i interpreter && \
-	  max=$$(aarch64-nextui-linux-gnu-readelf --dyn-syms -W /tmp/i/pocketplex | grep -o "GLIBC_[0-9.]*" | sed "s/GLIBC_//" | sort -uV | tail -1) && \
+	  max=$$(aarch64-nextui-linux-gnu-readelf --dyn-syms -W /tmp/i/pocketplex | grep -oE "GLIBC_[0-9]+(\.[0-9]+)+" | sed "s/GLIBC_//" | sort -uV | tail -1) && \
+	  [ -n "$$max" ] || { echo "FAIL: no GLIBC_ version symbols found (missing binary or failed readelf must not pass the gate)"; exit 1; } && \
 	  echo "highest GLIBC_ symbol: GLIBC_$$max (device has 2.23)" && \
 	  [ "$$(printf "%s\n2.23\n" "$$max" | sort -V | tail -1)" = "2.23" ] || { echo "FAIL: GLIBC_$$max > 2.23"; exit 1; } && \
 	  pkg-config --modversion sdl2 && \

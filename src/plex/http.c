@@ -62,6 +62,15 @@ static struct curl_slist *build_headers(const char *token) {
   return h;
 }
 
+/* Bundled-CA setup: CAINFO from the bundle, and CAPATH from PP_CA_PATH. mbedTLS (the static
+ * curl on tg5040) also loads CAPATH, so the compiled-in /etc/ssl/certs fails on the device, and
+ * an empty CAPATH fails too. PP_CA_PATH must name an existing, empty directory in the pak. */
+static void set_ca_bundle(CURL *curl, const char *ca) {
+  curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
+  const char *cap = getenv("PP_CA_PATH");
+  if (cap && cap[0]) curl_easy_setopt(curl, CURLOPT_CAPATH, cap);
+}
+
 static int http_run(const char *url, const char *token, const char *method,
                     int map_status_errors, pp_http_response *out) {
   if (!url || !out) return PP_ERR_ARG;
@@ -79,7 +88,7 @@ static int http_run(const char *url, const char *token, const char *method,
    * failed verification: no system trust store on the device. Unset leaves
    * libcurl's defaults (system trust store on desktop/SP). */
   char ca[512];
-  if (pp_http_ca_bundle(ca, sizeof ca)) curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
+  if (pp_http_ca_bundle(ca, sizeof ca)) set_ca_bundle(curl, ca);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, write_cb);
   curl_easy_setopt(curl, CURLOPT_WRITEDATA, out);
@@ -162,7 +171,7 @@ int pp_http_probe(const char *url, const char *token, void *ud) {
   char ca[512];
   curl_easy_setopt(curl, CURLOPT_URL, full);
   curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
-  if (pp_http_ca_bundle(ca, sizeof ca)) curl_easy_setopt(curl, CURLOPT_CAINFO, ca);
+  if (pp_http_ca_bundle(ca, sizeof ca)) set_ca_bundle(curl, ca);
   curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, discard_cb);
   curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 3L);
   curl_easy_setopt(curl, CURLOPT_TIMEOUT, 4L);

@@ -416,15 +416,15 @@ static void tg_handle_evdev(pp_player *p, int type, int code, int value) {
   if (type == PP_EV_KEY && value == 2) return;   /* auto-repeat: drop */
   if (type == PP_EV_KEY) {
     switch (code) {
-    case 304: tg_mpv_send(p, "cycle", "pause"); return;          /* A -> pause */
-    case 305: if (value) tg_mpv_send(p, "seek", "-10"); return;  /* B -> seek back */
-    case 307: if (value) tg_mpv_send(p, "seek", "-60"); return;  /* X -> seek back 60 */
-    case 308: if (value) tg_mpv_send(p, "seek", "60"); return;   /* Y -> seek 60 */
-    case 310: if (value) tg_mpv_send(p, "seek", "-10"); return;  /* L1 -> seek back */
-    case 311: if (value) tg_mpv_send(p, "seek", "10"); return;   /* R1 -> seek */
-    case 314: tg_mpv_send(p, "cycle", "pause"); return;          /* Select -> pause */
-    case 315: tg_mpv_send(p, "cycle", "pause"); return;          /* Start -> pause */
-    case 316: tg_mpv_send(p, "quit", NULL); return;             /* Menu -> quit */
+    case 304: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* A -> pause (press only) */
+    case 305: if (value != 1) return; tg_mpv_send(p, "seek", "-10"); return;            /* B -> seek back */
+    case 307: if (value != 1) return; tg_mpv_send(p, "seek", "-60"); return;            /* X -> seek back 60 */
+    case 308: if (value != 1) return; tg_mpv_send(p, "seek", "60"); return;             /* Y -> seek 60 */
+    case 310: if (value != 1) return; tg_mpv_send(p, "seek", "-10"); return;            /* L1 -> seek back */
+    case 311: if (value != 1) return; tg_mpv_send(p, "seek", "10"); return;             /* R1 -> seek */
+    case 314: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* Select -> pause (press only) */
+    case 315: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* Start -> pause (press only) */
+    case 316: if (value != 1) return; tg_mpv_send(p, "quit", NULL); return;           /* Menu -> quit (press only) */
     default: break;   /* 317/318 (L3/R3), 59/60 (KEY) deliberately unbound */
     }
   } else if (type == PP_EV_ABS) {
@@ -629,6 +629,8 @@ int player_poll(pp_player *p, long *pos_ms, int *finished) {
     double sec = 0.0;
     /* Drain mpv's event queue (non-blocking) for EOF/shutdown / errors. */
     while ((event = mpv_wait_event(p->mpv, 0)) && event->event_id != MPV_EVENT_NONE) {
+      if (event->event_id == MPV_EVENT_END_FILE && event->error < 0 && p->mpv_error == 0)
+        p->mpv_error = 1;
       if (event->event_id == MPV_EVENT_SHUTDOWN || event->event_id == MPV_EVENT_END_FILE)
         p->mpv_finished = 1;
     }
@@ -664,8 +666,13 @@ void player_stop(pp_player *p) {
 #if defined(PP_PLATFORM_TG5040)
   if (!p) return;
   if (p->input_running) { p->input_stop = 1; pthread_join(p->input_thread, NULL); }
-  /* Lifetime rule: free the render context BEFORE terminating mpv. */
-  if (p->rc) mpv_render_context_free(p->rc);
+  /* Lifetime rule: free the render context BEFORE terminating mpv. The render
+     context is tied to our GL context, so make it current first (mpv_render_
+     context_free may touch GL state). */
+  if (p->rc) {
+    SDL_GL_MakeCurrent(plat_window(), SDL_GL_GetCurrentContext());
+    mpv_render_context_free(p->rc);
+  }
   if (p->mpv) mpv_terminate_destroy(p->mpv);
   free(p);
   return;

@@ -25,9 +25,9 @@ static void test_apply_server_choice(void) {
   CHECK_STR(pp_config_pms_token(&cfg), "server-REDACTED");
   CHECK(session_start_screen(cfg.token, cfg.server_url) == SCREEN_HOME);
 
-  pp_server no_tok = { "http://192.168.1.10:32400", NULL, NULL, NULL };
+  pp_server no_tok = { "http://192.0.2.10:32400", NULL, NULL, NULL };
   CHECK(session_apply_server(&cfg, &no_tok) == 0);
-  CHECK_STR(cfg.server_url, "http://192.168.1.10:32400");
+  CHECK_STR(cfg.server_url, "http://192.0.2.10:32400");
   CHECK(cfg.server_token[0] == '\0');               /* cleared: a stale one would be wrong */
   CHECK_STR(pp_config_pms_token(&cfg), "account-REDACTED");  /* falls back to the account token */
   pp_server empty_tok = { "http://h", "", NULL, NULL };
@@ -73,9 +73,9 @@ static const char *label(const char *url, const char *name) {
 
 /* Owner: friendly names; fallback to the URL host; local vs remote when the URL shows it. */
 static void test_server_label(void) {
-  CHECK_STR(label("https://192-168-1-246.abc123.plex.direct:32400", "Living Room"), "Living Room (local)");
+  CHECK_STR(label("https://10-0-0-246.abc123.plex.direct:32400", "Living Room"), "Living Room (local)");
   CHECK_STR(label("https://203-0-113-10.abc123.plex.direct:32400", "Living Room"), "Living Room (remote)");
-  CHECK_STR(label("https://192-168-1-246.abc123.plex.direct:32400", NULL), "192.168.1.246 (local)");
+  CHECK_STR(label("https://10-0-0-246.abc123.plex.direct:32400", NULL), "10.0.0.246 (local)");
   CHECK_STR(label("http://10.0.0.5:32400", ""), "10.0.0.5 (local)");
   CHECK_STR(label("http://172.20.1.1:32400", NULL), "172.20.1.1 (local)");
   CHECK_STR(label("http://172.32.1.1:32400", NULL), "172.32.1.1 (remote)");   /* outside 172.16/12 */

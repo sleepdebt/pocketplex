@@ -15,6 +15,14 @@
 #include "player/player.h"
 #include "log.h"
 
+#if defined(PP_PLATFORM_TG5040)
+#include <SDL.h>
+#include <GLES2/gl2.h>         /* loader: glScissor/glClear on the same GL context mpv draws into */
+#include <mpv/client.h>
+#include <mpv/render_gl.h>     /* pulls in mpv/render.h (mpv_render_context, params) */
+#include "ui/ui_platform.h"    /* plat_window() */
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -73,7 +81,26 @@ struct pp_player {
   int input_running;
   volatile int input_stop;
 #endif
+#if defined(PP_PLATFORM_TG5040)
+  mpv_handle *mpv;        /* in-process libmpv handle (tg5040 only) */
+  mpv_render_context *rc; /* libmpv render context bound to our GL ctx */
+  int mpv_update;         /* set by the render-context update callback */
+  int mpv_finished;       /* MPV_EVENT_SHUTDOWN / END_FILE seen */
+  int mpv_error;          /* playback error flag */
+#endif
 };
+
+#if defined(PP_PLATFORM_TG5040)
+/* mpv's render API takes a 2-arg (ctx, name) get_proc_address; wrap SDL's. */
+static void *tg_gl_get_proc(void *ctx, const char *name) {
+  (void)ctx;
+  return SDL_GL_GetProcAddress(name);
+}
+/* Called by mpv from whatever thread decides a new frame is ready. */
+static void tg_mpv_update(void *ctx) {
+  ((pp_player *)ctx)->mpv_update = 1;
+}
+#endif
 
 /* Keyboard bindings for mpv's own window (desktop). Devices use the evdev thread instead. */
 static const char mpv_input_conf[] =
@@ -375,6 +402,83 @@ static void *input_main(void *arg) {
 }
 #endif
 
+#if defined(PP_PLATFORM_TG5040)
+/* Brick Pro pad -> mpv playback commands (reviews/tg-c-evdev-glm.md, input_map.c).
+ * Codes: A=304 B=305 X=307 Y=308 L1=310 R1=311 Select=314 Start=315 Menu=316;
+ * L2/R2=ABS 2/5, D-pad=ABS 16(X)/17(Y). KEY 59/60 and L3/R3 (317/318) are deliberately
+ * unbound. mpv_command_async is thread-safe (called from this evdev thread, not the
+ * mpv_handle owner thread). */
+static void tg_mpv_send(pp_player *p, const char *cmd, const char *arg) {
+  if (!p->mpv) return;
+  const char *argv[3] = { cmd, arg, NULL };
+  mpv_command_async(p->mpv, 0, argv);
+}
+static void tg_handle_evdev(pp_player *p, int type, int code, int value) {
+  if (type == PP_EV_KEY && value == 2) return;   /* auto-repeat: drop */
+  if (type == PP_EV_KEY) {
+    switch (code) {
+    case 304: if (value != 1) return; tg_mpv_send(p, "quit", NULL); return;           /* bottom button (B, back) -> quit (press only) */
+    case 305: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* right button (A, confirm) -> pause (press only) */
+    case 307: if (value != 1) return; tg_mpv_send(p, "seek", "-60"); return;            /* X -> seek back 60 */
+    case 308: if (value != 1) return; tg_mpv_send(p, "seek", "60"); return;             /* Y -> seek 60 */
+    case 310: if (value != 1) return; tg_mpv_send(p, "seek", "-10"); return;            /* L1 -> seek back */
+    case 311: if (value != 1) return; tg_mpv_send(p, "seek", "10"); return;             /* R1 -> seek */
+    case 314: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* Select -> pause (press only) */
+    case 315: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* Start -> pause (press only) */
+    case 316: if (value != 1) return; tg_mpv_send(p, "quit", NULL); return;           /* Menu -> quit (press only) */
+    default: break;   /* 317/318 (L3/R3), 59/60 (KEY) deliberately unbound */
+    }
+  } else if (type == PP_EV_ABS) {
+    switch (code) {
+    case 16:                                                  /* D-pad X (left/right) */
+      if (value < 0) tg_mpv_send(p, "seek", "-10");
+      else if (value > 0) tg_mpv_send(p, "seek", "10");
+      return;
+    case 17:                                                  /* D-pad Y (up/down): sign TBD per reviews MINOR 2 */
+      if (value < 0) tg_mpv_send(p, "seek", "60");
+      else if (value > 0) tg_mpv_send(p, "seek", "-60");
+      return;
+    default: break;                                           /* L2/R2 (ABS 2/5) not mapped */
+    }
+  }
+}
+static void *tg_input_main(void *arg) {
+  pp_player *p = arg;
+  struct pollfd pf[8];
+  int n = 0, i;
+  DIR *d = opendir("/dev/input");
+  struct dirent *e;
+  while (d && (e = readdir(d)) != NULL && n < 8) {
+    char path[300];
+    int fd;
+    if (strncmp(e->d_name, "event", 5) != 0) continue;
+    snprintf(path, sizeof path, "/dev/input/%s", e->d_name);
+    if ((fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)) < 0) continue;
+    if (!has_gamepad_keys(fd)) { close(fd); continue; }
+    LOGI("player: tg5040 evdev buttons -> mpv on %s", path);
+    pf[n].fd = fd; pf[n].events = POLLIN; n++;
+  }
+  if (d) closedir(d);
+  if (n == 0) LOGW("player: no gamepad evdev device found; buttons won't control mpv");
+  while (!p->input_stop) {
+    if (poll(pf, (nfds_t)n, 200) <= 0) continue;
+    for (i = 0; i < n; i++) {
+      if (pf[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+        LOGW("player: input device closed (revents 0x%x)", (unsigned)pf[i].revents);
+        close(pf[i].fd); pf[i--] = pf[--n]; continue;
+      }
+      if (!(pf[i].revents & POLLIN)) continue;
+      struct input_event ev[16];
+      ssize_t r = read(pf[i].fd, ev, sizeof ev);
+      for (size_t k = 0; r > 0 && k < (size_t)r / sizeof ev[0]; k++)
+        tg_handle_evdev(p, ev[k].type, ev[k].code, ev[k].value);
+    }
+  }
+  for (i = 0; i < n; i++) close(pf[i].fd);
+  return NULL;
+}
+#endif
+
 /* Starts mpv with stdio on /dev/null. 0 = ok, else an errno value.
  * On Linux this is fork + PR_SET_PDEATHSIG + exec, so mpv dies with the app: a crashed app would
  * otherwise leave a fullscreen mpv on the SP that no button can quit (the evdev thread died too).
@@ -414,6 +518,70 @@ static int spawn_mpv(pid_t *pid, const char *bin, char **argv) {
 }
 
 pp_player *player_start(const char *url, long start_ms) {
+#if defined(PP_PLATFORM_TG5040)
+  /* In-process libmpv embed: create the render context BEFORE loadfile (lifetime
+   * rule: the GL ctx must be current and the render ctx must exist at file load),
+   * bind mpv's video output to our SDL GL window, and never touch the external
+   * spawn path below. */
+  {
+    pp_player *p;
+    if (!url || !*url) return NULL;
+    if (!(p = calloc(1, sizeof *p))) return NULL;
+    p->fd = -1;
+    p->pos_ms = start_ms < 0 ? 0 : start_ms;
+    p->mpv = mpv_create();
+    if (!p->mpv) { LOGE("player: mpv_create failed"); free(p); return NULL; }
+    mpv_set_property_string(p->mpv, "idle", "yes");
+    mpv_set_property_string(p->mpv, "hwdec", "auto");     /* cedar via avcodec sw fallback */
+    mpv_set_property_string(p->mpv, "cache", "yes");
+    mpv_set_property_string(p->mpv, "demuxer-max-bytes", "32MiB");
+    mpv_set_property_string(p->mpv, "demuxer-max-back-bytes", "16MiB");
+    mpv_set_property_string(p->mpv, "network-timeout", "20");
+    mpv_set_property_string(p->mpv, "ao", "alsa");       /* device audio via ALSA (ao=alsa) */
+    /* The device has no system trust store, so mpv's HTTPS (plex.direct transcodes) needs the
+     * pak's CA bundle, the same file the HTTP client uses. */
+    const char *ca = getenv("CURL_CA_BUNDLE");
+    if (!ca || !ca[0]) ca = getenv("PP_CA_BUNDLE");
+    if (ca && ca[0]) mpv_set_property_string(p->mpv, "tls-ca-file", ca);
+    mpv_request_log_messages(p->mpv, "warn");   /* mpv's own errors go to the PocketPlex log */
+    if (mpv_initialize(p->mpv) < 0) {
+      LOGE("player: mpv_initialize failed");
+      mpv_terminate_destroy(p->mpv);
+      free(p);
+      return NULL;
+    }
+    {
+      mpv_opengl_init_params glinit = {
+        .get_proc_address = tg_gl_get_proc,
+        .get_proc_address_ctx = p,
+      };
+      int advanced = 1;
+      mpv_render_param cparams[] = {
+        { MPV_RENDER_PARAM_API_TYPE, (void *)MPV_RENDER_API_TYPE_OPENGL },
+        { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &glinit },
+        { MPV_RENDER_PARAM_ADVANCED_CONTROL, &advanced },
+        { MPV_RENDER_PARAM_INVALID, NULL },
+      };
+      if (mpv_render_context_create(&p->rc, p->mpv, cparams) < 0) {
+        LOGE("player: mpv_render_context_create failed");
+        mpv_terminate_destroy(p->mpv);
+        free(p);
+        return NULL;
+      }
+      mpv_render_context_set_update_callback(p->rc, tg_mpv_update, p);
+    }
+    {
+      const char *cmd[] = { "loadfile", url, NULL };
+      mpv_command(p->mpv, cmd);
+    }
+    p->input_stop = 0;
+    p->input_running = 0;
+    if (pthread_create(&p->input_thread, NULL, tg_input_main, p) == 0) p->input_running = 1;
+    else LOGW("player: tg5040 input thread unavailable; buttons won't control mpv");
+    LOGI("player: libmpv embed (render API, ao=alsa), start %ld ms", p->pos_ms);
+    return p;
+  }
+#endif
   static int seq;
   char *argv[PP_MPV_MAX_ARGS];
   char bufs[PP_MPV_MAX_ARGS][PP_MPV_ARG_LEN];
@@ -458,6 +626,41 @@ pp_player *player_start(const char *url, long start_ms) {
 }
 
 int player_poll(pp_player *p, long *pos_ms, int *finished) {
+#if defined(PP_PLATFORM_TG5040)
+  if (!p) {
+    if (finished) *finished = 1;
+    return -1;
+  }
+  {
+    mpv_event *event;
+    double sec = 0.0;
+    /* Drain mpv's event queue (non-blocking) for EOF/shutdown / errors. */
+    while ((event = mpv_wait_event(p->mpv, 0)) && event->event_id != MPV_EVENT_NONE) {
+      if (event->event_id == MPV_EVENT_LOG_MESSAGE) {
+        mpv_event_log_message *m = (mpv_event_log_message *)event->data;
+        /* Stream URLs carry the Plex token: never log a message that contains one. */
+        if (m && m->text && !strstr(m->text, "oken=") && !strstr(m->text, "OKEN="))
+          LOGE("mpv[%s]: %s", m->prefix, m->text);
+      }
+      if (event->event_id == MPV_EVENT_END_FILE) {
+        /* event->error is only valid for property/command replies (client.h);
+           END_FILE's error lives in the mpv_event_end_file payload. */
+        mpv_event_end_file *eef = (mpv_event_end_file *)event->data;
+        if (eef && eef->reason == MPV_END_FILE_REASON_ERROR && eef->error < 0) {
+          p->mpv_error = 1;   /* playback/load failure surfaced to the UI */
+          LOGE("player: mpv end-file error: %s", mpv_error_string(eef->error));
+        }
+      }
+      if (event->event_id == MPV_EVENT_SHUTDOWN || event->event_id == MPV_EVENT_END_FILE)
+        p->mpv_finished = 1;
+    }
+    if (mpv_get_property(p->mpv, "time-pos", MPV_FORMAT_DOUBLE, &sec) == 0 && sec >= 0.0)
+      p->pos_ms = (long)(sec * 1000.0 + 0.5);
+    if (pos_ms) *pos_ms = p->pos_ms;
+    if (finished) *finished = p->mpv_finished;
+    return p->mpv_error ? -1 : 0;
+  }
+#endif
   double sec;
   int rc;
   if (!p) {
@@ -480,6 +683,20 @@ int player_poll(pp_player *p, long *pos_ms, int *finished) {
 }
 
 void player_stop(pp_player *p) {
+#if defined(PP_PLATFORM_TG5040)
+  if (!p) return;
+  if (p->input_running) { p->input_stop = 1; pthread_join(p->input_thread, NULL); }
+  /* Lifetime rule: free the render context BEFORE terminating mpv. The render
+     context is tied to our GL context, so make it current first (mpv_render_
+     context_free may touch GL state). */
+  if (p->rc) {
+    SDL_GL_MakeCurrent(plat_window(), SDL_GL_GetCurrentContext());
+    mpv_render_context_free(p->rc);
+  }
+  if (p->mpv) mpv_terminate_destroy(p->mpv);
+  free(p);
+  return;
+#endif
   long t0;
   if (!p) return;
 #ifdef PP_MPV_EVDEV
@@ -501,4 +718,69 @@ void player_stop(pp_player *p) {
   if (p->conf[0]) unlink(p->conf);
   LOGI("player: stopped at %ld ms", p->pos_ms);
   free(p);
+}
+
+int player_render_frame(pp_player *p) {
+#if defined(PP_PLATFORM_TG5040)
+  SDL_Window *win = plat_window();
+  SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+  if (!p || !p->rc) return 0;
+  /* The render context must have the current GL ctx on its thread (us). */
+  if (win && ctx) SDL_GL_MakeCurrent(win, ctx);
+  p->mpv_update = 0;
+  uint64_t flags = mpv_render_context_update(p->rc);
+  if (!(flags & MPV_RENDER_UPDATE_FRAME)) return 0;   /* nothing new to draw */
+  if (win) {
+    int w = 0, h = 0;
+    SDL_GetWindowSize(win, &w, &h);
+    mpv_opengl_fbo fbo = { .fbo = 0, .w = w, .h = h, .internal_format = 0 };
+    int flip_y = 1;   /* mpv draws bottom-up; the default framebuffer is top-down */
+    mpv_render_param rparams[] = {
+      { MPV_RENDER_PARAM_OPENGL_FBO, &fbo },
+      { MPV_RENDER_PARAM_FLIP_Y, &flip_y },
+      { MPV_RENDER_PARAM_INVALID, NULL },
+    };
+    mpv_render_context_render(p->rc, rparams);
+    SDL_GL_SwapWindow(win);
+    return 1;
+  }
+  return 0;
+#else
+  (void)p;
+  return 0;
+#endif
+}
+
+/* Loading indicator until mpv presents its first frame. The UI's SDL renderer is torn down while
+ * mpv owns the display, so this draws with GL: scissored clears give a background and an animated
+ * bar, with no shaders. */
+void player_draw_loader(unsigned tick) {
+#if defined(PP_PLATFORM_TG5040)
+  SDL_Window *win = plat_window();
+  SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+  if (!win || !ctx) return;
+  SDL_GL_MakeCurrent(win, ctx);
+  int w = 0, h = 0;
+  SDL_GetWindowSize(win, &w, &h);
+  glViewport(0, 0, w, h);
+  glEnable(GL_SCISSOR_TEST);
+  glScissor(0, 0, w, h);
+  glClearColor(0.094f, 0.094f, 0.110f, 1.0f);      /* the UI background */
+  glClear(GL_COLOR_BUFFER_BIT);
+  int track_w = w / 3, track_h = 8;
+  int track_x = (w - track_w) / 2, track_y = h / 2 + 20;
+  glScissor(track_x, track_y, track_w, track_h);
+  glClearColor(0.25f, 0.25f, 0.30f, 1.0f);         /* track */
+  glClear(GL_COLOR_BUFFER_BIT);
+  int seg_w = track_w / 4;
+  int span = track_w - seg_w;
+  int seg_x = track_x + (span > 0 ? (int)((tick * 6u) % (unsigned)span) : 0);
+  glScissor(seg_x, track_y, seg_w, track_h);
+  glClearColor(0.85f, 0.85f, 0.90f, 1.0f);         /* moving segment */
+  glClear(GL_COLOR_BUFFER_BIT);
+  glDisable(GL_SCISSOR_TEST);
+  SDL_GL_SwapWindow(win);
+#else
+  (void)tick;
+#endif
 }

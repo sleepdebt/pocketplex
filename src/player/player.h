@@ -17,4 +17,11 @@ int  player_poll(pp_player*, long *pos_ms, int *finished);
 /* Stops the player if still running, frees it, and gives the screen back to the UI. */
 void player_stop(pp_player*);
 
+/* Renders one video frame into the player's surface (the Brick Pro libmpv
+ * render-API path draws into the app's GL context), then swaps once. Safe to
+ * call every frame from the screen render loop; a no-op for the
+ * external-process players, so SP/MMP/desktop are unchanged. */
+int  player_render_frame(pp_player*);   /* 1 when a frame was presented this call */
+void player_draw_loader(unsigned tick); /* tg5040: loading bar until the first frame */
+
 #endif /* PP_PLAYER_H */

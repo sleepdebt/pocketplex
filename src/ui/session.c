@@ -33,7 +33,7 @@ static void url_host(const char *url, char *out, size_t n) {
   out[len] = '\0';
 }
 
-/* "192-168-1-2.<hash>.plex.direct" -> "192.168.1.2" (in place). */
+/* "192-0-2-2.<hash>.plex.direct" -> "192.0.2.2" (in place). */
 static void plex_direct_to_ip(char *host) {
   size_t len = strlen(host);
   const char *sfx = ".plex.direct";

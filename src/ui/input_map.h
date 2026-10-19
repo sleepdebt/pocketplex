@@ -71,4 +71,15 @@ const char *pp_btn_name(pp_btn b);
 void ui_set_swap_ab(int swap);
 int  ui_is_swap_ab(void);
 
+/* ---- tg5040 raw evdev (Brick Pro pad, TRIMUI Player1): see platform/evdev_tg5040.c ---- */
+
+/* EV_KEY code -> button (honours ui_set_swap_ab). KEY 59/60 and L3/R3 stay unmapped. */
+pp_btn pp_tg5040_key_to_btn(int code);
+
+/* D-pad hat axes: ABS 16 (X) / ABS 17 (Y), kernel sign convention (-1 = left/up). */
+pp_btn pp_tg5040_hat_to_btn(int axis, int value);
+
+/* Analog trigger axes: ABS 2 -> BTN_L2, ABS 5 -> BTN_R2. */
+pp_btn pp_tg5040_trigger_to_btn(int axis);
+
 #endif /* PP_INPUT_MAP_H */

@@ -105,6 +105,9 @@ const char *ui_ini_path(void);
 
 /* Toast a one-line message that auto-clears after a few seconds. */
 void ui_toast(const char *msg);
+/* Playback changed a progress value on the server: Home refetches On Deck the next time it draws. */
+void ui_mark_ondeck_stale(void);
+int  ui_take_ondeck_stale(void);   /* 1 once after each mark */
 
 /* ---- List view model (pure logic, testable) ------------------------------ */
 

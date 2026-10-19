@@ -163,6 +163,12 @@ int pp_http_post(const char *url, const char *token, pp_http_response *out);
 int pp_http_get_status(const char *url, const char *token, pp_http_response *out);
 void pp_http_free(pp_http_response *r);
 
+/* TLS trust for platforms with no system trust store (tg5040): returns 1 and
+ * copies the path from CURL_CA_BUNDLE (libcurl's own env convention) or the
+ * PP_CA_BUNDLE alias into out when one is set and non-empty, else 0. Pure env
+ * handling, no network; http.c feeds the result to CURLOPT_CAINFO. */
+int pp_http_ca_bundle(char *out, size_t n);
+
 /* The client identifier pp_init() was given ("" before pp_init). */
 const char *pp_internal_client_id(void);
 

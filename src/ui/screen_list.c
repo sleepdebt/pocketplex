@@ -63,7 +63,6 @@ static void list_render(pp_screen *self) {
     self->loading = 1;
     ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
     ui_draw_text(d->title, PP_MARGIN_L, 10, PP_COLOR_FG);
-    ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
     ui_draw_spinner(PP_SCREEN_W / 2 - 40, PP_SCREEN_H / 2, g_spinner_frame);
     g_spinner_frame++;
     return;
@@ -93,7 +92,6 @@ static void list_render(pp_screen *self) {
 
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
   ui_draw_text(d->title, PP_MARGIN_L, 10, PP_COLOR_FG);
-  ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   if (d->model.count == 0) {
     ui_draw_text("Empty", PP_MARGIN_L, 80, PP_COLOR_DIM);

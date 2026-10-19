@@ -700,3 +700,8 @@ void ui_run(void) {
     LOGI("smoke done: total max frame time = %u ms (must be <50)", g_max_frame_ms);
   }
 }
+
+/* Continue Watching refetch flag: set when playback changes a progress value. */
+static int g_ondeck_stale = 0;
+void ui_mark_ondeck_stale(void) { g_ondeck_stale = 1; }
+int  ui_take_ondeck_stale(void) { int s = g_ondeck_stale; g_ondeck_stale = 0; return s; }

@@ -27,7 +27,7 @@
   "connections": [
    {
     "protocol": "https",
-    "address": "192.168.1.246",
+    "address": "192.0.2.246",
     "port": 32400,
     "uri": "https://999-999-9-999.00000000000000000000000000000000.plex.direct:32400",
     "local": true,
@@ -117,9 +117,9 @@
   "connections": [
    {
     "protocol": "http",
-    "address": "192.168.1.182",
+    "address": "192.0.2.182",
     "port": 32500,
-    "uri": "http://192.168.1.182:32500",
+    "uri": "http://192.0.2.182:32500",
     "local": true,
     "relay": false,
     "IPv6": false
@@ -152,9 +152,9 @@
   "connections": [
    {
     "protocol": "http",
-    "address": "192.168.1.15",
+    "address": "192.0.2.15",
     "port": 62524,
-    "uri": "http://192.168.1.15:62524",
+    "uri": "http://192.0.2.15:62524",
     "local": true,
     "relay": false,
     "IPv6": false

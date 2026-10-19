@@ -8,8 +8,12 @@
 #include <SDL_ttf.h>
 #include "ui/input_map.h"
 #include "log.h"
+#if defined(PP_PLATFORM_TG5040)
+/* SDL 2.26 (TrimUI SDK) cannot enumerate the Brick Pro pad, so input comes from raw evdev. */
+#include "platform/evdev_tg5040.h"
+#endif
 
-#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP)
+#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP) || defined(PP_PLATFORM_TG5040)
 #define PP_HANDHELD_BUILD 1   /* unknown controller = built-in Nintendo-layout pad */
 #else
 #define PP_HANDHELD_BUILD 0
@@ -52,10 +56,28 @@ static void fire_resume(const char *why) {
 }
 
 /* Window + renderer (also used to rebuild them after the external player). */
+/* Window size plat_init chose: the real display on tg5040, 640x480 elsewhere. */
+static int g_win_w = 640, g_win_h = 480;
+
 static int create_video(int ww, int hh) {
+#if defined(PP_PLATFORM_TG5040)
+  /* libmpv's render API draws into this window's GL context: ask for GLES3. */
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
+  g_win = SDL_CreateWindow("PocketPlex",
+                           SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
+                           ww, hh, SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL);
+#else
   g_win = SDL_CreateWindow("PocketPlex",
                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
                            ww, hh, SDL_WINDOW_SHOWN);
+#endif
   if (!g_win) {
     LOGE("SDL_CreateWindow: %s", SDL_GetError());
     return -1;
@@ -69,6 +91,28 @@ static int create_video(int ww, int hh) {
     g_win = NULL;
     return -1;
   }
+#if defined(PP_PLATFORM_TG5040)
+  /* The UI is laid out at 640x480; the renderer scales it to the panel. */
+  SDL_RenderSetLogicalSize(g_ren, 640, 480);
+  {
+    SDL_RendererInfo info;
+    int is_software = 1;
+    const char *rname = "(unknown)";
+    if (SDL_GetRendererInfo(g_ren, &info) == 0) {
+      rname = info.name;
+      is_software = !(info.flags & SDL_RENDERER_ACCELERATED);
+    }
+    LOGI("tg5040: renderer=%s software=%d gl_current_ctx=%s", rname, is_software,
+         SDL_GL_GetCurrentContext() ? "yes" : "no");
+    if (is_software) {
+      /* The render API needs the GL context a hardware renderer provides. */
+      LOGE("tg5040: renderer '%s' is software; mpv render API needs GL", rname);
+      SDL_DestroyRenderer(g_ren); g_ren = NULL;
+      SDL_DestroyWindow(g_win); g_win = NULL;
+      return -1;
+    }
+  }
+#endif
   return 0;
 }
 
@@ -78,9 +122,15 @@ static void destroy_video(void) {
 }
 
 void plat_video_suspend(void) {
+#if defined(PP_PLATFORM_TG5040)
+  /* libmpv draws into this window's GL context, so keep the window; the UI is
+   * held off by no_present while the player runs. */
+  LOGI("video: kept for libmpv render API (tg5040)");
+#else
   destroy_video();
   SDL_QuitSubSystem(SDL_INIT_VIDEO);  /* events/controllers stay up (own refcounts) */
   LOGI("video: suspended for the external player");
+#endif
 }
 
 int plat_video_resume(void) {
@@ -89,7 +139,7 @@ int plat_video_resume(void) {
     LOGE("video: SDL_InitSubSystem: %s", SDL_GetError());
     return -1;
   }
-  if (create_video(640, 480) != 0) {
+  if (create_video(g_win_w, g_win_h) != 0) {
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
     return -1;
   }
@@ -101,8 +151,11 @@ int plat_init(int *w, int *h) {
   /* SDL maps known Nintendo (Switch) pads by label with this on; other pads
    * are positional and input_map applies the handheld layout itself. */
   SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "1");
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER |
-               SDL_INIT_GAMECONTROLLER) != 0) {
+  int sdl_flags = SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER;
+#if !defined(PP_PLATFORM_TG5040)
+  sdl_flags |= SDL_INIT_GAMECONTROLLER;  /* tg5040: raw evdev input instead */
+#endif
+  if (SDL_Init(sdl_flags) != 0) {
     LOGE("SDL_Init: %s", SDL_GetError());
     return -1;
   }
@@ -113,19 +166,37 @@ int plat_init(int *w, int *h) {
   }
 
   int ww = 640, hh = 480;
+#if defined(PP_PLATFORM_TG5040)
+  /* The panel is 1024x768: ask SDL for the real mode and fill it. */
+  SDL_DisplayMode dm;
+  if (SDL_GetCurrentDisplayMode(0, &dm) == 0 && dm.w > 0 && dm.h > 0) {
+    ww = dm.w;
+    hh = dm.h;
+  }
+#endif
   if (create_video(ww, hh) != 0) {
     TTF_Quit();
     SDL_Quit();
     return -1;
   }
+  g_win_w = ww;
+  g_win_h = hh;
 
-  if (w) *w = ww;
-  if (h) *h = hh;
+  if (w) *w = 640;   /* the UI's layout size (the renderer scales it on tg5040) */
+  if (h) *h = 480;
   g_quit_requested = 0;
   LOGI("platform ready: window %dx%d", ww, hh);
+#if defined(PP_PLATFORM_TG5040)
+  /* The built-in TrimUI pad prints A on the east button; SDL reports it as "Xbox 360 Controller",
+   * which the name rules would read as positional, so the layout is fixed here. */
+  pp_pad_set_layout(PP_LAYOUT_NINTENDO);
+  if (pp_evdev_tg5040_open() != 0)
+    LOGW("input: continuing without the pad (SDL keyboard only)");
+#else
   LOGI("input: default layout %s until a controller is found",
        pp_pad_layout_name(pp_pad_layout_for(NULL, 0, PP_HANDHELD_BUILD)));
   pp_pad_set_layout(pp_pad_layout_for(NULL, 0, PP_HANDHELD_BUILD));
+#endif
   return 0;
 }
 
@@ -154,8 +225,10 @@ PP_PAD_CHECK(PP_PAD_DPAD_DOWN, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
 PP_PAD_CHECK(PP_PAD_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
 PP_PAD_CHECK(PP_PAD_DPAD_RIGHT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
 
+#if !defined(PP_PLATFORM_TG5040)   /* trigger axes come from evdev on tg5040 */
 #define PAD_TRIGGER_ON 16000  /* trigger axis threshold for L2/R2 */
 static int g_trig_l = 0, g_trig_r = 0;
+#endif
 
 /* Log a press with what it mapped to, so device logs show the real layout. */
 static pp_btn log_press(const char *src, int code, pp_btn b) {
@@ -163,6 +236,7 @@ static pp_btn log_press(const char *src, int code, pp_btn b) {
   return b;
 }
 
+#if !defined(PP_PLATFORM_TG5040)   /* SDL joystick/gamecontroller path */
 static void on_joystick_added(int index) {
   const char *name = SDL_JoystickNameForIndex(index);
   if (SDL_IsGameController(index)) {
@@ -192,6 +266,7 @@ static void on_joystick_added(int index) {
          "(raw codes logged)%s", index, name ? name : "?", js ? "" : ", open failed");
   }
 }
+#endif /* !PP_PLATFORM_TG5040 */
 
 static int pad_repeats(pp_btn b) {
   return b == BTN_UP || b == BTN_DOWN || b == BTN_LEFT || b == BTN_RIGHT ||
@@ -207,8 +282,24 @@ pp_btn plat_poll_button(void) {
     fire_resume("wall-clock gap");
   g_last_tick_wall_ms = wall;
 
+#if defined(PP_PLATFORM_TG5040)
+  /* Raw evdev pad (SDL cannot enumerate it on this device). One queued press per call, like the
+   * SDL path; held state feeds the shared repeat block at the bottom. */
+  pp_btn eb = pp_evdev_tg5040_poll();
+  if (eb != BTN_NONE) {
+    if (pad_repeats(eb)) {
+      g_pad_held = eb;
+      g_pad_next = SDL_GetTicks() + PAD_REPEAT_DELAY_MS;
+    }
+    return eb;
+  }
+  g_pad_held = pp_evdev_tg5040_held();
+#endif
+
   SDL_Event ev;
+#if !defined(PP_PLATFORM_TG5040)
   pp_btn b;
+#endif
   while (SDL_PollEvent(&ev)) {
     switch (ev.type) {
     case SDL_QUIT:
@@ -223,6 +314,7 @@ pp_btn plat_poll_button(void) {
       break;
     case SDL_KEYDOWN:
       return log_press("key", (int)ev.key.keysym.sym, pp_keycode_to_btn(ev.key.keysym.sym));
+#if !defined(PP_PLATFORM_TG5040)   /* SDL joystick/gamecontroller path */
     case SDL_JOYDEVICEADDED:
       on_joystick_added(ev.jdevice.which);
       break;
@@ -258,6 +350,7 @@ pp_btn plat_poll_button(void) {
         LOGI("input: raw joystick %d hat %d value %d (unmapped)", (int)ev.jhat.which,
              ev.jhat.hat, ev.jhat.value);
       break;
+#endif /* !PP_PLATFORM_TG5040 */
     default:
       break;
     }
@@ -278,6 +371,9 @@ void plat_suspend_hook(void (*on_resume)(void)) {
 }
 
 void plat_quit(void) {
+#if defined(PP_PLATFORM_TG5040)
+  pp_evdev_tg5040_close();
+#endif
   destroy_video();
   TTF_Quit();
   SDL_Quit();

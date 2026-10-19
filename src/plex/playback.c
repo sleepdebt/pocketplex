@@ -212,6 +212,8 @@ int pp_timeline(const pp_server *srv, const pp_item *item, const char *state,
   if (written < 0 || (size_t)written >= sizeof url) return PP_ERR_ARG;
   pp_http_response r;
   int rc = pp_http_get(url, srv->token, &r);
+  /* Detached from the UI, so this line is the only record of whether PMS took the position. */
+  LOGI("timeline %s state=%s time=%ld: rc=%d http=%ld", item->rating_key, state, time_ms, rc, r.status);
   pp_http_free(&r);
   return rc;
 }

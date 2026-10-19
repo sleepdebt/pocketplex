@@ -46,7 +46,6 @@ static void servers_render(pp_screen *self) {
   servers_data_t *d = (servers_data_t *)self->data;
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
   ui_draw_text("Servers", PP_MARGIN_L, 10, PP_COLOR_FG);
-  ui_draw_text("Home  |  Library  |  Settings", PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   /* Check async result (discovery probes every server: several seconds) */
   if (d->req && !worker_is_done(d->req)) {

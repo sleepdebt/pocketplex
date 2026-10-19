@@ -120,7 +120,9 @@ docker-tg5040:
 	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
 	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
 	$(DOCKER) run --rm -u $(ID_U):$(ID_G) -v $(CURDIR):/src -w /src pocketplex:tg5040 \
-	  sh -c 'make clean BUILD=/tmp/pp-build && make PLATFORM=tg5040 BUILD=/tmp/pp-build \
+	  sh -c 'make clean BUILD=/tmp/pp-build && make PLATFORM=tg5040 BUILD=/tmp/pp-build >/tmp/pp-make.log 2>&1 \
+	  || { cat /tmp/pp-make.log; exit 1; }; \
+	  if grep -E "\.c:[0-9]+:[0-9]+: warning:" /tmp/pp-make.log; then echo "FAIL: compiler warnings (gate is 0)"; exit 1; fi \
 	  && sh /src/toolchains/package.sh tg5040 /tmp/pp-build/pocketplex dist/pocketplex-tg5040.zip'
 
 # Diagnostic: build in the image and print the real NEEDED list,
@@ -146,7 +148,9 @@ inspect-mmp:
 inspect-tg5040:
 	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
 	$(DOCKER) run --rm -v $(CURDIR):/src -w /src pocketplex:tg5040 \
-	  sh -c 'make clean BUILD=/tmp/i >/dev/null && make PLATFORM=tg5040 BUILD=/tmp/i >/dev/null \
+	  sh -c 'make clean BUILD=/tmp/i >/dev/null && make PLATFORM=tg5040 BUILD=/tmp/i >/tmp/i-make.log 2>&1 \
+	  || { cat /tmp/i-make.log; exit 1; }; \
+	  if grep -E "\.c:[0-9]+:[0-9]+: warning:" /tmp/i-make.log; then echo "FAIL: compiler warnings (gate is 0)"; exit 1; fi \
 	  && readelf -d /tmp/i/pocketplex | grep NEEDED && \
 	  aarch64-nextui-linux-gnu-readelf -l /tmp/i/pocketplex | grep -i interpreter && \
 	  max=$$(aarch64-nextui-linux-gnu-readelf --dyn-syms -W /tmp/i/pocketplex | grep -o "GLIBC_[0-9.]*" | sed "s/GLIBC_//" | sort -uV | tail -1) && \

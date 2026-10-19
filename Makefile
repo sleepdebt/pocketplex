@@ -100,7 +100,7 @@ DIST ?= dist
 # is never wiped by `make clean` inside the image.
 ID_U ?= $(shell id -u)
 ID_G ?= $(shell id -g)
-.PHONY: docker-sp docker-mmp docker-tg5040 inspect-sp inspect-mmp inspect-tg5040
+.PHONY: docker-sp docker-mmp docker-tg5040 inspect-sp inspect-mmp inspect-tg5040 inspect-libmpv-tg5040
 docker-sp:
 	@mkdir -p $(DIST)
 	$(if $(DOCKER),,$(error No docker found. Install Docker or OrbStack, or put 'docker' on PATH.))
@@ -154,5 +154,18 @@ inspect-tg5040:
 	  [ "$$(printf "%s\n2.23\n" "$$max" | sort -V | tail -1)" = "2.23" ] || { echo "FAIL: GLIBC_$$max > 2.23"; exit 1; } && \
 	  pkg-config --modversion sdl2 && \
 	  file /tmp/i/pocketplex'
+
+# libmpv render-API gate (lane C / ws-c). Rebuild the image (mpv layers are cached
+# after the first build) and confirm the libmpv.so built in Dockerfile.tg5040
+# exports mpv_render_context_create -- the OpenGL render API entry point paired
+# with MPV_RENDER_API_TYPE_OPENGL. Fails if the symbol is missing. Does NOT wire
+# libmpv into PocketPlex (no contract-header / package changes).
+inspect-libmpv-tg5040:
+	$(DOCKER) build -t pocketplex:tg5040 -f toolchains/Dockerfile.tg5040 .
+	$(DOCKER) run --rm pocketplex:tg5040 \
+	  sh -c 'l=/opt/mpv/lib/libmpv.so; test -e "$$l" \
+	  && aarch64-nextui-linux-gnu-nm -D "$$l" | grep -q "mpv_render_context_create" \
+	  && aarch64-nextui-linux-gnu-readelf -d "$$l" | grep -q NEEDED \
+	  || { echo "FAIL: mpv_render_context_create missing from $$l"; exit 1; }'
 
 -include $(CORE_OBJS:.o=.d) $(APP_OBJS:.o=.d) $(patsubst %.c,$(OBJ)/%.d,$(TEST_SRCS) $(TOOL_SRCS))

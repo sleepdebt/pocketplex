@@ -23,6 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV PP_NET_PREFIX=/opt/pp-net
 
+# The LoveRetro base image exports CFLAGS=-w, which hides every compiler warning and
+# makes a "0 warnings" gate pass vacuously. Reset it to the Makefile default so
+# -Wall -Wextra stay in effect for the device build.
+ENV CFLAGS="-O2 -g"
+
 # Sanity: cross gcc, the SDK sysroot's SDL2, and SDL2_ttf's header (the SDK ships
 # no SDL2_ttf.pc, so tg5040.mk links it by name - see the note there).
 RUN aarch64-nextui-linux-gnu-gcc --version | head -1 \

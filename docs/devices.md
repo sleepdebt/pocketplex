@@ -2,6 +2,54 @@
 
 SP sections: core. MMP sections: core. Measurements only; each claim has the command that produced it.
 
+Per-device summary (install, build target, what differs, known-good status) is first;
+the deep-dive measurement sections follow.
+
+---
+
+## Device summary
+
+### Knulli SP (Anbernic RG35XX SP)
+
+| | |
+|---|---|
+| SoC / GPU | Allwinner (H700), Mali fbdev (no DRM) |
+| OS / glibc | Knulli `gladiator-ii` (Batocera base), glibc 2.40, system mpv 0.39 / ffmpeg 7.1 |
+| Install | Knulli ports folder over scp: copy the zip contents to `/userdata/roms/ports/` (see README) |
+| Build | `make docker-sp` → `dist/pocketplex-sp.zip` |
+
+What differs here: everything system-provided (SDL2, SDL2_ttf, libcurl, mpv are Knulli's
+own packages); playback uses the system `mpv --vo=sdl` with software decode (no usable GPU
+context, no v4l2m2m device — see the playback spike below), and the app releases its window
+for mpv and recreates it afterwards (the post-playback glitch finding). Input is read through
+both SDL and the evdev codes measured below. Missing: hardware video decode, and everything
+listed as "next" in the README (music mode, …).
+
+Known-good status: **device-verified** before the 2026-10-18 merge (login, server choice,
+browse, playback with resume, progress sync, mark watched, sleep/wake Wi-Fi rejoin).
+
+### NextUI Brick Pro (TrimUI Brick Pro)
+
+| | |
+|---|---|
+| SoC / GPU | Allwinner A133P (4× Cortex-A53), PowerVR GE8300 fbdev |
+| OS / glibc | NextUI (MinUI family, platform `tg5040`), glibc 2.33 on device (build gate: symbols ≤ 2.23, `make inspect-tg5040`) |
+| Install | NextUI pak: unzip `dist/pocketplex-tg5040.zip` so `PocketPlex.pak/` lands in `Tools/tg5040/` on the SD card |
+| Build | `make docker-tg5040` → `dist/pocketplex-tg5040.zip` (CI artifact `pocketplex-tg5040-zip-nompv` until mpv is bundled) |
+
+What differs here: nothing comes from the system — libcurl + mbedTLS are built static into
+the binary and a pinned `cacert.pem` ships in the pak (HTTPS needs `CURL_CA_BUNDLE`, set by
+the launcher). SDL 2.26 in the TrimUI SDK does not enumerate the built-in pad, so input is
+raw evdev (`TRIMUI Player1`, codes in the input commit / `input_map.c`). The 1024×768 panel
+scales the 640×480 design by h/480. The two assignable buttons (KEY 59/60) are deliberately
+unmapped — free for custom system buttons. The Home button is not intercepted: it quits to
+the NextUI launcher. Missing: mpv is not bundled yet (the `-nompv` artifact has no video
+playback), so the app is browse/UI-only until the player lane lands.
+
+Known-good status: **not device-verified.** Video playback is open (mpv bundle pending;
+the device showed video/flashing issues in the Phase 0 probe). UI, input and install path
+need the on-device pass.
+
 ---
 
 ## Anbernic RG35XX SP

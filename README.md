@@ -4,7 +4,7 @@
 
 Watch your own Plex library on an Anbernic RG35XX SP. PocketPlex is a small text-menu client: your Plex server transcodes to a 480p H.264 stream over home Wi-Fi, and the handheld plays it with mpv. No Plex Pass needed.
 
-Built for the RG35XX SP on Knulli (v1 is done and verified on the device). A Miyoo Mini Plus port is in progress, music-first, but hasn't been tested on the hardware yet. Not affiliated with Plex Inc.
+Built for the RG35XX SP on Knulli (v1 is done and verified on the device). A TrimUI Brick Pro (NextUI) port is in progress and not yet device-verified; a Miyoo Mini Plus port is planned, music-first. Not affiliated with Plex Inc. Per-device notes (install, build targets, what works where): [docs/devices.md](docs/devices.md).
 
 **Status:** v1 works on the RG35XX SP: PIN login, server choice, browsing Movies and TV, playback with resume, and watch-progress sync with Plex. Music mode and the Mini Plus are next. See [Status and roadmap](#status-and-roadmap).
 
@@ -108,5 +108,5 @@ Merge gate: 0 warnings in `make`, `make test` **and** `make docker-sp` (GCC catc
 
 ## Project docs
 
-- [`docs/devices.md`](docs/devices.md): measured RG35XX SP findings (player, buttons, display hand-off, soak results).
+- [`docs/devices.md`](docs/devices.md): per-device summary (Knulli SP, NextUI Brick Pro: install, build target, differences, status) plus measured RG35XX SP findings (player, buttons, display hand-off, soak results).
 - [`docs/BACKLOG.md`](docs/BACKLOG.md): minor findings not yet fixed.

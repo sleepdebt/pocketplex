@@ -47,7 +47,6 @@ Minor review findings that didn't block a merge. Newest at the bottom; tick them
 - [ ] Relay connections show no badge in the Servers list: `pp_server` would need a connection-class field (contract change) so the UI can mark relay/remote and unreachable servers.
 - [ ] `src/main.c` casts away const from `pp_config_pms_token()` to fill `pp_server.token` (char *); make the field `const char *` (contract) or keep the documented cast.
 - [ ] `tests/test_ui_session.c`: add a rejection test for an over-long server token (300 chars → -1, cfg unchanged).
-- [ ] `tests/fixtures/resources.json` still contains private 192.168.1.x LAN addresses (harmless, but swap for 198.51.100.x placeholders).
 - [ ] Discovery now probes up to ~8 s per unreachable server: a retry-on-failure loop in the Servers screen may feel slow; consider a visible "still looking" message.
 
 ## Y button / resume follow-ups (reviews, 2026-10-11)

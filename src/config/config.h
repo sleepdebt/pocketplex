@@ -9,7 +9,7 @@
 #define PP_CONFIG_H
 
 typedef struct {
-  char server_url[256]; /* e.g. http://192.168.1.10:32400 */
+  char server_url[256]; /* e.g. http://192.0.2.10:32400 */
   char token[256];      /* plex.tv account token; empty = not logged in */
   char server_token[256]; /* token for the saved server (resource accessToken);
                              empty = PMS calls use token (old ini files) */

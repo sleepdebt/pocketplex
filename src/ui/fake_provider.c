@@ -14,7 +14,7 @@
 int fake_servers(pp_server **out, int *count) {
   pp_server *srv = (pp_server *)malloc(sizeof(pp_server) * 2);
   if (!srv) return PP_ERR_NOMEM;
-  srv[0].url = strdup("http://192.168.1.100:32400");
+  srv[0].url = strdup("http://192.0.2.100:32400");
   srv[0].token = NULL;
   srv[0].client_id = strdup("pocketplex-device");
   srv[1].url = srv[1].token = srv[1].client_id = NULL;

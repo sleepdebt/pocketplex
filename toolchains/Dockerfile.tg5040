@@ -331,3 +331,7 @@ RUN cd /tmp \
  && test -e "$MPREFIX/lib/libmpv.so" \
  && aarch64-nextui-linux-gnu-nm -D "$MPREFIX/lib/libmpv.so" | grep -q "mpv_render_context_create" \
  && rm -rf /tmp/tg5040-cross.ini build /tmp/v${MPV_VER}.tar.gz
+
+# The -w above only covers the third-party libraries built into libmpv. Restore the
+# Makefile default so PocketPlex itself builds with -Wall -Wextra warnings visible.
+ENV CFLAGS="-O2 -g"

@@ -66,7 +66,10 @@ static int g_trig_l = 0, g_trig_r = 0;
 static void queue_press(pp_btn b) {
   if (b == BTN_NONE) return;
   if (g_q_count == PRESS_QUEUE) {
-    memmove(g_presses, g_presses + 1, sizeof(pp_btn) * (PRESS_QUEUE - 1));
+    /* The oldest press is at g_q_head, not index 0: a memmove from index 0
+     * would drop a mid-queue press whenever the ring has wrapped. Advance
+     * the head instead, so the log below tells the truth. */
+    g_q_head = (g_q_head + 1) % PRESS_QUEUE;
     g_q_count--;
     LOGW("input: evdev press queue full; dropped the oldest press");
   }

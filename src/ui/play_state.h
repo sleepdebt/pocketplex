@@ -28,6 +28,24 @@ int  play_update(play_state *s, long pos_ms, long now_ms);
 
 /* "m:ss" or "h:mm:ss". */
 void play_fmt_time(long ms, char *out, size_t n);
+
+/* Transcode quality presets (Settings). The 360p preset keeps the 640x480
+ * canvas (4:3 content fills the panel); only the bitrate drops. 768p
+ * (1024x768 @ 3 Mbps, for the Brick Pro panel) is hidden behind
+ * PP_QUALITY_768P=1 until the tg5040 Phase 0 soak (handoff #7) passes. */
+typedef struct {
+  const char *name;   /* ini value, e.g. "480p" */
+  int width, height;  /* videoResolution canvas */
+  int kbps;           /* maxVideoBitrate */
+} pp_quality;
+
+/* 1 when the 768p preset is enabled (PP_QUALITY_768P=1/yes/true). */
+int pp_quality_768p_enabled(void);
+/* Copies the preset for name into out (may be NULL). Unknown or disabled
+ * names fall back to 480p. Returns 0 on an exact enabled match, 1 on fallback. */
+int pp_quality_get(const char *name, pp_quality *out);
+/* Next preset in the Settings cycle (enabled presets only). */
+const char *pp_quality_next(const char *name);
 /* Max video bitrate for the Settings quality preset. */
 int  play_quality_kbps(const char *quality);
 /* Random UUID v4 for the PMS transcode session. */

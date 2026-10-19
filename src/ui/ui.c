@@ -17,7 +17,6 @@
 static SDL_Renderer *g_ren = NULL;
 static TTF_Font *g_font = NULL;
 static TTF_Font *g_font_bold = NULL;
-static int g_font_pt = 20;
 
 TTF_Font *ui_font(void) { return g_font; }
 TTF_Font *ui_font_bold(void) { return g_font_bold ? g_font_bold : g_font; }
@@ -169,13 +168,15 @@ void ui_draw_rect(int x, int y, int w, int h, pp_color color) {
 
 void ui_draw_scrollbar(int x, int y, int h_bar, int selected, int total) {
   if (total <= 0) return;
+  int bw = PP_PX(8);
   int thumb_h = (h_bar * h_bar) / (h_bar + total);
-  if (thumb_h < 8) thumb_h = 8;
+  int thumb_min = PP_PX(8);
+  if (thumb_h < thumb_min) thumb_h = thumb_min;
   int max_scroll = total - 1;
   int thumb_y = selected * (h_bar - thumb_h) / (max_scroll > 0 ? max_scroll : 1);
-  ui_fill_rect(x, y, 8, h_bar, PP_COLOR_DIM);
-  ui_fill_rect(x, y + thumb_y, 8, thumb_h, PP_COLOR_SEL);
-  ui_draw_rect(x, y, 8, h_bar, PP_COLOR_FG);
+  ui_fill_rect(x, y, bw, h_bar, PP_COLOR_DIM);
+  ui_fill_rect(x, y + thumb_y, bw, thumb_h, PP_COLOR_SEL);
+  ui_draw_rect(x, y, bw, h_bar, PP_COLOR_FG);
 }
 
 int text_width_px(const char *str) {
@@ -224,7 +225,7 @@ static int font_load(void) {
   };
   int i;
   for (i = 0; font_paths[i]; i++) {
-    g_font = TTF_OpenFont(font_paths[i], g_font_pt);
+    g_font = TTF_OpenFont(font_paths[i], pp_layout_font_pt());
     if (g_font) break;
   }
   if (!g_font) {
@@ -232,7 +233,7 @@ static int font_load(void) {
     return -1;
   }
   for (i = 0; font_paths[i]; i++) {
-    g_font_bold = TTF_OpenFont(font_paths[i], g_font_pt + 2);
+    g_font_bold = TTF_OpenFont(font_paths[i], pp_layout_font_bold_pt());
     if (g_font_bold) break;
   }
   if (!g_font_bold) g_font_bold = g_font;
@@ -244,6 +245,11 @@ static int font_load(void) {
 int ui_init(void) {
   g_ren = plat_renderer();
   if (!g_ren) { LOGE("no renderer"); return -1; }
+  int dw = 0, dh = 0;
+  plat_display_size(&dw, &dh);
+  pp_layout_set_display(dw, dh);
+  LOGI("ui: display %dx%d (scale %.2f, font %d pt)", dw, dh,
+       pp_layout_scale(), pp_layout_font_pt());
   if (font_load() != 0) return -1;
   return 0;
 }
@@ -258,12 +264,13 @@ int ui_init(void) {
 static int g_video_lost = 0;      /* recreate failed; ui_run retries */
 static Uint32 g_video_retry_at = 0;
 
-/* Recreate by default on the handhelds (two EGL clients on one Mali fbdev,
- * core's finding); light on desktop. PP_VIDEO_RECREATE=0/1 overrides. */
+/* Recreate by default on the handhelds (two EGL clients on one fbdev: Mali
+ * on the SP, PowerVR on the Brick Pro); light on desktop.
+ * PP_VIDEO_RECREATE=0/1 overrides. */
 static int video_recreate_mode(void) {
   const char *e = getenv("PP_VIDEO_RECREATE");
   if (e && (e[0] == '0' || e[0] == '1')) return e[0] == '1';
-#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP)
+#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP) || defined(PP_PLATFORM_TG5040)
   return 1;
 #else
   return 0;
@@ -398,9 +405,10 @@ void ui_draw_spinner(int x, int y, int frame) {
 
 void ui_render_toast(void) {
   if (g_toast_ms_left <= 0) return;
-  ui_fill_rect(0, PP_SCREEN_H - 48, PP_SCREEN_W, 48, PP_COLOR(0, 0, 0));
-  ui_draw_rect(0, PP_SCREEN_H - 48, PP_SCREEN_W, 48, PP_COLOR_FG);
-  ui_draw_text(g_toast_msg, PP_MARGIN_L, PP_SCREEN_H - 36, PP_COLOR_FG);
+  int th = PP_PX(48);
+  ui_fill_rect(0, PP_SCREEN_H - th, PP_SCREEN_W, th, PP_COLOR(0, 0, 0));
+  ui_draw_rect(0, PP_SCREEN_H - th, PP_SCREEN_W, th, PP_COLOR_FG);
+  ui_draw_text(g_toast_msg, PP_MARGIN_L, PP_SCREEN_H - PP_PX(36), PP_COLOR_FG);
 }
 
 void ui_set_smoke_scroll(int on) { g_smoke_scroll = on; }

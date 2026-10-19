@@ -45,8 +45,50 @@ void play_fmt_time(long ms, char *out, size_t n) {
   else snprintf(out, n, "%ld:%02ld", m, ss);
 }
 
+static const pp_quality g_presets[] = {
+  { "480p", 640, 480, 1500 },   /* default; SP-verified soak profile */
+  { "360p", 640, 480,  800 },   /* same canvas as 480p (4:3 fills it), lower bitrate */
+  { "768p", 1024, 768, 3000 },  /* Brick Pro panel; PP_QUALITY_768P=1 until Phase 0 #7 */
+};
+#define N_PRESETS ((int)(sizeof g_presets / sizeof g_presets[0]))
+
+int pp_quality_768p_enabled(void) {
+  const char *e = getenv("PP_QUALITY_768P");
+  return e && (strcmp(e, "1") == 0 || strcmp(e, "yes") == 0 || strcmp(e, "true") == 0);
+}
+
+static int preset_enabled(int i) {
+  return i < N_PRESETS - 1 || pp_quality_768p_enabled();  /* 768p is last */
+}
+
+int pp_quality_get(const char *name, pp_quality *out) {
+  for (int i = 0; i < N_PRESETS; i++) {
+    if (name && strcmp(name, g_presets[i].name) == 0 && preset_enabled(i)) {
+      if (out) *out = g_presets[i];
+      return 0;
+    }
+  }
+  if (out) *out = g_presets[0];
+  return 1;
+}
+
+const char *pp_quality_next(const char *name) {
+  pp_quality cur;
+  pp_quality_get(name, &cur);
+  for (int i = 0; i < N_PRESETS; i++) {
+    if (strcmp(cur.name, g_presets[i].name) != 0) continue;
+    for (int j = 1; j <= N_PRESETS; j++) {
+      int k = (i + j) % N_PRESETS;
+      if (preset_enabled(k)) return g_presets[k].name;
+    }
+  }
+  return g_presets[0].name;
+}
+
 int play_quality_kbps(const char *quality) {
-  return (quality && strcmp(quality, "360p") == 0) ? 800 : 1500;
+  pp_quality q;
+  pp_quality_get(quality, &q);
+  return q.kbps;
 }
 
 void play_session_id(char out[37]) {

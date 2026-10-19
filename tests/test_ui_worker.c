@@ -150,7 +150,7 @@ static void test_play_requests_fake(void) {
   pp_item *it = calloc(1, sizeof(*it));
   snprintf(it->rating_key, sizeof(it->rating_key), "53835");
   char *session = strdup("0f0e0d0c-0b0a-4908-8706-050403020100");
-  pp_play_args a = { it, session, NULL, 0, 1500, 1 };
+  pp_play_args a = { it, session, NULL, 0, 1500, 800, 450, 1 };
   pp_request *url = worker_start_play(REQ_TRANSCODE_URL, NULL, &a, 1);
   a.state = "playing"; a.time_ms = 30000;
   pp_request *tl = worker_start_play(REQ_TIMELINE, NULL, &a, 1);
@@ -167,16 +167,18 @@ static void test_play_requests_fake(void) {
   CHECK(worker_status(sc) == PP_OK);
   CHECK(worker_status(st) == PP_OK);
   CHECK(strstr(worker_url(url), "subtitles=burn") != NULL);
+  CHECK(strstr(worker_url(url), "videoResolution=800x450") != NULL);  /* preset canvas */
   CHECK_STR(worker_url(NULL), "");
   worker_release(url); worker_release(tl); worker_release(sc); worker_release(st);
   CHECK(worker_wait_idle(1000) == 0);
 
   pp_item it2;
   memset(&it2, 0, sizeof it2);
-  pp_play_args off = { &it2, "s", NULL, 0, 1500, 0 };     /* burn_subtitles = 0 */
+  pp_play_args off = { &it2, "s", NULL, 0, 1500, 0, 0, 0 };   /* burn_subtitles = 0 */
   pp_request *u2 = worker_start_play(REQ_TRANSCODE_URL, NULL, &off, 1);
   CHECK(wait_done(u2, 5000));
   CHECK(strstr(worker_url(u2), "subtitles=none") != NULL);
+  CHECK(strstr(worker_url(u2), "videoResolution=640x480") != NULL);  /* 0,0 -> default */
   worker_release(u2);
   CHECK(worker_wait_idle(1000) == 0);
 }
@@ -188,7 +190,7 @@ static void test_play_stop_released_in_flight(void) {
   memset(&it, 0, sizeof it);
   snprintf(it.rating_key, sizeof it.rating_key, "1");
   snprintf(it.key, sizeof it.key, "/library/metadata/1");
-  pp_play_args a = { &it, "session", "stopped", 1000, 1500, 1 };
+  pp_play_args a = { &it, "session", "stopped", 1000, 1500, 0, 0, 1 };
   worker_detach(worker_start_play(REQ_PLAY_STOP, &srv, &a, 0));  /* as the player screen does */
   pp_request *r = worker_start_play(REQ_TRANSCODE_URL, &srv, &a, 0);
   CHECK(wait_done(r, 10000));
@@ -204,7 +206,7 @@ static void test_detach_runs_release_cancels(void) {
   setenv("PP_FAKE_DELAY_MS", "50", 1);
   pp_item it;
   memset(&it, 0, sizeof it);
-  pp_play_args a = { &it, "s", "stopped", 1000, 1500, 1 };
+  pp_play_args a = { &it, "s", "stopped", 1000, 1500, 0, 0, 1 };
   int before = worker_ran_count();
   worker_detach(worker_start_play(REQ_PLAY_STOP, NULL, &a, 1));
   CHECK(worker_wait_idle(5000) == 0);
@@ -224,7 +226,7 @@ static void test_unscrobble_fake_and_real_error(void) {
   pp_item it;
   memset(&it, 0, sizeof it);
   snprintf(it.rating_key, sizeof it.rating_key, "53835");
-  pp_play_args a = { &it, NULL, NULL, 0, 0, 0 };
+  pp_play_args a = { &it, NULL, NULL, 0, 0, 0, 0, 0 };
   pp_request *req = worker_start_play(REQ_UNSCROBBLE, NULL, &a, 1);
   CHECK(req != NULL);
   CHECK(wait_done(req, 5000));

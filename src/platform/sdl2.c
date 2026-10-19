@@ -9,7 +9,13 @@
 #include "ui/input_map.h"
 #include "log.h"
 
-#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP)
+#if defined(PP_PLATFORM_TG5040)
+/* SDL 2.26 (TrimUI SDK) cannot enumerate the Brick Pro pad, so input comes
+ * from raw evdev instead (decision: ops/reviews/tg-0-input.md). */
+#include "platform/evdev_tg5040.h"
+#endif
+
+#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP) || defined(PP_PLATFORM_TG5040)
 #define PP_HANDHELD_BUILD 1   /* unknown controller = built-in Nintendo-layout pad */
 #else
 #define PP_HANDHELD_BUILD 0
@@ -23,10 +29,17 @@ static SDL_Window *g_win = NULL;
 static SDL_Renderer *g_ren = NULL;
 static int g_quit_requested = 0;
 static void (*g_on_resume)(void) = NULL;
+static int g_win_w = 640, g_win_h = 480;  /* real display size, kept for video resume */
 
 /* Return the renderer for the UI drawing layer. NULL until plat_init. */
 SDL_Renderer *plat_renderer(void) { return g_ren; }
 SDL_Window *plat_window(void) { return g_win; }
+
+/* The window size plat_init chose (real display size on tg5040). */
+void plat_display_size(int *w, int *h) {
+  if (w) *w = g_win_w;
+  if (h) *h = g_win_h;
+}
 
 /* Wall clock in ms. Monotonic clocks (SDL_GetTicks) freeze across suspend, so
  * sleep/wake detection has to use the wall clock. */
@@ -89,7 +102,7 @@ int plat_video_resume(void) {
     LOGE("video: SDL_InitSubSystem: %s", SDL_GetError());
     return -1;
   }
-  if (create_video(640, 480) != 0) {
+  if (create_video(g_win_w, g_win_h) != 0) {
     SDL_QuitSubSystem(SDL_INIT_VIDEO);
     return -1;
   }
@@ -101,8 +114,11 @@ int plat_init(int *w, int *h) {
   /* SDL maps known Nintendo (Switch) pads by label with this on; other pads
    * are positional and input_map applies the handheld layout itself. */
   SDL_SetHint(SDL_HINT_GAMECONTROLLER_USE_BUTTON_LABELS, "1");
-  if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER |
-               SDL_INIT_GAMECONTROLLER) != 0) {
+  int sdl_flags = SDL_INIT_VIDEO | SDL_INIT_EVENTS | SDL_INIT_TIMER;
+#if !defined(PP_PLATFORM_TG5040)
+  sdl_flags |= SDL_INIT_GAMECONTROLLER;  /* tg5040: raw evdev input instead */
+#endif
+  if (SDL_Init(sdl_flags) != 0) {
     LOGE("SDL_Init: %s", SDL_GetError());
     return -1;
   }
@@ -113,19 +129,47 @@ int plat_init(int *w, int *h) {
   }
 
   int ww = 640, hh = 480;
+#if defined(PP_PLATFORM_TG5040)
+  /* The panel is 1024x768; ask SDL for the real mode instead of assuming the
+   * 640x480 design size. */
+  SDL_DisplayMode dm;
+  if (SDL_GetCurrentDisplayMode(0, &dm) == 0 && dm.w > 0 && dm.h > 0) {
+    ww = dm.w;
+    hh = dm.h;
+    LOGI("display: SDL reports %dx%d", ww, hh);
+  } else {
+    LOGW("display: SDL_GetCurrentDisplayMode failed (%s); assuming 640x480",
+         SDL_GetError());
+  }
+#endif
+  {  /* PP_FAKE_DISPLAY=WxH: fake the display for desktop layout checks. */
+    int fw = 0, fh = 0;
+    if (pp_parse_display_size(getenv("PP_FAKE_DISPLAY"), &fw, &fh) == 0) {
+      LOGI("display: PP_FAKE_DISPLAY overrides to %dx%d", fw, fh);
+      ww = fw;
+      hh = fh;
+    }
+  }
   if (create_video(ww, hh) != 0) {
     TTF_Quit();
     SDL_Quit();
     return -1;
   }
+  g_win_w = ww;
+  g_win_h = hh;
 
   if (w) *w = ww;
   if (h) *h = hh;
   g_quit_requested = 0;
   LOGI("platform ready: window %dx%d", ww, hh);
+#if defined(PP_PLATFORM_TG5040)
+  if (pp_evdev_tg5040_open() != 0)
+    LOGW("input: continuing without the pad (SDL keyboard only)");
+#else
   LOGI("input: default layout %s until a controller is found",
        pp_pad_layout_name(pp_pad_layout_for(NULL, 0, PP_HANDHELD_BUILD)));
   pp_pad_set_layout(pp_pad_layout_for(NULL, 0, PP_HANDHELD_BUILD));
+#endif
   return 0;
 }
 
@@ -154,8 +198,10 @@ PP_PAD_CHECK(PP_PAD_DPAD_DOWN, SDL_CONTROLLER_BUTTON_DPAD_DOWN);
 PP_PAD_CHECK(PP_PAD_DPAD_LEFT, SDL_CONTROLLER_BUTTON_DPAD_LEFT);
 PP_PAD_CHECK(PP_PAD_DPAD_RIGHT, SDL_CONTROLLER_BUTTON_DPAD_RIGHT);
 
+#if !defined(PP_PLATFORM_TG5040)   /* trigger axes come from evdev on tg5040 */
 #define PAD_TRIGGER_ON 16000  /* trigger axis threshold for L2/R2 */
 static int g_trig_l = 0, g_trig_r = 0;
+#endif /* !PP_PLATFORM_TG5040 */
 
 /* Log a press with what it mapped to, so device logs show the real layout. */
 static pp_btn log_press(const char *src, int code, pp_btn b) {
@@ -163,6 +209,7 @@ static pp_btn log_press(const char *src, int code, pp_btn b) {
   return b;
 }
 
+#if !defined(PP_PLATFORM_TG5040)   /* SDL joystick/gamecontroller path */
 static void on_joystick_added(int index) {
   const char *name = SDL_JoystickNameForIndex(index);
   if (SDL_IsGameController(index)) {
@@ -192,6 +239,7 @@ static void on_joystick_added(int index) {
          "(raw codes logged)%s", index, name ? name : "?", js ? "" : ", open failed");
   }
 }
+#endif /* !PP_PLATFORM_TG5040 */
 
 static int pad_repeats(pp_btn b) {
   return b == BTN_UP || b == BTN_DOWN || b == BTN_LEFT || b == BTN_RIGHT ||
@@ -207,8 +255,25 @@ pp_btn plat_poll_button(void) {
     fire_resume("wall-clock gap");
   g_last_tick_wall_ms = wall;
 
+#if defined(PP_PLATFORM_TG5040)
+  /* Raw evdev pad (SDL cannot enumerate it on this device). One queued press
+   * per call, like the SDL path; held state feeds the shared repeat block
+   * at the bottom so D-pad/L1/R1 repeats feel identical on both backends. */
+  pp_btn eb = pp_evdev_tg5040_poll();
+  if (eb != BTN_NONE) {
+    if (pad_repeats(eb)) {
+      g_pad_held = eb;
+      g_pad_next = SDL_GetTicks() + PAD_REPEAT_DELAY_MS;
+    }
+    return eb;
+  }
+  g_pad_held = pp_evdev_tg5040_held();
+#endif
+
   SDL_Event ev;
+#if !defined(PP_PLATFORM_TG5040)
   pp_btn b;
+#endif
   while (SDL_PollEvent(&ev)) {
     switch (ev.type) {
     case SDL_QUIT:
@@ -223,6 +288,7 @@ pp_btn plat_poll_button(void) {
       break;
     case SDL_KEYDOWN:
       return log_press("key", (int)ev.key.keysym.sym, pp_keycode_to_btn(ev.key.keysym.sym));
+#if !defined(PP_PLATFORM_TG5040)
     case SDL_JOYDEVICEADDED:
       on_joystick_added(ev.jdevice.which);
       break;
@@ -258,6 +324,7 @@ pp_btn plat_poll_button(void) {
         LOGI("input: raw joystick %d hat %d value %d (unmapped)", (int)ev.jhat.which,
              ev.jhat.hat, ev.jhat.value);
       break;
+#endif /* !PP_PLATFORM_TG5040 */
     default:
       break;
     }
@@ -278,6 +345,9 @@ void plat_suspend_hook(void (*on_resume)(void)) {
 }
 
 void plat_quit(void) {
+#if defined(PP_PLATFORM_TG5040)
+  pp_evdev_tg5040_close();
+#endif
   destroy_video();
   TTF_Quit();
   SDL_Quit();

@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -24,6 +25,7 @@
 #define CONNMANCTL "/usr/bin/connmanctl"
 #define IW         "/usr/sbin/iw"
 #define RFKILL     "/usr/sbin/rfkill"
+#define WLAN_OPERSTATE "/sys/class/net/wlan0/operstate"
 
 #define WIFI_BUDGET_MS  15000  /* total */
 #define WIFI_POLL_MS    3000   /* connectivity re-check after each step */
@@ -37,6 +39,19 @@ int pp_wifi_iw_link_connected(const char *text) {
   if (strncmp(text, "Connected to", 12) == 0) return 1;
   if (strncmp(text, "Not connected", 13) == 0) return 0;
   return -1;
+}
+
+int pp_wifi_operstate_down(const char *text) {
+  if (!text) return 0;
+  char buf[16];
+  size_t n = 0;
+  while (text[n] && text[n] != '\n' && text[n] != '\r' && n < sizeof buf - 1) {
+    buf[n] = text[n];
+    n++;
+  }
+  buf[n] = '\0';
+  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) buf[--n] = '\0';
+  return strcasecmp(buf, "down") == 0;
 }
 
 static int is_hex_lower(char c) {
@@ -285,6 +300,16 @@ static int link_connected(void) {
   char *argv[] = { (char *)IW, (char *)"dev", (char *)"wlan0", (char *)"link", NULL };
   if (run_capture(argv, buf, sizeof buf) != 0) return -1;
   return pp_wifi_iw_link_connected(buf);
+}
+
+int pp_wifi_interface_down(void) {
+  FILE *f = fopen(WLAN_OPERSTATE, "r");
+  if (!f) return 0;  /* no wlan0 (module unloaded?) or unreadable: not proven off */
+  char buf[16];
+  size_t n = fread(buf, 1, sizeof buf - 1, f);
+  fclose(f);
+  buf[n] = '\0';
+  return pp_wifi_operstate_down(buf);
 }
 
 void pp_wifi_log_state(const char *tag) {

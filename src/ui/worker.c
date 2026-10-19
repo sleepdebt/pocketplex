@@ -26,6 +26,7 @@ struct pp_request {
   char        state[16];
   long        time_ms;
   int         max_kbps;
+  int         width, height;  /* transcode canvas; 0 = 640x480 */
   int         burn_subtitles;
 
   /* Outputs: written only by the worker, read by the caller after done. */
@@ -123,12 +124,16 @@ static void run_fake(pp_request *req) {
     req->status = PP_OK;
     break;
   case REQ_PIN_POLL:  req->status = 1; break;  /* always pending in smoke mode */
-  case REQ_TRANSCODE_URL:
-    snprintf(req->url, sizeof(req->url), "http://fake.invalid/%s?subtitles=%s&session=%s",
+  case REQ_TRANSCODE_URL: {
+    int w = req->width > 0 ? req->width : 640;
+    int h = req->height > 0 ? req->height : 480;
+    snprintf(req->url, sizeof(req->url),
+             "http://fake.invalid/%s?subtitles=%s&session=%s&videoResolution=%dx%d",
              req->item ? req->item->rating_key : "", req->burn_subtitles ? "burn" : "none",
-             req->session ? req->session : "");
+             req->session ? req->session : "", w, h);
     req->status = PP_OK;
     break;
+  }
   case REQ_TIMELINE:
   case REQ_SCROBBLE:
   case REQ_UNSCROBBLE:
@@ -146,11 +151,15 @@ static void run_real(pp_request *req) {
   case REQ_ON_DECK:   req->status = pp_on_deck(srv, &req->result); break;
   case REQ_PIN_START: req->status = pp_auth_pin_start(req->pin, &req->pin_id); break;
   case REQ_PIN_POLL:  req->status = pp_auth_pin_poll(req->pin_id, req->auth_token, sizeof(req->auth_token)); break;
-  case REQ_TRANSCODE_URL:
-    req->status = pp_transcode_url_ex(srv, req->item, req->session, 640, 480, req->max_kbps,
+  case REQ_TRANSCODE_URL: {
+    /* Canvas from the quality preset (screen_player); 640x480 when unset. */
+    int w = req->width > 0 ? req->width : 640;
+    int h = req->height > 0 ? req->height : 480;
+    req->status = pp_transcode_url_ex(srv, req->item, req->session, w, h, req->max_kbps,
                                       0, req->burn_subtitles, req->url, sizeof(req->url));
     if (req->status != PP_OK) memset(req->url, 0, sizeof(req->url));
     break;
+  }
   case REQ_TIMELINE:  req->status = pp_timeline(srv, req->item, req->state, req->time_ms); break;
   case REQ_SCROBBLE:  req->status = pp_scrobble(srv, req->item); break;
   case REQ_UNSCROBBLE: req->status = pp_unscrobble(srv, req->item); break;
@@ -214,7 +223,18 @@ static void *worker_thread(void *arg) {
   if (req->status != PP_OK && req->status != 1) {
     switch (req->status) {
     case PP_ERR_AUTH:  set_error(req, "Authentication failed (relink)"); break;
-    case PP_ERR_NET:   set_error(req, "Network error (retry)"); break;
+    case PP_ERR_NET:
+#if defined(PP_PLATFORM_TG5040)
+      /* NextUI owns Wi-Fi (no connmanctl here to manage or probe it): only
+       * claim Wi-Fi is off when wlan0 is administratively down. Up-but-no-
+       * route, server down, DNS and TLS failures keep the generic message. */
+      if (pp_wifi_interface_down()) {
+        set_error(req, "Wi-Fi is off. Turn it on in NextUI Settings");
+        break;
+      }
+#endif
+      set_error(req, "Network error (retry)");
+      break;
     case PP_ERR_HTTP:  set_error(req, "Server error (retry)"); break;
     case PP_ERR_PARSE: set_error(req, "Parse error"); break;
     case PP_ERR_NOMEM: set_error(req, "Out of memory"); break;
@@ -299,6 +319,8 @@ pp_request *worker_start_play(pp_req_type type, const pp_server *srv,
     if (args->state) snprintf(req->state, sizeof(req->state), "%s", args->state);
     req->time_ms = args->time_ms;
     req->max_kbps = args->max_kbps;
+    req->width = args->width;
+    req->height = args->height;
     req->burn_subtitles = args->burn_subtitles;
   }
   return request_launch(req, oom);

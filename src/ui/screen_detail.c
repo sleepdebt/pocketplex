@@ -24,7 +24,7 @@ static int is_playable(pp_kind k) {
 static void detail_toggle_watched(pp_screen *self) {
   detail_data_t *d = (detail_data_t *)self->data;
   if (d->req) return;  /* one toggle at a time */
-  pp_play_args a = { &d->item, NULL, NULL, 0, 0, 0 };
+  pp_play_args a = { &d->item, NULL, NULL, 0, 0, 0, 0, 0 };
   d->req = worker_start_play(d->item.watched ? REQ_UNSCROBBLE : REQ_SCROBBLE,
                              ui_current_server(), &a, ui_is_smoke_scroll());
   if (!d->req) ui_toast("Out of memory");
@@ -60,11 +60,12 @@ static void draw_choice(detail_data_t *d) {
   play_fmt_time(d->item.view_offset_ms, t, sizeof t);
   snprintf(resume, sizeof resume, "Resume from %s", t);
   const char *opts[2] = { resume, "Play from start" };
-  int x = 120, y = 170, w = PP_SCREEN_W - 240, h = 2 * PP_LINE_H + 24;
+  int x = PP_PX(120), y = PP_PX(170), w = PP_SCREEN_W - 2 * PP_PX(120);
+  int h = 2 * PP_LINE_H + PP_PX(24);
   ui_fill_rect(x, y, w, h, PP_COLOR(0x2a, 0x2a, 0x33));
   ui_draw_rect(x, y, w, h, PP_COLOR_FG);
   for (int i = 0; i < 2; i++)
-    ui_draw_text(opts[i], x + 16, y + 12 + i * PP_LINE_H,
+    ui_draw_text(opts[i], x + PP_PX(16), y + PP_PX(12) + i * PP_LINE_H,
                  i == d->choice ? PP_COLOR_SEL : PP_COLOR_FG);
 }
 
@@ -73,9 +74,9 @@ static void detail_render(pp_screen *self) {
   pp_item *it = &d->item;
   detail_poll_toggle(self);
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
-  ui_draw_text("Details", PP_MARGIN_L, 10, PP_COLOR_FG);
+  ui_draw_text("Details", PP_MARGIN_L, PP_PX(10), PP_COLOR_FG);
 
-  int y = PP_HEADER_H + 20;
+  int y = PP_HEADER_H + PP_PX(20);
   /* Title (bold) */
   ui_draw_text(it->title, PP_MARGIN_L, y, PP_COLOR_FG);
   y += PP_LINE_H;
@@ -114,7 +115,7 @@ static void detail_render(pp_screen *self) {
   }
 
   /* Summary */
-  y += 10;
+  y += PP_PX(10);
   ui_draw_text("Summary:", PP_MARGIN_L, y, PP_COLOR_DIM);
   y += PP_LINE_H;
   /* Wrap summary at ~40 chars */
@@ -148,7 +149,7 @@ static void detail_render(pp_screen *self) {
                : d->req    ? "A: play  B: back  (marking...)"
                : it->watched ? "A: play  B: back  Y: mark unwatched"
                              : "A: play  B: back  Y: mark watched",
-               PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
+               PP_MARGIN_L, PP_SCREEN_H - PP_PX(24), PP_COLOR_DIM);
 }
 
 static void detail_handle(pp_screen *self, pp_btn btn) {

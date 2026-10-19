@@ -16,11 +16,11 @@ typedef struct {
 static void settings_render(pp_screen *self) {
   settings_data_t *d = (settings_data_t *)self->data;
   ui_fill_rect(0, 0, PP_SCREEN_W, PP_HEADER_H, PP_COLOR(0x2a, 0x2a, 0x33));
-  ui_draw_text("Settings", PP_MARGIN_L, 10, PP_COLOR_FG);
+  ui_draw_text("Settings", PP_MARGIN_L, PP_PX(10), PP_COLOR_FG);
   ui_draw_text("A: toggle  B: back  Menu: quit",
-               PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
+               PP_SCREEN_W - PP_PX(200), PP_PX(10), PP_COLOR_DIM);
 
-  int y = PP_HEADER_H + 20;
+  int y = PP_HEADER_H + PP_PX(20);
   const char *labels[] = { "Video Quality", "Subtitles", "Swap A/B", "Sign Out", NULL };
   int i;
   for (i = 0; labels[i]; i++) {
@@ -28,8 +28,9 @@ static void settings_render(pp_screen *self) {
     ui_draw_text(labels[i], PP_MARGIN_L, y, col);
     char val[64];
     if (i == 0) {
-      int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
-      snprintf(val, sizeof(val), "%s", is_480 ? "480p" : "360p");
+      pp_quality q;
+      pp_quality_get(d->cfg.quality, &q);   /* unknown/disabled preset -> 480p */
+      snprintf(val, sizeof(val), "%s (%dx%d @ %d kbps)", q.name, q.width, q.height, q.kbps);
     } else if (i == 1) {
       snprintf(val, sizeof(val), "%s", play_burn_subtitles(d->cfg.subtitles) ? "on" : "off");
     } else if (i == 2) {
@@ -44,13 +45,13 @@ static void settings_render(pp_screen *self) {
 
   if (d->sel == 1)
     ui_draw_text("Uses the subtitle track chosen in Plex",
-                 PP_MARGIN_L, y + 12, PP_COLOR_DIM);
+                 PP_MARGIN_L, y + PP_PX(12), PP_COLOR_DIM);
   else if (d->sel == 2)
     ui_draw_text("Off = buttons follow their printed labels",
-                 PP_MARGIN_L, y + 12, PP_COLOR_DIM);
+                 PP_MARGIN_L, y + PP_PX(12), PP_COLOR_DIM);
 
   ui_draw_text("D-pad: navigate  A: toggle  B: back",
-               PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
+               PP_MARGIN_L, PP_SCREEN_H - PP_PX(24), PP_COLOR_DIM);
 }
 
 static int settings_save(settings_data_t *d) {
@@ -65,8 +66,8 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
   case BTN_UP:   if (d->sel > 0) d->sel--; break;
   case BTN_A:
     if (d->sel == 0) {
-      int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
-      snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", is_480 ? "360p" : "480p");
+      /* Cycle the enabled presets (768p only with PP_QUALITY_768P=1). */
+      snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", pp_quality_next(d->cfg.quality));
       ui_toast(settings_save(d) ? d->cfg.quality : "Failed to save settings");
     } else if (d->sel == 1) {
       int on = play_burn_subtitles(d->cfg.subtitles);

@@ -17,6 +17,7 @@
 
 #if defined(PP_PLATFORM_TG5040)
 #include <SDL.h>
+#include <GLES2/gl2.h>         /* loader: glScissor/glClear on the same GL context mpv draws into */
 #include <mpv/client.h>
 #include <mpv/render_gl.h>     /* pulls in mpv/render.h (mpv_render_context, params) */
 #include "ui/ui_platform.h"    /* plat_window() */
@@ -416,8 +417,8 @@ static void tg_handle_evdev(pp_player *p, int type, int code, int value) {
   if (type == PP_EV_KEY && value == 2) return;   /* auto-repeat: drop */
   if (type == PP_EV_KEY) {
     switch (code) {
-    case 304: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* A -> pause (press only) */
-    case 305: if (value != 1) return; tg_mpv_send(p, "seek", "-10"); return;            /* B -> seek back */
+    case 304: if (value != 1) return; tg_mpv_send(p, "quit", NULL); return;           /* bottom button (B, back) -> quit (press only) */
+    case 305: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* right button (A, confirm) -> pause (press only) */
     case 307: if (value != 1) return; tg_mpv_send(p, "seek", "-60"); return;            /* X -> seek back 60 */
     case 308: if (value != 1) return; tg_mpv_send(p, "seek", "60"); return;             /* Y -> seek 60 */
     case 310: if (value != 1) return; tg_mpv_send(p, "seek", "-10"); return;            /* L1 -> seek back */
@@ -537,6 +538,12 @@ pp_player *player_start(const char *url, long start_ms) {
     mpv_set_property_string(p->mpv, "demuxer-max-back-bytes", "16MiB");
     mpv_set_property_string(p->mpv, "network-timeout", "20");
     mpv_set_property_string(p->mpv, "ao", "alsa");       /* device audio via ALSA (ao=alsa) */
+    /* The device has no system trust store, so mpv's HTTPS (plex.direct transcodes) needs the
+     * pak's CA bundle, the same file the HTTP client uses. */
+    const char *ca = getenv("CURL_CA_BUNDLE");
+    if (!ca || !ca[0]) ca = getenv("PP_CA_BUNDLE");
+    if (ca && ca[0]) mpv_set_property_string(p->mpv, "tls-ca-file", ca);
+    mpv_request_log_messages(p->mpv, "warn");   /* mpv's own errors go to the PocketPlex log */
     if (mpv_initialize(p->mpv) < 0) {
       LOGE("player: mpv_initialize failed");
       mpv_terminate_destroy(p->mpv);
@@ -629,12 +636,20 @@ int player_poll(pp_player *p, long *pos_ms, int *finished) {
     double sec = 0.0;
     /* Drain mpv's event queue (non-blocking) for EOF/shutdown / errors. */
     while ((event = mpv_wait_event(p->mpv, 0)) && event->event_id != MPV_EVENT_NONE) {
+      if (event->event_id == MPV_EVENT_LOG_MESSAGE) {
+        mpv_event_log_message *m = (mpv_event_log_message *)event->data;
+        /* Stream URLs carry the Plex token: never log a message that contains one. */
+        if (m && m->text && !strstr(m->text, "oken=") && !strstr(m->text, "OKEN="))
+          LOGE("mpv[%s]: %s", m->prefix, m->text);
+      }
       if (event->event_id == MPV_EVENT_END_FILE) {
         /* event->error is only valid for property/command replies (client.h);
            END_FILE's error lives in the mpv_event_end_file payload. */
         mpv_event_end_file *eef = (mpv_event_end_file *)event->data;
-        if (eef && eef->reason == MPV_END_FILE_REASON_ERROR && eef->error < 0)
+        if (eef && eef->reason == MPV_END_FILE_REASON_ERROR && eef->error < 0) {
           p->mpv_error = 1;   /* playback/load failure surfaced to the UI */
+          LOGE("player: mpv end-file error: %s", mpv_error_string(eef->error));
+        }
       }
       if (event->event_id == MPV_EVENT_SHUTDOWN || event->event_id == MPV_EVENT_END_FILE)
         p->mpv_finished = 1;
@@ -705,28 +720,67 @@ void player_stop(pp_player *p) {
   free(p);
 }
 
-void player_render_frame(pp_player *p) {
+int player_render_frame(pp_player *p) {
 #if defined(PP_PLATFORM_TG5040)
   SDL_Window *win = plat_window();
   SDL_GLContext ctx = SDL_GL_GetCurrentContext();
-  if (!p || !p->rc) return;
+  if (!p || !p->rc) return 0;
   /* The render context must have the current GL ctx on its thread (us). */
   if (win && ctx) SDL_GL_MakeCurrent(win, ctx);
   p->mpv_update = 0;
   uint64_t flags = mpv_render_context_update(p->rc);
-  if (!(flags & MPV_RENDER_UPDATE_FRAME)) return;   /* nothing new to draw */
+  if (!(flags & MPV_RENDER_UPDATE_FRAME)) return 0;   /* nothing new to draw */
   if (win) {
     int w = 0, h = 0;
     SDL_GetWindowSize(win, &w, &h);
     mpv_opengl_fbo fbo = { .fbo = 0, .w = w, .h = h, .internal_format = 0 };
+    int flip_y = 1;   /* mpv draws bottom-up; the default framebuffer is top-down */
     mpv_render_param rparams[] = {
       { MPV_RENDER_PARAM_OPENGL_FBO, &fbo },
+      { MPV_RENDER_PARAM_FLIP_Y, &flip_y },
       { MPV_RENDER_PARAM_INVALID, NULL },
     };
     mpv_render_context_render(p->rc, rparams);
     SDL_GL_SwapWindow(win);
+    return 1;
   }
+  return 0;
 #else
   (void)p;
+  return 0;
+#endif
+}
+
+/* Loading indicator until mpv presents its first frame. The UI's SDL renderer is torn down while
+ * mpv owns the display, so this draws with GL: scissored clears give a background and an animated
+ * bar, with no shaders. */
+void player_draw_loader(unsigned tick) {
+#if defined(PP_PLATFORM_TG5040)
+  SDL_Window *win = plat_window();
+  SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+  if (!win || !ctx) return;
+  SDL_GL_MakeCurrent(win, ctx);
+  int w = 0, h = 0;
+  SDL_GetWindowSize(win, &w, &h);
+  glViewport(0, 0, w, h);
+  glEnable(GL_SCISSOR_TEST);
+  glScissor(0, 0, w, h);
+  glClearColor(0.094f, 0.094f, 0.110f, 1.0f);      /* the UI background */
+  glClear(GL_COLOR_BUFFER_BIT);
+  int track_w = w / 3, track_h = 8;
+  int track_x = (w - track_w) / 2, track_y = h / 2 + 20;
+  glScissor(track_x, track_y, track_w, track_h);
+  glClearColor(0.25f, 0.25f, 0.30f, 1.0f);         /* track */
+  glClear(GL_COLOR_BUFFER_BIT);
+  int seg_w = track_w / 4;
+  int span = track_w - seg_w;
+  int seg_x = track_x + (span > 0 ? (int)((tick * 6u) % (unsigned)span) : 0);
+  glScissor(seg_x, track_y, seg_w, track_h);
+  glClearColor(0.85f, 0.85f, 0.90f, 1.0f);         /* moving segment */
+  glClear(GL_COLOR_BUFFER_BIT);
+  glDisable(GL_SCISSOR_TEST);
+  SDL_GL_SwapWindow(win);
+#else
+  (void)tick;
 #endif
 }

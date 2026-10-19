@@ -401,6 +401,83 @@ static void *input_main(void *arg) {
 }
 #endif
 
+#if defined(PP_PLATFORM_TG5040)
+/* Brick Pro pad -> mpv playback commands (reviews/tg-c-evdev-glm.md, input_map.c).
+ * Codes: A=304 B=305 X=307 Y=308 L1=310 R1=311 Select=314 Start=315 Menu=316;
+ * L2/R2=ABS 2/5, D-pad=ABS 16(X)/17(Y). KEY 59/60 and L3/R3 (317/318) are deliberately
+ * unbound. mpv_command_async is thread-safe (called from this evdev thread, not the
+ * mpv_handle owner thread). */
+static void tg_mpv_send(pp_player *p, const char *cmd, const char *arg) {
+  if (!p->mpv) return;
+  const char *argv[3] = { cmd, arg, NULL };
+  mpv_command_async(p->mpv, 0, argv);
+}
+static void tg_handle_evdev(pp_player *p, int type, int code, int value) {
+  if (type == PP_EV_KEY && value == 2) return;   /* auto-repeat: drop */
+  if (type == PP_EV_KEY) {
+    switch (code) {
+    case 304: tg_mpv_send(p, "cycle", "pause"); return;          /* A -> pause */
+    case 305: if (value) tg_mpv_send(p, "seek", "-10"); return;  /* B -> seek back */
+    case 307: if (value) tg_mpv_send(p, "seek", "-60"); return;  /* X -> seek back 60 */
+    case 308: if (value) tg_mpv_send(p, "seek", "60"); return;   /* Y -> seek 60 */
+    case 310: if (value) tg_mpv_send(p, "seek", "-10"); return;  /* L1 -> seek back */
+    case 311: if (value) tg_mpv_send(p, "seek", "10"); return;   /* R1 -> seek */
+    case 314: tg_mpv_send(p, "cycle", "pause"); return;          /* Select -> pause */
+    case 315: tg_mpv_send(p, "cycle", "pause"); return;          /* Start -> pause */
+    case 316: tg_mpv_send(p, "quit", NULL); return;             /* Menu -> quit */
+    default: break;   /* 317/318 (L3/R3), 59/60 (KEY) deliberately unbound */
+    }
+  } else if (type == PP_EV_ABS) {
+    switch (code) {
+    case 16:                                                  /* D-pad X (left/right) */
+      if (value < 0) tg_mpv_send(p, "seek", "-10");
+      else if (value > 0) tg_mpv_send(p, "seek", "10");
+      return;
+    case 17:                                                  /* D-pad Y (up/down): sign TBD per reviews MINOR 2 */
+      if (value < 0) tg_mpv_send(p, "seek", "60");
+      else if (value > 0) tg_mpv_send(p, "seek", "-60");
+      return;
+    default: break;                                           /* L2/R2 (ABS 2/5) not mapped */
+    }
+  }
+}
+static void *tg_input_main(void *arg) {
+  pp_player *p = arg;
+  struct pollfd pf[8];
+  int n = 0, i;
+  DIR *d = opendir("/dev/input");
+  struct dirent *e;
+  while (d && (e = readdir(d)) != NULL && n < 8) {
+    char path[300];
+    int fd;
+    if (strncmp(e->d_name, "event", 5) != 0) continue;
+    snprintf(path, sizeof path, "/dev/input/%s", e->d_name);
+    if ((fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC)) < 0) continue;
+    if (!has_gamepad_keys(fd)) { close(fd); continue; }
+    LOGI("player: tg5040 evdev buttons -> mpv on %s", path);
+    pf[n].fd = fd; pf[n].events = POLLIN; n++;
+  }
+  if (d) closedir(d);
+  if (n == 0) LOGW("player: no gamepad evdev device found; buttons won't control mpv");
+  while (!p->input_stop) {
+    if (poll(pf, (nfds_t)n, 200) <= 0) continue;
+    for (i = 0; i < n; i++) {
+      if (pf[i].revents & (POLLERR | POLLHUP | POLLNVAL)) {
+        LOGW("player: input device closed (revents 0x%x)", (unsigned)pf[i].revents);
+        close(pf[i].fd); pf[i--] = pf[--n]; continue;
+      }
+      if (!(pf[i].revents & POLLIN)) continue;
+      struct input_event ev[16];
+      ssize_t r = read(pf[i].fd, ev, sizeof ev);
+      for (size_t k = 0; r > 0 && k < (size_t)r / sizeof ev[0]; k++)
+        tg_handle_evdev(p, ev[k].type, ev[k].code, ev[k].value);
+    }
+  }
+  for (i = 0; i < n; i++) close(pf[i].fd);
+  return NULL;
+}
+#endif
+
 /* Starts mpv with stdio on /dev/null. 0 = ok, else an errno value.
  * On Linux this is fork + PR_SET_PDEATHSIG + exec, so mpv dies with the app: a crashed app would
  * otherwise leave a fullscreen mpv on the SP that no button can quit (the evdev thread died too).
@@ -459,7 +536,7 @@ pp_player *player_start(const char *url, long start_ms) {
     mpv_set_property_string(p->mpv, "demuxer-max-bytes", "32MiB");
     mpv_set_property_string(p->mpv, "demuxer-max-back-bytes", "16MiB");
     mpv_set_property_string(p->mpv, "network-timeout", "20");
-    mpv_set_property_string(p->mpv, "ao", "null");       /* audio deferred (device-test) */
+    mpv_set_property_string(p->mpv, "ao", "alsa");       /* device audio via ALSA (ao=alsa) */
     if (mpv_initialize(p->mpv) < 0) {
       LOGE("player: mpv_initialize failed");
       mpv_terminate_destroy(p->mpv);
@@ -490,7 +567,11 @@ pp_player *player_start(const char *url, long start_ms) {
       const char *cmd[] = { "loadfile", url, NULL };
       mpv_command(p->mpv, cmd);
     }
-    LOGI("player: libmpv embed (render API), start %ld ms", p->pos_ms);
+    p->input_stop = 0;
+    p->input_running = 0;
+    if (pthread_create(&p->input_thread, NULL, tg_input_main, p) == 0) p->input_running = 1;
+    else LOGW("player: tg5040 input thread unavailable; buttons won't control mpv");
+    LOGI("player: libmpv embed (render API, ao=alsa), start %ld ms", p->pos_ms);
     return p;
   }
 #endif
@@ -582,6 +663,7 @@ int player_poll(pp_player *p, long *pos_ms, int *finished) {
 void player_stop(pp_player *p) {
 #if defined(PP_PLATFORM_TG5040)
   if (!p) return;
+  if (p->input_running) { p->input_stop = 1; pthread_join(p->input_thread, NULL); }
   /* Lifetime rule: free the render context BEFORE terminating mpv. */
   if (p->rc) mpv_render_context_free(p->rc);
   if (p->mpv) mpv_terminate_destroy(p->mpv);

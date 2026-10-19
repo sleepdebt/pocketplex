@@ -302,8 +302,9 @@ RUN printf '#!/bin/sh\nexport PKG_CONFIG_DIR=\nexport PKG_CONFIG_PATH=\nexport P
 #   -Dcplayer=false    no mpv binary (PocketPlex doesn't need it)
 #   -Dgpl=false        LGPL only (no GPL)
 #   libass from src   SDK ships no libass -> built freetype+fribidi+harfbuzz+libass
-#   -Dsdl2=disabled    app owns the GL context (MPV_RENDER_API_TYPE_OPENGL +
-#                      get_proc_address), not mpv-tsp's SDL window alternation
+#   -Dsdl2=disabled    mpv's SDL ao/gamepad fails to cross-compile here (SDL.h not found in
+#                      input/sdl_gamepad.c). Audio goes through ao=alsa instead (-Dalsa=enabled,
+#                      libasound from the SDK sysroot). The render API still draws video.
 #   -Dgl=enabled -Degl=enabled  link the SDK's EGL/GLES2 for the gl renderer
 # mpv links FFmpeg's libav* + SDK EGL/GLES2. The built libmpv.so MUST export
 # mpv_render_context_create; we assert it below before the layer can succeed.
@@ -321,7 +322,7 @@ RUN cd /tmp \
       -Dgl=enabled -Degl=enabled \
       -Dvulkan=disabled -Ddrm=disabled -Degl-drm=disabled -Dgbm=disabled -Dx11=disabled \
       -Dvdpau=disabled -Dvaapi=disabled -Dd3d11=disabled -Ddirect3d=disabled -Dcocoa=disabled \
-      -Dcaca=disabled -Dsixel=disabled -Dalsa=disabled -Dpulse=disabled -Dpipewire=disabled \
+      -Dcaca=disabled -Dsixel=disabled -Dalsa=enabled -Dpulse=disabled -Dpipewire=disabled \
       -Djack=disabled -Dopenal=disabled -Dsndio=disabled -Doss-audio=disabled -Dlua=disabled \
       -Djavascript=disabled -Dlibarchive=disabled -Dlibbluray=disabled -Ddvdnav=disabled \
       -Ddvbin=disabled -Dcdda=disabled -Duchardet=disabled -Drubberband=disabled \

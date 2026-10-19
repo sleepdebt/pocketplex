@@ -171,6 +171,12 @@ pp_btn pp_tg5040_key_to_btn(int code) {
 }
 
 pp_btn pp_tg5040_hat_to_btn(int axis, int value) {
+  /* Sign convention is ASSUMED, not measured: the kernel hat convention is
+   * -1 = left/up, +1 = right/down, and the tg-0 spike recorded the axes
+   * (ABS 16/17) but not their signs. If the Phase 0 device pass shows the
+   * Brick Pro inverts an axis, swap the two buttons on that axis HERE and
+   * nowhere else, and record the measured signs in ops/LOG.md. Do not change
+   * behaviour without an on-device measurement (review MINOR 2). */
   if (value == 0 || value < -1 || value > 1) return BTN_NONE;   /* hats: -1/0/+1 */
   if (axis == 16) return value < 0 ? BTN_LEFT : BTN_RIGHT;   /* ABS_HAT0X */
   if (axis == 17) return value < 0 ? BTN_UP : BTN_DOWN;     /* ABS_HAT0Y */

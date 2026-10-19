@@ -48,6 +48,7 @@ RUN cd /tmp \
       -DCMAKE_BUILD_TYPE=Release \
       -DENABLE_TESTING=OFF -DENABLE_PROGRAMS=OFF \
       -DUSE_STATIC_MBEDTLS_LIBRARY=ON -DUSE_SHARED_MBEDTLS_LIBRARY=OFF \
+      -DCMAKE_POSITION_INDEPENDENT_CODE=ON \
  && cmake --build mb-build --parallel "$(nproc)" \
  && cmake --install mb-build \
  && rm -rf /tmp/mb*
@@ -92,3 +93,248 @@ RUN printf '#include <curl/curl.h>\n#include <SDL2/SDL.h>\n#include <SDL2/SDL_tt
       -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lpthread -lSDL2 -lSDL2_ttf \
  && aarch64-nextui-linux-gnu-readelf -d /tmp/probe | grep NEEDED \
  && rm -f /tmp/probe.c /tmp/probe
+
+# ---- meson + make: build tools for the FFmpeg + mpv (libmpv) build below -------
+# `meson` from apt (Ubuntu 24.04 ships meson >= 1.3, which mpv 0.36 requires).
+# `make` drives FFmpeg's generated Makefile. ninja is already in the base image.
+RUN apt-get update && apt-get install -y --no-install-recommends meson make g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# ---- FFmpeg 6.1 from source (LGPL; no GPL, no nonfree) -------------------------
+# The TrimUI SDK ships NO FFmpeg dev (confirmed: no libav* under $SYSROOT), so mpv
+# cannot link ffmpeg otherwise. Build a minimal shared, LGPL FFmpeg (native
+# decoders only; --disable-asm so no nasm) and install to /opt/mpv. Its
+# libavcodec/libavformat/libavutil/libswscale/libswresample/libavfilter
+# (.so + .pc) feed the mpv build below. Built against $SYSROOT so its glibc
+# symbol ceiling stays <= 2.23.
+ARG FFMPEG_VER=6.1
+ARG FFMPEG_SHA256=488c76e57dd9b3bee901f71d5c95eaf1db4a5a31fe46a28654e837144207c270
+ENV MPREFIX=/opt/mpv
+RUN cd /tmp \
+ && wget -q "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VER}.tar.xz" \
+ && echo "${FFMPEG_SHA256}  ffmpeg-${FFMPEG_VER}.tar.xz" | sha256sum -c - \
+ && tar xf "ffmpeg-${FFMPEG_VER}.tar.xz" \
+ && cd "ffmpeg-${FFMPEG_VER}" \
+ && ./configure --prefix="$MPREFIX" \
+      --enable-cross-compile --cross-prefix=aarch64-nextui-linux-gnu- \
+      --target-os=linux --arch=aarch64 --disable-asm \
+      --sysroot="$SYSROOT" \
+      --enable-mbedtls --enable-version3 \
+      --extra-cflags="-O2 -w -I$PP_NET_PREFIX/include" \
+      --extra-ldflags="-Wl,-rpath-link,$SYSROOT/lib -L$PP_NET_PREFIX/lib" \
+      --pkg-config=/usr/bin/pkg-config \
+      --enable-shared --disable-static --disable-debug --disable-doc \
+      --disable-programs --disable-avdevice \
+ && make -j"$(nproc)" && make install && ldconfig \
+ && rm -rf /tmp/ffmpeg*
+
+ENV CFLAGS=-w
+
+# pkg-config wrapper: expose the freshly built FFmpeg libav* (.pc in $MPREFIX)
+# alongside the SDK sysroot's EGL/GLES2/zlib pc files, rooted at $SYSROOT so the
+# cross compiler resolves the device's glibc 2.23 headers/libs (matches the
+# mpv-tsp pkg-config-wrapper.sh pattern).
+RUN printf '#!/bin/sh\nexport PKG_CONFIG_SYSROOT_DIR="%s"\nexport PKG_CONFIG_LIBDIR="%s/lib/pkgconfig:%s/usr/lib/pkgconfig:%s/usr/share/pkgconfig"\nexport PKG_CONFIG_DIR=\nexec /usr/bin/pkg-config "$@"\n' \
+        "$SYSROOT" "$MPREFIX" "$SYSROOT" "$SYSROOT" \
+    > /usr/local/bin/pp-pkg-config && chmod +x /usr/local/bin/pp-pkg-config \
+ && printf '%s\n' \
+  "[binaries]" \
+  "c = '/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu-gcc'" \
+  "cpp = '/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu-g++'" \
+  "ar = '/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu-ar'" \
+  "ranlib = '/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu-ranlib'" \
+  "strip = '/opt/aarch64-nextui-linux-gnu/bin/aarch64-nextui-linux-gnu-strip'" \
+  "pkg-config = '/usr/local/bin/pp-pkg-config'" \
+  "" \
+  "[host_machine]" \
+  "system = 'linux'" \
+  "cpu_family = 'aarch64'" \
+  "cpu = 'cortex-a53'" \
+  "endian = 'little'" \
+  "" \
+  "[properties]" \
+  "sys_root = '$SYSROOT'" \
+  "" \
+  "[built-in options]" \
+  "c_args = ['-w']" \
+  "cpp_args = ['-w']" \
+  > /tmp/tg5040-cross.ini
+
+# Meson native file: meson also compiles BUILD-machine tools for this stack
+# (fribidi gen-arabic-shaping-tab, harfbuzz's native c/cpp probe). The
+# `ENV CFLAGS=-w` above does NOT reach meson's native machine args, so declare a
+# native file (warning_level=0, c/cpp_args=['-w'], gcc/g++) and pass --native-file
+# to fribidi/harfbuzz. (ENV CFLAGS still covers plain make/autotools compiles.)
+RUN printf '%s\n' \
+  "[built-in options]" \
+  "c_args = ['-w']" \
+  "cpp_args = ['-w']" \
+  "warning_level = 0" \
+  "[binaries]" \
+  "c = 'gcc'" \
+  "cpp = 'g++'" \
+  "ar = 'ar'" \
+  "strip = 'strip'" \
+  "ranlib = 'ranlib'" \
+  > /tmp/tg5040-native.ini
+
+# ---- freetype 2.13.2 (LGPL; glyph rendering for libass) -------------------------
+ARG FREETYPE_VER=2.13.2
+ARG FREETYPE_SHA256=427201f5d5151670d05c1f5b45bef5dda1f2e7dd971ef54f0feaaa7ffd2ab90c
+RUN cd /tmp \
+ && wget -q "https://github.com/freetype/freetype/archive/refs/tags/VER-2-13-2.tar.gz" \
+ && echo "${FREETYPE_SHA256}  VER-2-13-2.tar.gz" | sha256sum -c - \
+ && tar xf "VER-2-13-2.tar.gz" && cd freetype-VER-2-13-2 \
+ && cmake -Wno-dev -S . -B build \
+      -DCMAKE_TOOLCHAIN_FILE=/opt/aarch64-nextui-linux-gnu/Toolchain.cmake \
+      -DCMAKE_INSTALL_PREFIX="$MPREFIX" -DCMAKE_BUILD_TYPE=Release \
+      -DCMAKE_C_FLAGS="-O2 -w" -DBUILD_SHARED_LIBS=ON \
+      -DFT_DISABLE_PNG=TRUE -DFT_DISABLE_BZIP2=TRUE \
+      -DFT_DISABLE_HARFBUZZ=TRUE -DFT_DISABLE_BROTLI=TRUE \
+ && cmake --build build --parallel "$(nproc)" \
+ && cmake --install build && ldconfig \
+ && rm -rf /tmp/VER-2-13-2*
+
+# ---- fribidi 1.0.13 (LGPL; bidi layout for libass) -------------------------------
+ARG FRIBIDI_VER=1.0.13
+ARG FRIBIDI_SHA256=7fa16c80c81bd622f7b198d31356da139cc318a63fc7761217af4130903f54a2
+RUN cd /tmp \
+ && wget -q "https://github.com/fribidi/fribidi/releases/download/v${FRIBIDI_VER}/fribidi-${FRIBIDI_VER}.tar.xz" \
+ && echo "${FRIBIDI_SHA256}  fribidi-${FRIBIDI_VER}.tar.xz" | sha256sum -c - \
+ && tar xf "fribidi-${FRIBIDI_VER}.tar.xz" && cd fribidi-${FRIBIDI_VER} \
+ && meson setup build --cross-file /tmp/tg5040-cross.ini --native-file /tmp/tg5040-native.ini \
+      --prefix="$MPREFIX" --libdir=lib -Ddefault_library=shared \
+      --buildtype=release -Dwarning_level=0 -Dwerror=false \
+      -Dbin=false -Ddocs=false -Dtests=false \
+ && meson compile -C build -j"$(nproc)" && meson install -C build && ldconfig \
+ && rm -rf /tmp/fribidi-${FRIBIDI_VER}*
+
+# ---- harfbuzz 8.3.0 (MIT; shaping for libass; links built freetype) --------------
+ARG HARFBUZZ_VER=8.3.0
+ARG HARFBUZZ_SHA256=109501eaeb8bde3eadb25fab4164e993fbace29c3d775bcaa1c1e58e2f15f847
+RUN cd /tmp \
+ && wget -q "https://github.com/harfbuzz/harfbuzz/releases/download/${HARFBUZZ_VER}/harfbuzz-${HARFBUZZ_VER}.tar.xz" \
+ && echo "${HARFBUZZ_SHA256}  harfbuzz-${HARFBUZZ_VER}.tar.xz" | sha256sum -c - \
+ && tar xf "harfbuzz-${HARFBUZZ_VER}.tar.xz" && cd harfbuzz-${HARFBUZZ_VER} \
+ && meson setup build --cross-file /tmp/tg5040-cross.ini --native-file /tmp/tg5040-native.ini \
+      --prefix="$MPREFIX" --libdir=lib -Ddefault_library=shared \
+      --buildtype=release -Dwarning_level=0 -Dwerror=false \
+      -Dfreetype=enabled -Dglib=disabled -Dgobject=disabled -Dcairo=disabled \
+      -Dicu=disabled -Dtests=disabled -Dintrospection=disabled -Ddocs=disabled \
+      -Dbenchmark=disabled \
+ && meson compile -C build -j"$(nproc)" && meson install -C build && ldconfig \
+ && rm -rf /tmp/harfbuzz-${HARFBUZZ_VER}*
+
+# ---- fontconfig 2.13.1 + expat 2.5.0 (.so from the pinned mpv-tsp release) -----
+# libass REQUIRES a font provider on Linux ("No system font provider!"), and the
+# TrimUI SDK ships neither fontconfig nor expat dev. Mirror mpv-tsp: reuse the
+# aarch64 runtime .so (glibc 2.23) from the pinned mpv-tsp release (sha256 below),
+# ship fontconfig/expat headers, hand-write fontconfig.pc, and let libass find it
+# via the PKG_CONFIG wrapper. (fontconfig is NOT built from source -> no gperf.)
+ARG MPVTSP_VER=0.36.0-tsp2
+ARG MPVTSP_SHA256=c71a6f4560e700e4af89a78dd3c323c684231d1d5a4a788caaef17d19a67ecc5
+RUN cd /tmp \
+ && wget -q "https://github.com/matweew/mpv-tsp/releases/download/v${MPVTSP_VER}/mpv-tsp-${MPVTSP_VER}.zip" \
+ && echo "${MPVTSP_SHA256}  mpv-tsp-${MPVTSP_VER}.zip" | sha256sum -c - \
+ && install -d -m 755 "$MPREFIX/lib" "$MPREFIX/include/fontconfig" \
+ && unzip -o -q mpv-tsp-${MPVTSP_VER}.zip 'mpv/lib/libfontconfig.so.1' 'mpv/lib/libexpat.so.1' \
+ && cp mpv/lib/libfontconfig.so.1 mpv/lib/libexpat.so.1 "$MPREFIX/lib/" \
+ && ln -sf libfontconfig.so.1 "$MPREFIX/lib/libfontconfig.so" \
+ && ln -sf libexpat.so.1 "$MPREFIX/lib/libexpat.so" \
+ && wget -q "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/raw/2.13.1/fontconfig/fontconfig.h" \
+      -O "$MPREFIX/include/fontconfig/fontconfig.h" \
+ && wget -q "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/raw/2.13.1/fontconfig/fcfreetype.h" \
+      -O "$MPREFIX/include/fontconfig/fcfreetype.h" \
+ && wget -q "https://gitlab.freedesktop.org/fontconfig/fontconfig/-/raw/2.13.1/fontconfig/fcprivate.h" \
+      -O "$MPREFIX/include/fontconfig/fcprivate.h" \
+ && wget -q "https://github.com/libexpat/libexpat/raw/R_2_5_0/expat/lib/expat.h" \
+      -O "$MPREFIX/include/expat.h" \
+ && wget -q "https://github.com/libexpat/libexpat/raw/R_2_5_0/expat/lib/expat_external.h" \
+      -O "$MPREFIX/include/expat_external.h" \
+ && printf 'prefix=%s\nexec_prefix=${prefix}\nlibdir=${exec_prefix}/lib\nincludedir=${prefix}/include\nName: Fontconfig\nDescription: Font configuration\nVersion: 2.13.1\nLibs: -L${libdir} -lfontconfig\nCflags: -I${includedir}\n' "$MPREFIX" \
+      > "$MPREFIX/lib/pkgconfig/fontconfig.pc" \
+ && rm -rf mpv-tsp-${MPVTSP_VER}.zip mpv
+
+# ---- libass 0.17.1 (LGPL; OSD/subs for mpv; fontconfig via pc above) -----------
+ARG LIBASS_VER=0.17.1
+ARG LIBASS_SHA256=d653be97198a0543c69111122173c41a99e0b91426f9e17f06a858982c2fb03d
+RUN cd /tmp \
+ && wget -q "https://github.com/libass/libass/releases/download/${LIBASS_VER}/libass-${LIBASS_VER}.tar.gz" \
+ && echo "${LIBASS_SHA256}  libass-${LIBASS_VER}.tar.gz" | sha256sum -c - \
+ && tar xf "libass-${LIBASS_VER}.tar.gz" && cd libass-${LIBASS_VER} \
+ && CC=aarch64-nextui-linux-gnu-gcc \
+    CXX=aarch64-nextui-linux-gnu-g++ \
+    PKG_CONFIG=/usr/local/bin/pp-pkg-config \
+    CFLAGS="-I$MPREFIX/include -I$MPREFIX/include/freetype2 -I$MPREFIX/include/fribidi -I$MPREFIX/include/harfbuzz -I$SYSROOT/include -O2 -w" \
+    CXXFLAGS="-O2 -w" \
+    LDFLAGS="-L$MPREFIX/lib -L$SYSROOT/usr/lib -Wl,-rpath-link,$SYSROOT/usr/lib" \
+    FONTCONFIG_CFLAGS="-I$MPREFIX/include" \
+    FONTCONFIG_LIBS="-L$MPREFIX/lib -lfontconfig" \
+    ./configure --host=aarch64-nextui-linux-gnu --prefix="$MPREFIX" --libdir="$MPREFIX/lib" \
+      --enable-shared --disable-static --disable-asm \
+ && make -j"$(nproc)" && make install && ldconfig \
+ && rm -rf /tmp/libass-${LIBASS_VER}*
+
+# EGL pkg-config: upstream mpv v0.36.0 meson requires dependency('egl',
+# version: '> 1.4.0') (meson.build:1171), but the SDK targets EGL 1.4
+# (egl.pc Version: 1.4). mpv's gl backend uses only EGL 1.4 API
+# (eglCreateContext/eglMakeCurrent/eglSwapBuffers), so bump the SDK egl.pc
+# to Version 1.5 to satisfy the strict meson check while still linking the
+# SDK's libEGL.so (mirrors mpv-tsp's pkgconfig/egl.pc). No code changes to mpv.
+RUN sed -i 's/^Version: 1\.4$/Version: 1.5/' "$SYSROOT/usr/lib/pkgconfig/egl.pc" \
+ && grep -E '^Version:' "$SYSROOT/usr/lib/pkgconfig/egl.pc"
+
+# A second pkg-config wrapper for the libmpv/mpv layer only. The base image exports
+# PKG_CONFIG_SYSROOT_DIR=$SYSROOT globally, so pkg-config rewrites -I/-L paths that live
+# OUTSIDE the sysroot -- e.g. FFmpeg's libavcodec.pc `Cflags: -I$MPREFIX/include` becomes
+# `-I$SYSROOT/opt/mpv/include` (missing) -> "avcodec.h not found". The cross gcc already
+# defaults to $SYSROOT for SDK headers, and mpv-tsp's proven wrapper clears the sysroot,
+# so publish pp-pkg-config2 with PKG_CONFIG_SYSROOT_DIR="" (and clear PKG_CONFIG_PATH/
+# PKG_CONFIG_DIR) + derive a matching cross file via sed on tg5040-cross.ini. Only the
+# libmpv/mpv layer --cross-file-switched to it; freetype/fribidi/harfbuzz/libass keep the
+# sysrooted wrapper (their include resolution is unaffected).
+RUN printf '#!/bin/sh\nexport PKG_CONFIG_DIR=\nexport PKG_CONFIG_PATH=\nexport PKG_CONFIG_SYSROOT_DIR=\nexport PKG_CONFIG_LIBDIR="%s/lib/pkgconfig:%s/usr/lib/pkgconfig:%s/usr/share/pkgconfig"\nexec /usr/bin/pkg-config "$@"\n' "$MPREFIX" "$SYSROOT" "$SYSROOT" > /usr/local/bin/pp-pkg-config2 && chmod +x /usr/local/bin/pp-pkg-config2 \
+ && sed 's/pp-pkg-config/pp-pkg-config2/' /tmp/tg5040-cross.ini > /tmp/tg5040-cross2.ini
+
+# ---- mpv 0.36.0 -> libmpv (pinned; LGPL OpenGL render API) ---------------------
+# Upstream mpv v0.36.0 source (NOT the mpv-tsp helper repo — vanilla, no patches;
+# the patch_mpv.py of mpv-tsp only adds the SDL gpu-context, which the render-API
+# embed path bypasses: the app owns the GL context and supplies get_proc_address).
+#   -Dlibmpv=true      the deliverable (libmpv.so)
+#   -Dcplayer=false    no mpv binary (PocketPlex doesn't need it)
+#   -Dgpl=false        LGPL only (no GPL)
+#   libass from src   SDK ships no libass -> built freetype+fribidi+harfbuzz+libass
+#   -Dsdl2=disabled    mpv's SDL ao/gamepad fails to cross-compile here (SDL.h not found in
+#                      input/sdl_gamepad.c). Audio goes through ao=alsa instead (-Dalsa=enabled,
+#                      libasound from the SDK sysroot). The render API still draws video.
+#   -Dgl=enabled -Degl=enabled  link the SDK's EGL/GLES2 for the gl renderer
+# mpv links FFmpeg's libav* + SDK EGL/GLES2. The built libmpv.so MUST export
+# mpv_render_context_create; we assert it below before the layer can succeed.
+ARG MPV_VER=0.36.0
+ARG MPV_SHA256=29abc44f8ebee013bb2f9fe14d80b30db19b534c679056e4851ceadf5a5e8bf6
+RUN cd /tmp \
+ && wget -q "https://github.com/mpv-player/mpv/archive/refs/tags/v${MPV_VER}.tar.gz" \
+ && echo "${MPV_SHA256}  v${MPV_VER}.tar.gz" | sha256sum -c - \
+ && tar xf "v${MPV_VER}.tar.gz" \
+ && cd "mpv-${MPV_VER}" \
+ && meson setup build --cross-file /tmp/tg5040-cross2.ini --default-library=shared \
+      --prefix="$MPREFIX" --libdir=lib --buildtype=release --wrap-mode=nofallback -Dwarning_level=0 -Dwerror=false \
+      -Dcplayer=false -Dlibmpv=true -Dtests=false -Dgpl=false \
+      -Dsdl2=disabled \
+      -Dgl=enabled -Degl=enabled \
+      -Dvulkan=disabled -Ddrm=disabled -Degl-drm=disabled -Dgbm=disabled -Dx11=disabled \
+      -Dvdpau=disabled -Dvaapi=disabled -Dd3d11=disabled -Ddirect3d=disabled -Dcocoa=disabled \
+      -Dcaca=disabled -Dsixel=disabled -Dalsa=enabled -Dpulse=disabled -Dpipewire=disabled \
+      -Djack=disabled -Dopenal=disabled -Dsndio=disabled -Doss-audio=disabled -Dlua=disabled \
+      -Djavascript=disabled -Dlibarchive=disabled -Dlibbluray=disabled -Ddvdnav=disabled \
+      -Ddvbin=disabled -Dcdda=disabled -Duchardet=disabled -Drubberband=disabled \
+      -Dvapoursynth=disabled -Dzimg=disabled -Dlcms2=disabled -Djpeg=disabled \
+      -Dmanpage-build=disabled \
+ && meson compile -C build -j"$(nproc)" && meson install -C build \
+ && test -e "$MPREFIX/lib/libmpv.so" \
+ && aarch64-nextui-linux-gnu-nm -D "$MPREFIX/lib/libmpv.so" | grep -q "mpv_render_context_create" \
+ && rm -rf /tmp/tg5040-cross.ini build /tmp/v${MPV_VER}.tar.gz
+
+# The -w above only covers the third-party libraries built into libmpv. Restore the
+# Makefile default so PocketPlex itself builds with -Wall -Wextra warnings visible.
+ENV CFLAGS="-O2 -g"

@@ -209,11 +209,11 @@ int pp_auth_pin_start(char code_out[8], long *pin_id_out) {
   if (!code_out || !pin_id_out) return PP_ERR_ARG;
   char url[128];
   snprintf(url, sizeof url, "%s/pins?strong=false", PLEX_TV);
-  pp_http_response r;
+  pp_http_response r = {0};
   int rc = pp_http_post(url, NULL, &r);
   if (rc == PP_OK) rc = pp_parse_pin(r.body, code_out, pin_id_out, NULL, 0);
+  if (rc != PP_OK) LOGE("pin start failed: %d status=%ld err=%s", rc, r.status, r.err);
   pp_http_free(&r);
-  if (rc != PP_OK) LOGE("pin start failed: %d", rc);
   return rc;
 }
 

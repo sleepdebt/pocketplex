@@ -33,6 +33,7 @@ typedef struct {
   play_state ps;
   Uint32 play_started;
   int failed;            /* player_poll < 0 */
+  int frame_shown;       /* tg5040: mpv has presented its first frame (loader stops) */
   pp_item *update;       /* caller's item to refresh on stop (may be NULL) */
 } player_data_t;
 
@@ -116,12 +117,16 @@ static void player_render(pp_screen *self) {
     }
     play_state_init(&d->ps, d->item.duration_ms, d->start_ms, (long)now);
     d->play_started = now;
+    d->frame_shown = 0;
     d->phase = P_PLAYING;
     LOGI("play: started %s at %ld ms", d->item.rating_key, d->start_ms);
     return;
   }
 
   case P_PLAYING: {
+    /* tg5040: render an mpv frame each tick (no-op on SP/desktop). Until the first frame, show the loader. */
+    if (player_render_frame(d->player)) d->frame_shown = 1;
+    else if (!d->frame_shown) player_draw_loader(g_spinner_frame++);
     if (!play_poll_due(&d->ps, (long)now)) return;
     long pos = d->ps.pos_ms;
     int finished = 0;
@@ -164,6 +169,7 @@ static void player_render(pp_screen *self) {
       d->update->view_offset_ms = d->ps.scrobbled ? 0 : d->ps.pos_ms;
       if (d->ps.scrobbled) d->update->watched = 1;
     }
+    ui_mark_ondeck_stale();   /* Continue Watching shows the new position */
     if (d->failed) ui_toast("Playback failed");
     ui_play_result(!d->failed);
     ui_pop();

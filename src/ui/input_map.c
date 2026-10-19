@@ -36,8 +36,9 @@ static int has_word(const char *hay, const char *needle) {
 }
 
 pp_pad_layout pp_pad_layout_for(const char *name, int sdl_label_mapped, int handheld_build) {
+  /* TrimUI pads (Brick, Brick Pro) print A on the east button, like the other handhelds. */
   static const char *const nintendo[] = { "anbernic", "rg35xx", "rg40xx", "rg28xx", "rgcube",
-                                          "miyoo", NULL };
+                                          "miyoo", "trimui", NULL };
   static const char *const positional[] = { "xbox", "x-box", "playstation", "dualshock",
                                             "dualsense", "ps4", "ps5", NULL };
   if (sdl_label_mapped) return PP_LAYOUT_POSITIONAL;  /* SDL already applied labels */

@@ -27,4 +27,14 @@ SDL_LIBS   += $(shell pkg-config --libs sdl2 2>/dev/null)
 LDFLAGS    += -L$(TG_PREFIX)/lib
 PP_CFLAGS  += -I$(TG_PREFIX)/include -DPP_PLATFORM_TG5040=1
 CORE_LIBS  += -lcurl -lmbedtls -lmbedx509 -lmbedcrypto -lpthread
+
+# libmpv 0.36 (OpenGL render API) is preinstalled at /opt/mpv by
+# toolchains/Dockerfile.tg5040 — NOT under the app's TG_PREFIX (/opt/pp-net).
+# player_mpv.c embeds it on PP_PLATFORM_TG5040.
+TG_MPV     := /opt/mpv
+PP_CFLAGS  += -I$(TG_MPV)/include
+APP_LIBS   += -lmpv -lGLESv2   # GLESv2: the player loader's glClear/glScissor
+# -rpath-link lets the cross ld resolve libmpv's NEEDED deps (libav*, libass,
+# ...) from /opt/mpv/lib at link time; -rpath lets the device ld.so find them.
+LDFLAGS    += -L$(TG_MPV)/lib -Wl,-rpath,$(TG_MPV)/lib -Wl,-rpath-link,$(TG_MPV)/lib
 endif

@@ -66,9 +66,27 @@ static void fire_resume(const char *why) {
 
 /* Window + renderer (also used to rebuild them after the external player). */
 static int create_video(int ww, int hh) {
+#if defined(PP_PLATFORM_TG5040)
+  /* Give the window a GLES3 context so libmpv's render API can resolve GL
+   * symbols via SDL_GL_GetProcAddress and present with SDL_GL_SwapWindow. */
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
+#endif
   g_win = SDL_CreateWindow("PocketPlex",
                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                           ww, hh, SDL_WINDOW_SHOWN);
+                           ww, hh,
+#if defined(PP_PLATFORM_TG5040)
+                           SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
+#else
+                           SDL_WINDOW_SHOWN
+#endif
+  );
   if (!g_win) {
     LOGE("SDL_CreateWindow: %s", SDL_GetError());
     return -1;
@@ -82,6 +100,33 @@ static int create_video(int ww, int hh) {
     g_win = NULL;
     return -1;
   }
+#if defined(PP_PLATFORM_TG5040)
+  /* libmpv's render API drives OpenGL directly, so TG5040 needs a renderer that
+     exposes a GL context. SDL_CreateRenderer(-1) may create one for us; if it
+     picked a software driver there is no GL context and the render API can't
+     work — log what we got and refuse to start so the failure is obvious on the
+     device pass. (We do NOT call SDL_GL_CreateContext here yet; first confirm a
+     hardware renderer provides a context.) */
+  {
+    SDL_RendererInfo info;
+    SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+    const char *rname = "(unknown)";
+    int is_software = 1;
+    if (SDL_GetRendererInfo(g_ren, &info) == 0) {
+      rname = info.name;
+      is_software = !(info.flags & SDL_RENDERER_ACCELERATED);
+    }
+    LOGI("tg5040: renderer=%s software=%d gl_current_ctx=%s (after SDL_CreateRenderer)",
+         rname, is_software, ctx ? "yes" : "no");
+    if (is_software) {
+      LOGE("tg5040: renderer '%s' is software (no GL context); mpv render API requires a "
+           "GL context — refusing to start", rname);
+      SDL_DestroyRenderer(g_ren); g_ren = NULL;
+      SDL_DestroyWindow(g_win); g_win = NULL;
+      return -1;
+    }
+  }
+#endif
   return 0;
 }
 
@@ -91,9 +136,16 @@ static void destroy_video(void) {
 }
 
 void plat_video_suspend(void) {
+#if defined(PP_PLATFORM_TG5040)
+  /* libmpv render-API embed: keep the window + GL context so mpv can draw into
+   * the app's surface. The menu is held off by no_present (ui.c); nothing else
+   * to tear down here. */
+  LOGI("video: kept for libmpv render API (tg5040)");
+#else
   destroy_video();
   SDL_QuitSubSystem(SDL_INIT_VIDEO);  /* events/controllers stay up (own refcounts) */
   LOGI("video: suspended for the external player");
+#endif
 }
 
 int plat_video_resume(void) {
@@ -227,6 +279,11 @@ static void on_joystick_added(int index) {
 #endif
 #endif
     pp_pad_layout layout = pp_pad_layout_for(name, label_mapped, PP_HANDHELD_BUILD);
+#if defined(PP_PLATFORM_TG5040)
+    /* The built-in TrimUI pad prints A on the east button, but SDL reports it as "Xbox 360
+     * Controller", which the name rules read as positional. It is the only pad in scope here. */
+    layout = PP_LAYOUT_NINTENDO;
+#endif
     pp_pad_set_layout(layout);
     LOGI("input: layout %s for '%s' (%s; swap_ab=%d)", pp_pad_layout_name(layout),
          name ? name : "?",

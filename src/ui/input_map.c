@@ -160,8 +160,15 @@ static const struct { int code; pp_btn btn; } pp_tg5040_keys[] = {
   { 315, BTN_START },  /* BTN_START */
   { 316, BTN_MENU },   /* BTN_MODE: the only quit key */
   /* 317/318 (L3/R3) and KEY 59/60 (assignable buttons) are intentionally
-   * absent: pp_btn has no L3/R3, and the owner has not picked actions for
-   * the assignable pair yet (D-input-2 in reviews/tg-0-input.md). */
+   * absent: pp_btn has no L3/R3, and KEY 59/60 stay unmapped per the owner
+   * (BRICKPRO_HANDOFF.md §10, 2026-10-19) so they remain free as custom
+   * system buttons - PocketPlex must not consume or bind them.
+   * Home: NO measured evdev code yet (the tg-0 spike never recorded one, and
+   * the SDL-index plan in handoff §2 is moot under raw evdev). Stays
+   * unmapped until the Phase 0 device pass checks whether Home emits
+   * anything on event3 or another node; once a code is measured, the owner
+   * decision (§10, 2026-10-18) is that Home quits straight to NextUI, the
+   * same as the SP. */
 };
 
 pp_btn pp_tg5040_key_to_btn(int code) {
@@ -171,6 +178,12 @@ pp_btn pp_tg5040_key_to_btn(int code) {
 }
 
 pp_btn pp_tg5040_hat_to_btn(int axis, int value) {
+  /* Sign convention is ASSUMED, not measured: the kernel hat convention is
+   * -1 = left/up, +1 = right/down, and the tg-0 spike recorded the axes
+   * (ABS 16/17) but not their signs. If the Phase 0 device pass shows the
+   * Brick Pro inverts an axis, swap the two buttons on that axis HERE and
+   * nowhere else, and record the measured signs in ops/LOG.md. Do not change
+   * behaviour without an on-device measurement (review MINOR 2). */
   if (value == 0 || value < -1 || value > 1) return BTN_NONE;   /* hats: -1/0/+1 */
   if (axis == 16) return value < 0 ? BTN_LEFT : BTN_RIGHT;   /* ABS_HAT0X */
   if (axis == 17) return value < 0 ? BTN_UP : BTN_DOWN;     /* ABS_HAT0Y */

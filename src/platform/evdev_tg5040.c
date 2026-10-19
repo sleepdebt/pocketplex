@@ -63,10 +63,17 @@ static int g_hat_x = 0, g_hat_y = 0;
 static unsigned char g_key_state[TG_KEY_STATES];
 static int g_trig_l = 0, g_trig_r = 0;
 
+/* Unbound codes already logged this open() (review MINOR 3: a resting finger
+ * on L3/R3 or the assignable pair would otherwise spam the NextUI log). */
+static unsigned long g_unbound_logged[TG_KEY_STATES / (8 * sizeof(unsigned long))];
+
 static void queue_press(pp_btn b) {
   if (b == BTN_NONE) return;
   if (g_q_count == PRESS_QUEUE) {
-    memmove(g_presses, g_presses + 1, sizeof(pp_btn) * (PRESS_QUEUE - 1));
+    /* The oldest press is at g_q_head, not index 0: a memmove from index 0
+     * would drop a mid-queue press whenever the ring has wrapped. Advance
+     * the head instead, so the log below tells the truth. */
+    g_q_head = (g_q_head + 1) % PRESS_QUEUE;
     g_q_count--;
     LOGW("input: evdev press queue full; dropped the oldest press");
   }
@@ -84,8 +91,15 @@ static void on_key(int code, int value) {
   if (code >= 0 && code < TG_KEY_STATES) g_key_state[code] = value > 0;
   pp_btn b = pp_tg5040_key_to_btn(code);
   if (b == BTN_NONE) {
-    if (value == 1)
-      LOGI("input: evdev key %d unbound (L3/R3/assignable)", code);
+    /* Log once per code per open(); every measured pad code is < 512. */
+    if (value == 1 && code >= 0 && code < TG_KEY_STATES) {
+      int w = code / (int)(8 * sizeof(unsigned long));
+      int bit = code % (int)(8 * sizeof(unsigned long));
+      if (!((g_unbound_logged[w] >> bit) & 1ul)) {
+        g_unbound_logged[w] |= 1ul << bit;
+        LOGI("input: evdev key %d unbound (L3/R3/assignable; logged once)", code);
+      }
+    }
     return;
   }
   if (value == 1) {   /* press only: value 2 is device auto-repeat, we repeat */
@@ -239,6 +253,7 @@ int pp_evdev_tg5040_open(void) {
   g_q_head = g_q_count = 0;
   g_hat_x = g_hat_y = 0;
   memset(g_key_state, 0, sizeof g_key_state);
+  memset(g_unbound_logged, 0, sizeof g_unbound_logged);
   g_trig_l = g_trig_r = 0;
   g_held_repeatable = BTN_NONE;
   return 0;

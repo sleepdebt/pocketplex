@@ -629,8 +629,13 @@ int player_poll(pp_player *p, long *pos_ms, int *finished) {
     double sec = 0.0;
     /* Drain mpv's event queue (non-blocking) for EOF/shutdown / errors. */
     while ((event = mpv_wait_event(p->mpv, 0)) && event->event_id != MPV_EVENT_NONE) {
-      if (event->event_id == MPV_EVENT_END_FILE && event->error < 0 && p->mpv_error == 0)
-        p->mpv_error = 1;
+      if (event->event_id == MPV_EVENT_END_FILE) {
+        /* event->error is only valid for property/command replies (client.h);
+           END_FILE's error lives in the mpv_event_end_file payload. */
+        mpv_event_end_file *eef = (mpv_event_end_file *)event->data;
+        if (eef && eef->reason == MPV_END_FILE_REASON_ERROR && eef->error < 0)
+          p->mpv_error = 1;   /* playback/load failure surfaced to the UI */
+      }
       if (event->event_id == MPV_EVENT_SHUTDOWN || event->event_id == MPV_EVENT_END_FILE)
         p->mpv_finished = 1;
     }

@@ -87,6 +87,33 @@ static int create_video(int ww, int hh) {
     g_win = NULL;
     return -1;
   }
+#if defined(PP_PLATFORM_TG5040)
+  /* libmpv's render API drives OpenGL directly, so TG5040 needs a renderer that
+     exposes a GL context. SDL_CreateRenderer(-1) may create one for us; if it
+     picked a software driver there is no GL context and the render API can't
+     work — log what we got and refuse to start so the failure is obvious on the
+     device pass. (We do NOT call SDL_GL_CreateContext here yet; first confirm a
+     hardware renderer provides a context.) */
+  {
+    SDL_RendererInfo info;
+    SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+    const char *rname = "(unknown)";
+    int is_software = 1;
+    if (SDL_GetRendererInfo(g_ren, &info) == 0) {
+      rname = info.name;
+      is_software = !(info.flags & SDL_RENDERER_ACCELERATED);
+    }
+    LOGI("tg5040: renderer=%s software=%d gl_current_ctx=%s (after SDL_CreateRenderer)",
+         rname, is_software, ctx ? "yes" : "no");
+    if (is_software) {
+      LOGE("tg5040: renderer '%s' is software (no GL context); mpv render API requires a "
+           "GL context — refusing to start", rname);
+      SDL_DestroyRenderer(g_ren); g_ren = NULL;
+      SDL_DestroyWindow(g_win); g_win = NULL;
+      return -1;
+    }
+  }
+#endif
   return 0;
 }
 

@@ -160,8 +160,15 @@ static const struct { int code; pp_btn btn; } pp_tg5040_keys[] = {
   { 315, BTN_START },  /* BTN_START */
   { 316, BTN_MENU },   /* BTN_MODE: the only quit key */
   /* 317/318 (L3/R3) and KEY 59/60 (assignable buttons) are intentionally
-   * absent: pp_btn has no L3/R3, and the owner has not picked actions for
-   * the assignable pair yet (D-input-2 in reviews/tg-0-input.md). */
+   * absent: pp_btn has no L3/R3, and KEY 59/60 stay unmapped per the owner
+   * (BRICKPRO_HANDOFF.md §10, 2026-10-19) so they remain free as custom
+   * system buttons - PocketPlex must not consume or bind them.
+   * Home: NO measured evdev code yet (the tg-0 spike never recorded one, and
+   * the SDL-index plan in handoff §2 is moot under raw evdev). Stays
+   * unmapped until the Phase 0 device pass checks whether Home emits
+   * anything on event3 or another node; once a code is measured, the owner
+   * decision (§10, 2026-10-18) is that Home quits straight to NextUI, the
+   * same as the SP. */
 };
 
 pp_btn pp_tg5040_key_to_btn(int code) {

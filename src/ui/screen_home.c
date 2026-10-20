@@ -3,6 +3,7 @@
  */
 #include "ui.h"
 #include "ui/worker.h"
+#include "platform/wifi.h"
 #include "log.h"
 
 #include <stdlib.h>
@@ -22,11 +23,22 @@ typedef struct {
 } home_data_t;
 
 /* Take a finished request's list (or toast its error) and drop the request. */
+/* Brick Pro only: NextUI owns Wi-Fi, so a network failure with wlan0 administratively down is named. */
+static int wifi_off_now(void) {
+#if defined(PP_PLATFORM_TG5040)
+  return pp_wifi_interface_down();
+#else
+  return 0;
+#endif
+}
+
 static void home_collect(home_data_t *d, pp_request **req, pp_list *out) {
   int st = worker_status(*req);
   if (st == PP_OK) worker_take_list(*req, out);
   else if (st == PP_ERR_AUTH) { if (!d->auth_failed) d->auth_failed = 1; }
-  else {
+  else if (st == PP_ERR_NET && wifi_off_now()) {
+    ui_toast("Wi-Fi is off. Turn it on in NextUI Settings");
+  } else {
     /* Unreachable saved server: name it and point at the way out. */
     const pp_server *srv = ui_current_server();
     const char *name = srv && srv->name && srv->name[0] ? srv->name : "server";

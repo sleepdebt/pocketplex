@@ -53,9 +53,27 @@ static void fire_resume(const char *why) {
 
 /* Window + renderer (also used to rebuild them after the external player). */
 static int create_video(int ww, int hh) {
+#if defined(PP_PLATFORM_TG5040)
+  /* Give the window a GLES3 context so libmpv's render API can resolve GL
+   * symbols via SDL_GL_GetProcAddress and present with SDL_GL_SwapWindow. */
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_PROFILE_MASK, SDL_GL_CONTEXT_PROFILE_ES);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MAJOR_VERSION, 3);
+  SDL_GL_SetAttribute(SDL_GL_CONTEXT_MINOR_VERSION, 0);
+  SDL_GL_SetAttribute(SDL_GL_DOUBLEBUFFER, 1);
+  SDL_GL_SetAttribute(SDL_GL_RED_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_GREEN_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_BLUE_SIZE, 8);
+  SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 0);
+#endif
   g_win = SDL_CreateWindow("PocketPlex",
                            SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED,
-                           ww, hh, SDL_WINDOW_SHOWN);
+                           ww, hh,
+#if defined(PP_PLATFORM_TG5040)
+                           SDL_WINDOW_SHOWN | SDL_WINDOW_OPENGL
+#else
+                           SDL_WINDOW_SHOWN
+#endif
+  );
   if (!g_win) {
     LOGE("SDL_CreateWindow: %s", SDL_GetError());
     return -1;
@@ -78,9 +96,16 @@ static void destroy_video(void) {
 }
 
 void plat_video_suspend(void) {
+#if defined(PP_PLATFORM_TG5040)
+  /* libmpv render-API embed: keep the window + GL context so mpv can draw into
+   * the app's surface. The menu is held off by no_present (ui.c); nothing else
+   * to tear down here. */
+  LOGI("video: kept for libmpv render API (tg5040)");
+#else
   destroy_video();
   SDL_QuitSubSystem(SDL_INIT_VIDEO);  /* events/controllers stay up (own refcounts) */
   LOGI("video: suspended for the external player");
+#endif
 }
 
 int plat_video_resume(void) {

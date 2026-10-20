@@ -120,6 +120,7 @@ static void player_render(pp_screen *self) {
   }
 
   case P_PLAYING: {
+    player_render_frame(d->player);  /* tg5040: render an mpv frame each tick; no-op on SP/desktop */
     if (!play_poll_due(&d->ps, (long)now)) return;
     long pos = d->ps.pos_ms;
     int finished = 0;

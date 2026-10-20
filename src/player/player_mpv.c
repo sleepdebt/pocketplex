@@ -15,6 +15,13 @@
 #include "player/player.h"
 #include "log.h"
 
+#if defined(PP_PLATFORM_TG5040)
+#include <SDL.h>
+#include <mpv/client.h>
+#include <mpv/render_gl.h>     /* pulls in mpv/render.h (mpv_render_context, params) */
+#include "ui/ui_platform.h"    /* plat_window() */
+#endif
+
 #include <errno.h>
 #include <fcntl.h>
 #include <poll.h>
@@ -73,7 +80,26 @@ struct pp_player {
   int input_running;
   volatile int input_stop;
 #endif
+#if defined(PP_PLATFORM_TG5040)
+  mpv_handle *mpv;        /* in-process libmpv handle (tg5040 only) */
+  mpv_render_context *rc; /* libmpv render context bound to our GL ctx */
+  int mpv_update;         /* set by the render-context update callback */
+  int mpv_finished;       /* MPV_EVENT_SHUTDOWN / END_FILE seen */
+  int mpv_error;          /* playback error flag */
+#endif
 };
+
+#if defined(PP_PLATFORM_TG5040)
+/* mpv's render API takes a 2-arg (ctx, name) get_proc_address; wrap SDL's. */
+static void *tg_gl_get_proc(void *ctx, const char *name) {
+  (void)ctx;
+  return SDL_GL_GetProcAddress(name);
+}
+/* Called by mpv from whatever thread decides a new frame is ready. */
+static void tg_mpv_update(void *ctx) {
+  ((pp_player *)ctx)->mpv_update = 1;
+}
+#endif
 
 /* Keyboard bindings for mpv's own window (desktop). Devices use the evdev thread instead. */
 static const char mpv_input_conf[] =
@@ -414,6 +440,60 @@ static int spawn_mpv(pid_t *pid, const char *bin, char **argv) {
 }
 
 pp_player *player_start(const char *url, long start_ms) {
+#if defined(PP_PLATFORM_TG5040)
+  /* In-process libmpv embed: create the render context BEFORE loadfile (lifetime
+   * rule: the GL ctx must be current and the render ctx must exist at file load),
+   * bind mpv's video output to our SDL GL window, and never touch the external
+   * spawn path below. */
+  {
+    pp_player *p;
+    if (!url || !*url) return NULL;
+    if (!(p = calloc(1, sizeof *p))) return NULL;
+    p->fd = -1;
+    p->pos_ms = start_ms < 0 ? 0 : start_ms;
+    p->mpv = mpv_create();
+    if (!p->mpv) { LOGE("player: mpv_create failed"); free(p); return NULL; }
+    mpv_set_property_string(p->mpv, "idle", "yes");
+    mpv_set_property_string(p->mpv, "hwdec", "auto");     /* cedar via avcodec sw fallback */
+    mpv_set_property_string(p->mpv, "cache", "yes");
+    mpv_set_property_string(p->mpv, "demuxer-max-bytes", "32MiB");
+    mpv_set_property_string(p->mpv, "demuxer-max-back-bytes", "16MiB");
+    mpv_set_property_string(p->mpv, "network-timeout", "20");
+    mpv_set_property_string(p->mpv, "ao", "null");       /* audio deferred (device-test) */
+    if (mpv_initialize(p->mpv) < 0) {
+      LOGE("player: mpv_initialize failed");
+      mpv_terminate_destroy(p->mpv);
+      free(p);
+      return NULL;
+    }
+    {
+      mpv_opengl_init_params glinit = {
+        .get_proc_address = tg_gl_get_proc,
+        .get_proc_address_ctx = p,
+      };
+      int advanced = 1;
+      mpv_render_param cparams[] = {
+        { MPV_RENDER_PARAM_API_TYPE, (void *)MPV_RENDER_API_TYPE_OPENGL },
+        { MPV_RENDER_PARAM_OPENGL_INIT_PARAMS, &glinit },
+        { MPV_RENDER_PARAM_ADVANCED_CONTROL, &advanced },
+        { MPV_RENDER_PARAM_INVALID, NULL },
+      };
+      if (mpv_render_context_create(&p->rc, p->mpv, cparams) < 0) {
+        LOGE("player: mpv_render_context_create failed");
+        mpv_terminate_destroy(p->mpv);
+        free(p);
+        return NULL;
+      }
+      mpv_render_context_set_update_callback(p->rc, tg_mpv_update, p);
+    }
+    {
+      const char *cmd[] = { "loadfile", url, NULL };
+      mpv_command(p->mpv, cmd);
+    }
+    LOGI("player: libmpv embed (render API), start %ld ms", p->pos_ms);
+    return p;
+  }
+#endif
   static int seq;
   char *argv[PP_MPV_MAX_ARGS];
   char bufs[PP_MPV_MAX_ARGS][PP_MPV_ARG_LEN];
@@ -458,6 +538,26 @@ pp_player *player_start(const char *url, long start_ms) {
 }
 
 int player_poll(pp_player *p, long *pos_ms, int *finished) {
+#if defined(PP_PLATFORM_TG5040)
+  if (!p) {
+    if (finished) *finished = 1;
+    return -1;
+  }
+  {
+    mpv_event *event;
+    double sec = 0.0;
+    /* Drain mpv's event queue (non-blocking) for EOF/shutdown / errors. */
+    while ((event = mpv_wait_event(p->mpv, 0)) && event->event_id != MPV_EVENT_NONE) {
+      if (event->event_id == MPV_EVENT_SHUTDOWN || event->event_id == MPV_EVENT_END_FILE)
+        p->mpv_finished = 1;
+    }
+    if (mpv_get_property(p->mpv, "time-pos", MPV_FORMAT_DOUBLE, &sec) == 0 && sec >= 0.0)
+      p->pos_ms = (long)(sec * 1000.0 + 0.5);
+    if (pos_ms) *pos_ms = p->pos_ms;
+    if (finished) *finished = p->mpv_finished;
+    return p->mpv_error ? -1 : 0;
+  }
+#endif
   double sec;
   int rc;
   if (!p) {
@@ -480,6 +580,14 @@ int player_poll(pp_player *p, long *pos_ms, int *finished) {
 }
 
 void player_stop(pp_player *p) {
+#if defined(PP_PLATFORM_TG5040)
+  if (!p) return;
+  /* Lifetime rule: free the render context BEFORE terminating mpv. */
+  if (p->rc) mpv_render_context_free(p->rc);
+  if (p->mpv) mpv_terminate_destroy(p->mpv);
+  free(p);
+  return;
+#endif
   long t0;
   if (!p) return;
 #ifdef PP_MPV_EVDEV
@@ -501,4 +609,30 @@ void player_stop(pp_player *p) {
   if (p->conf[0]) unlink(p->conf);
   LOGI("player: stopped at %ld ms", p->pos_ms);
   free(p);
+}
+
+void player_render_frame(pp_player *p) {
+#if defined(PP_PLATFORM_TG5040)
+  SDL_Window *win = plat_window();
+  SDL_GLContext ctx = SDL_GL_GetCurrentContext();
+  if (!p || !p->rc) return;
+  /* The render context must have the current GL ctx on its thread (us). */
+  if (win && ctx) SDL_GL_MakeCurrent(win, ctx);
+  p->mpv_update = 0;
+  uint64_t flags = mpv_render_context_update(p->rc);
+  if (!(flags & MPV_RENDER_UPDATE_FRAME)) return;   /* nothing new to draw */
+  if (win) {
+    int w = 0, h = 0;
+    SDL_GetWindowSize(win, &w, &h);
+    mpv_opengl_fbo fbo = { .fbo = 0, .w = w, .h = h, .internal_format = 0 };
+    mpv_render_param rparams[] = {
+      { MPV_RENDER_PARAM_OPENGL_FBO, &fbo },
+      { MPV_RENDER_PARAM_INVALID, NULL },
+    };
+    mpv_render_context_render(p->rc, rparams);
+    SDL_GL_SwapWindow(win);
+  }
+#else
+  (void)p;
+#endif
 }

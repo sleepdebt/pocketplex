@@ -17,6 +17,7 @@
 
 #if defined(PP_PLATFORM_TG5040)
 #include <SDL.h>
+#include <SDL_ttf.h>           /* on-screen time label */
 #include <GLES2/gl2.h>         /* loader: glScissor/glClear on the same GL context mpv draws into */
 #include <mpv/client.h>
 #include <mpv/render_gl.h>     /* pulls in mpv/render.h (mpv_render_context, params) */
@@ -87,6 +88,10 @@ struct pp_player {
   int mpv_update;         /* set by the render-context update callback */
   int mpv_finished;       /* MPV_EVENT_SHUTDOWN / END_FILE seen */
   int mpv_error;          /* playback error flag */
+  Uint32 overlay_until;   /* SDL ticks: time and bar on screen until then (X or Select) */
+  int overlay_shown;      /* the last frame drew the overlay, so it is cleared once it ends */
+  TTF_Font *ov_font;      /* DejaVu Sans Mono from the pak, for the time label */
+  GLuint ov_prog, ov_tex;
 #endif
 };
 
@@ -411,19 +416,22 @@ static void *input_main(void *arg) {
 static void tg_mpv_send(pp_player *p, const char *cmd, const char *arg) {
   if (!p->mpv) return;
   const char *argv[3] = { cmd, arg, NULL };
-  mpv_command_async(p->mpv, 0, argv);
+  int r = mpv_command_async(p->mpv, 0, argv);
+  LOGI("player: input %s %s -> mpv %d", cmd, arg ? arg : "", r);
+}
+/* Time and bar: a press shows them for a few seconds; a second press hides them. */
+static void tg_toggle_overlay(pp_player *p) {
+  if ((Sint32)(p->overlay_until - SDL_GetTicks()) > 0) p->overlay_until = 0;
+  else p->overlay_until = SDL_GetTicks() + 4000;
 }
 static void tg_handle_evdev(pp_player *p, int type, int code, int value) {
   if (type == PP_EV_KEY && value == 2) return;   /* auto-repeat: drop */
   if (type == PP_EV_KEY) {
     switch (code) {
     case 304: if (value != 1) return; tg_mpv_send(p, "quit", NULL); return;           /* bottom button (B, back) -> quit (press only) */
-    case 305: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* right button (A, confirm) -> pause (press only) */
-    case 307: if (value != 1) return; tg_mpv_send(p, "seek", "-60"); return;            /* X -> seek back 60 */
-    case 308: if (value != 1) return; tg_mpv_send(p, "seek", "60"); return;             /* Y -> seek 60 */
-    case 310: if (value != 1) return; tg_mpv_send(p, "seek", "-10"); return;            /* L1 -> seek back */
-    case 311: if (value != 1) return; tg_mpv_send(p, "seek", "10"); return;             /* R1 -> seek */
-    case 314: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* Select -> pause (press only) */
+    case 305: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* right button (A) -> pause (press only) */
+    case 308: if (value != 1) return; tg_toggle_overlay(p); return;   /* X (top) -> show or hide time and bar */
+    case 314: if (value != 1) return; tg_toggle_overlay(p); return;   /* Select -> show or hide time and bar */
     case 315: if (value != 1) return; tg_mpv_send(p, "cycle", "pause"); return;        /* Start -> pause (press only) */
     case 316: if (value != 1) return; tg_mpv_send(p, "quit", NULL); return;           /* Menu -> quit (press only) */
     default: break;   /* 317/318 (L3/R3), 59/60 (KEY) deliberately unbound */
@@ -433,10 +441,6 @@ static void tg_handle_evdev(pp_player *p, int type, int code, int value) {
     case 16:                                                  /* D-pad X (left/right) */
       if (value < 0) tg_mpv_send(p, "seek", "-10");
       else if (value > 0) tg_mpv_send(p, "seek", "10");
-      return;
-    case 17:                                                  /* D-pad Y (up/down): sign TBD per reviews MINOR 2 */
-      if (value < 0) tg_mpv_send(p, "seek", "60");
-      else if (value > 0) tg_mpv_send(p, "seek", "-60");
       return;
     default: break;                                           /* L2/R2 (ABS 2/5) not mapped */
     }
@@ -571,8 +575,17 @@ pp_player *player_start(const char *url, long start_ms) {
       mpv_render_context_set_update_callback(p->rc, tg_mpv_update, p);
     }
     {
+      /* The transcode URL carries offset=0, so the resume point goes in as mpv's start option,
+       * the same as the SP's --start. */
+      char start[32];
+      snprintf(start, sizeof start, "%ld.%03ld", p->pos_ms / 1000, p->pos_ms % 1000);
+      mpv_set_property_string(p->mpv, "start", start);
       const char *cmd[] = { "loadfile", url, NULL };
-      mpv_command(p->mpv, cmd);
+      if (mpv_command(p->mpv, cmd) < 0) {
+        /* No end-file event follows a refused load, so report it here or the loader spins forever. */
+        LOGE("player: mpv refused loadfile");
+        p->mpv_error = 1;
+      }
     }
     p->input_stop = 0;
     p->input_running = 0;
@@ -720,6 +733,126 @@ void player_stop(pp_player *p) {
   free(p);
 }
 
+#if defined(PP_PLATFORM_TG5040)
+/* On-screen time and bar. mpv's own OSD draws nothing on this render path, so the label is an
+ * SDL_ttf surface uploaded as a texture and drawn with a small GLES2 program; the bar uses
+ * scissored clears, as the loader does. */
+static const char *ov_vs_src =
+  "attribute vec2 a_pos; attribute vec2 a_uv; varying vec2 v_uv;\n"
+  "void main() { gl_Position = vec4(a_pos, 0.0, 1.0); v_uv = a_uv; }\n";
+static const char *ov_fs_src =
+  "precision mediump float; varying vec2 v_uv; uniform sampler2D u_tex;\n"
+  "void main() { gl_FragColor = texture2D(u_tex, v_uv); }\n";
+
+static GLuint ov_compile(GLenum type, const char *src) {
+  GLuint s = glCreateShader(type);
+  glShaderSource(s, 1, &src, NULL);
+  glCompileShader(s);
+  GLint ok = 0;
+  glGetShaderiv(s, GL_COMPILE_STATUS, &ok);
+  if (!ok) { LOGE("overlay: shader compile failed"); glDeleteShader(s); return 0; }
+  return s;
+}
+
+/* Builds the program, texture and font once, on the GL thread. */
+static int ov_init(pp_player *p) {
+  if (p->ov_prog && p->ov_font) return 1;
+  if (!p->ov_prog) {
+    GLuint vs = ov_compile(GL_VERTEX_SHADER, ov_vs_src);
+    GLuint fs = ov_compile(GL_FRAGMENT_SHADER, ov_fs_src);
+    if (!vs || !fs) return 0;
+    GLuint prog = glCreateProgram();
+    glAttachShader(prog, vs);
+    glAttachShader(prog, fs);
+    glBindAttribLocation(prog, 0, "a_pos");
+    glBindAttribLocation(prog, 1, "a_uv");
+    glLinkProgram(prog);
+    GLint ok = 0;
+    glGetProgramiv(prog, GL_LINK_STATUS, &ok);
+    if (!ok) { LOGE("overlay: program link failed"); return 0; }
+    p->ov_prog = prog;
+    glGenTextures(1, &p->ov_tex);
+  }
+  if (!p->ov_font) {
+    /* The launcher runs from the pak folder, so the bundled font is relative to it. */
+    p->ov_font = TTF_OpenFont("assets/font/DejaVuSansMono.ttf", 22);
+    if (!p->ov_font) LOGE("overlay: font: %s", TTF_GetError());
+  }
+  return p->ov_font != NULL;
+}
+
+static void ov_fmt_time(long ms, char out[32]) {
+  long s = ms < 0 ? 0 : ms / 1000;
+  snprintf(out, 32, "%ld:%02ld", s / 60, s % 60);
+}
+
+/* Draws the bar and the time label over the frame just rendered. */
+static void ov_draw(pp_player *p, int w, int h) {
+  if (!ov_init(p)) return;
+  double dur_s = 0.0;
+  mpv_get_property(p->mpv, "duration", MPV_FORMAT_DOUBLE, &dur_s);
+  long dur_ms = dur_s > 0.0 ? (long)(dur_s * 1000.0) : 0;
+  long pos = p->pos_ms > dur_ms && dur_ms > 0 ? dur_ms : p->pos_ms;
+  char a[32], b[32], label[80];
+  ov_fmt_time(pos, a);
+  ov_fmt_time(dur_ms, b);
+  snprintf(label, sizeof label, "%s / %s", a, b);
+
+  /* Bar along the bottom: grey track, white progress. Scissor rects use bottom-left origin. */
+  const int bar_x = 24, bar_y = 20, bar_h = 8;
+  const int bar_w = w - 48;
+  int done_w = dur_ms > 0 ? (int)((long)bar_w * pos / dur_ms) : 0;
+  glViewport(0, 0, w, h);
+  glEnable(GL_SCISSOR_TEST);
+  glScissor(bar_x, bar_y, bar_w, bar_h);
+  glClearColor(0.25f, 0.25f, 0.30f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+  glScissor(bar_x, bar_y, done_w, bar_h);
+  glClearColor(0.85f, 0.85f, 0.90f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
+  glDisable(GL_SCISSOR_TEST);
+
+  /* Label above the bar. */
+  SDL_Color white = { 255, 255, 255, 255 };
+  SDL_Surface *s = TTF_RenderUTF8_Blended(p->ov_font, label, white);
+  if (!s) return;
+  SDL_Surface *rgba = SDL_ConvertSurfaceFormat(s, SDL_PIXELFORMAT_ABGR8888, 0);
+  SDL_FreeSurface(s);
+  if (!rgba) return;
+  glBindTexture(GL_TEXTURE_2D, p->ov_tex);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+  glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+  glPixelStorei(GL_UNPACK_ALIGNMENT, 4);
+  glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, rgba->w, rgba->h, 0, GL_RGBA, GL_UNSIGNED_BYTE, rgba->pixels);
+
+  /* Quad in pixels (top-left origin), converted to clip space. */
+  float left = (float)bar_x, top = (float)(h - bar_y - bar_h - 10 - rgba->h);
+  float right = left + rgba->w, bottom = top + rgba->h;
+  float x0 = 2.0f * left / w - 1.0f, x1 = 2.0f * right / w - 1.0f;
+  float y0 = 1.0f - 2.0f * top / h, y1 = 1.0f - 2.0f * bottom / h;
+  const float verts[] = {
+    x0, y0, 0.0f, 0.0f,
+    x1, y0, 1.0f, 0.0f,
+    x0, y1, 0.0f, 1.0f,
+    x1, y1, 1.0f, 1.0f,
+  };
+  glUseProgram(p->ov_prog);
+  glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), verts);
+  glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), verts + 2);
+  glEnableVertexAttribArray(0);
+  glEnableVertexAttribArray(1);
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+  glDisable(GL_BLEND);
+  glDisableVertexAttribArray(0);
+  glDisableVertexAttribArray(1);
+  SDL_FreeSurface(rgba);
+}
+#endif /* PP_PLATFORM_TG5040 */
+
 int player_render_frame(pp_player *p) {
 #if defined(PP_PLATFORM_TG5040)
   SDL_Window *win = plat_window();
@@ -729,7 +862,10 @@ int player_render_frame(pp_player *p) {
   if (win && ctx) SDL_GL_MakeCurrent(win, ctx);
   p->mpv_update = 0;
   uint64_t flags = mpv_render_context_update(p->rc);
-  if (!(flags & MPV_RENDER_UPDATE_FRAME)) return 0;   /* nothing new to draw */
+  int new_frame = (flags & MPV_RENDER_UPDATE_FRAME) != 0;
+  int ov_on = (Sint32)(p->overlay_until - SDL_GetTicks()) > 0;
+  /* Redraw when there is a new frame, while the overlay is up, and once more to clear it. */
+  if (!new_frame && !ov_on && !p->overlay_shown) return 0;
   if (win) {
     int w = 0, h = 0;
     SDL_GetWindowSize(win, &w, &h);
@@ -741,8 +877,10 @@ int player_render_frame(pp_player *p) {
       { MPV_RENDER_PARAM_INVALID, NULL },
     };
     mpv_render_context_render(p->rc, rparams);
+    if (ov_on) ov_draw(p, w, h);
     SDL_GL_SwapWindow(win);
-    return 1;
+    p->overlay_shown = ov_on;
+    return new_frame;
   }
   return 0;
 #else

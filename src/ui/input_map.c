@@ -109,10 +109,10 @@ pp_btn pp_keycode_to_btn(int sdl_keycode) {
  * the SP codes: Y is 308 (BTN_WEST) here vs 306 (BTN_C) on the SP, and
  * Select/Start/Menu are 314/315/316 vs the SP's 310/311/312. */
 static const struct { int code; pp_btn btn; } pp_tg5040_keys[] = {
-  { 304, BTN_A },      /* BTN_SOUTH, printed A */
-  { 305, BTN_B },      /* BTN_EAST, printed B */
-  { 307, BTN_X },      /* BTN_NORTH, printed X */
-  { 308, BTN_Y },      /* BTN_WEST, printed Y */
+  { 304, BTN_B },      /* BTN_SOUTH: the bottom button, printed B */
+  { 305, BTN_A },      /* BTN_EAST: the right button, printed A */
+  { 307, BTN_Y },      /* BTN_NORTH: the left button, printed Y (measured 2026-10-19) */
+  { 308, BTN_X },      /* BTN_WEST: the top button, printed X (measured 2026-10-19) */
   { 310, BTN_L1 },     /* BTN_TL */
   { 311, BTN_R1 },     /* BTN_TR */
   { 314, BTN_SELECT }, /* BTN_SELECT */

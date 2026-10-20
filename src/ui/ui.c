@@ -263,7 +263,7 @@ static Uint32 g_video_retry_at = 0;
 static int video_recreate_mode(void) {
   const char *e = getenv("PP_VIDEO_RECREATE");
   if (e && (e[0] == '0' || e[0] == '1')) return e[0] == '1';
-#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP)
+#if defined(PP_PLATFORM_SP) || defined(PP_PLATFORM_MMP) || defined(PP_PLATFORM_TG5040)
   return 1;
 #else
   return 0;

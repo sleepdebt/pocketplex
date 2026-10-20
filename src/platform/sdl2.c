@@ -134,6 +134,22 @@ void plat_video_suspend(void) {
 }
 
 int plat_video_resume(void) {
+#if defined(PP_PLATFORM_TG5040)
+  /* The window and its GL context were kept for mpv, and mpv changed GL state that SDL's renderer
+   * caches. Rebuild only the renderer on the kept window. */
+  if (g_win) {
+    if (g_ren) { SDL_DestroyRenderer(g_ren); g_ren = NULL; }
+    g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    if (!g_ren) g_ren = SDL_CreateRenderer(g_win, -1, SDL_RENDERER_SOFTWARE);
+    if (!g_ren) {
+      LOGE("video: SDL_CreateRenderer after playback: %s", SDL_GetError());
+      return -1;
+    }
+    SDL_RenderSetLogicalSize(g_ren, 640, 480);
+    LOGI("video: renderer rebuilt after playback (tg5040)");
+    return 0;
+  }
+#endif
   if (g_ren) return 0;
   if (SDL_InitSubSystem(SDL_INIT_VIDEO) != 0) {
     LOGE("video: SDL_InitSubSystem: %s", SDL_GetError());

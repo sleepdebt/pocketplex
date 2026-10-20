@@ -16,6 +16,7 @@
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <unistd.h>
 #include <sys/types.h>
@@ -409,4 +410,30 @@ int pp_wifi_reconnect_wait(int timeout_ms) {
     sleep_ms(20);
   }
   return 1;
+}
+
+/* tg5040: NextUI owns Wi-Fi (no connmanctl), so the Brick Pro only checks wlan0's admin state. */
+#define WLAN_OPERSTATE "/sys/class/net/wlan0/operstate"
+
+int pp_wifi_operstate_down(const char *text) {
+  if (!text) return 0;
+  char buf[16];
+  size_t n = 0;
+  while (text[n] && text[n] != '\n' && text[n] != '\r' && n < sizeof buf - 1) {
+    buf[n] = text[n];
+    n++;
+  }
+  buf[n] = '\0';
+  while (n > 0 && (buf[n - 1] == ' ' || buf[n - 1] == '\t')) buf[--n] = '\0';
+  return strcasecmp(buf, "down") == 0;
+}
+
+int pp_wifi_interface_down(void) {
+  FILE *f = fopen(WLAN_OPERSTATE, "r");
+  if (!f) return 0;  /* no wlan0 (module unloaded?) or unreadable: not proven off */
+  char buf[16];
+  size_t n = fread(buf, 1, sizeof buf - 1, f);
+  fclose(f);
+  buf[n] = '\0';
+  return pp_wifi_operstate_down(buf);
 }

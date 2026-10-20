@@ -203,7 +203,31 @@ static void test_reconnect_noop_off_device(void) {
   CHECK(pp_wifi_reconnect() == 0);
 }
 
+/* /sys/class/net/wlan0/operstate (tg5040 Wi-Fi-off toast): only an
+ * administratively down interface is "off"; associated-but-routeless (up),
+ * dormant, unknown and garbage must stay "not proven off" so a plain
+ * network outage keeps the generic error (review tg-c-glm MAJOR 1). */
+static void test_operstate_down(void) {
+  CHECK(pp_wifi_operstate_down("down\n") == 1);
+  CHECK(pp_wifi_operstate_down("down") == 1);
+  CHECK(pp_wifi_operstate_down("DOWN\n") == 1);
+  CHECK(pp_wifi_operstate_down("Down\n") == 1);
+  CHECK(pp_wifi_operstate_down("down \n") == 1);          /* trailing space */
+  CHECK(pp_wifi_operstate_down("down\r\n") == 1);
+  CHECK(pp_wifi_operstate_down("up\n") == 0);
+  CHECK(pp_wifi_operstate_down("dormant\n") == 0);
+  CHECK(pp_wifi_operstate_down("unknown\n") == 0);
+  CHECK(pp_wifi_operstate_down("notpresent\n") == 0);
+  CHECK(pp_wifi_operstate_down("testing\n") == 0);
+  CHECK(pp_wifi_operstate_down("downx\n") == 0);
+  CHECK(pp_wifi_operstate_down("downgrade\n") == 0);
+  CHECK(pp_wifi_operstate_down(" down\n") == 0);          /* leading space: not a real sysfs shape */
+  CHECK(pp_wifi_operstate_down("") == 0);
+  CHECK(pp_wifi_operstate_down(NULL) == 0);
+}
+
 int main(void) {
+  RUN(test_operstate_down);
   RUN(test_iw_link);
   RUN(test_favorite_service);
   RUN(test_rfkill);

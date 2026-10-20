@@ -214,7 +214,15 @@ static void *worker_thread(void *arg) {
   if (req->status != PP_OK && req->status != 1) {
     switch (req->status) {
     case PP_ERR_AUTH:  set_error(req, "Authentication failed (relink)"); break;
-    case PP_ERR_NET:   set_error(req, "Network error (retry)"); break;
+    case PP_ERR_NET:
+#if defined(PP_PLATFORM_TG5040)
+      /* NextUI owns Wi-Fi: only say it is off when wlan0 is administratively down. */
+      if (pp_wifi_interface_down()) {
+        set_error(req, "Wi-Fi is off. Turn it on in NextUI Settings");
+        break;
+      }
+#endif
+      set_error(req, "Network error (retry)"); break;
     case PP_ERR_HTTP:  set_error(req, "Server error (retry)"); break;
     case PP_ERR_PARSE: set_error(req, "Parse error"); break;
     case PP_ERR_NOMEM: set_error(req, "Out of memory"); break;

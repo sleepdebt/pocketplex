@@ -57,4 +57,19 @@ void pp_wifi_reconnect_async(void);
  * 0 on timeout with a reconnect still in flight. timeout_ms <= 0 checks once. */
 int pp_wifi_reconnect_wait(int timeout_ms);
 
+
+
+
+/* Contents of /sys/class/net/wlan0/operstate: 1 only when the interface is
+ * administratively down ("down", case-insensitive, trailing whitespace ok).
+ * "up"/"dormant"/"unknown" are 0: an associated-but-routeless wlan0 must not
+ * read as "Wi-Fi is off". */
+int pp_wifi_operstate_down(const char *text);
+
+/* 1 when wlan0 is administratively down (Wi-Fi off on NextUI, where connmanctl
+ * is absent so the app cannot manage or probe it otherwise). 0 when the state
+ * is up/dormant/unknown or cannot be read: never claim "off" without
+ * evidence. Pure sysfs read, no subprocess. */
+int pp_wifi_interface_down(void);
+
 #endif /* PP_WIFI_H */

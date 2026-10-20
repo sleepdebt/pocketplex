@@ -47,36 +47,28 @@ mmp)
   ( cd "$staging" && zip -qr "$zipout" App )
   ;;
 tg5040)
-  # NextUI Tool pak (see BRICKPRO_HANDOFF §5 ws-d). The zip's top level is the
-  # pak folder itself: unzip into SDCARD/Tools/tg5040/ and it shows under
-  # Tools -> PocketPlex. No mpv bundle yet (tg-b pending), so this pak is the
-  # interim -nompv one: binary + assets + pinned CA bundle + a minimal launcher.
-  # ws-d owns packaging/nextui/*: once its launch.sh/README land, they win.
-  mkdir -p "$staging/PocketPlex.pak/assets"
-  cp "$bin" "$staging/PocketPlex.pak/PocketPlex"
-  cp -a "$root/assets/." "$staging/PocketPlex.pak/assets/" 2>/dev/null || true
-  find "$staging/PocketPlex.pak/assets" -name .gitkeep -delete 2>/dev/null || true
-  if [ -f "$root/packaging/nextui/launch.sh" ]; then
-    cp "$root/packaging/nextui/launch.sh" "$staging/PocketPlex.pak/launch.sh"
-  else
-    # Interim launcher until ws-d's packaging/nextui/launch.sh lands. Same env
-    # contract the real one must keep: ini in userdata, CA bundle in the pak.
-    cat > "$staging/PocketPlex.pak/launch.sh" <<'EOS'
-#!/bin/sh
-# Interim PocketPlex launcher (tg-a toolchain lane). packaging/nextui/launch.sh
-# (ws-d) replaces this when it lands: CPU governor, syncsettings.elf, logging.
-cd "$(dirname "$0")"
-mkdir -p "${USERDATA_PATH:-$PWD/data}/PocketPlex"
-export POCKETPLEX_INI="${USERDATA_PATH:-$PWD/data}/PocketPlex/pocketplex.ini"
-export CURL_CA_BUNDLE="$PWD/cacert.pem"
-./PocketPlex
-exit $?
-EOS
-  fi
-  # Pinned CA bundle built into the image (Dockerfile.tg5040, cacert-2026-09-25).
-  cp "${PP_CACERT:-/opt/pp-net/share/pocketplex/cacert.pem}" \
-     "$staging/PocketPlex.pak/cacert.pem"
-  chmod +x "$staging/PocketPlex.pak/launch.sh" "$staging/PocketPlex.pak/PocketPlex"
+  # TrimUI Brick Pro (NextUI Tool pak). The zip's top level is the pak folder: unzip into
+  # SDCARD/Tools/tg5040/ and it shows under Tools -> PocketPlex. The pak is self-contained:
+  # libmpv and FFmpeg come from the image (/opt/mpv/lib), copied as real files named by SONAME,
+  # because the SD card is exFAT and cannot hold symlinks. The CA bundle is the pinned one from
+  # the image (Dockerfile.tg5040). The launcher and fonts.conf live in packaging/nextui/.
+  pak="$staging/PocketPlex.pak"
+  mkdir -p "$pak/assets" "$pak/lib" "$pak/certs"
+  cp "$bin" "$pak/PocketPlex"
+  cp -a "$root/assets/." "$pak/assets/" 2>/dev/null || true
+  find "$pak/assets" -name .gitkeep -delete 2>/dev/null || true
+  cp "$root/packaging/nextui/launch.sh"  "$pak/launch.sh"
+  cp "$root/packaging/nextui/fonts.conf" "$pak/fonts.conf"
+  cp "${PP_CACERT:-/opt/pp-net/share/pocketplex/cacert.pem}" "$pak/cacert.pem"
+  # The NEEDED sonames of PocketPlex (via libmpv). cp -L dereferences the image's symlinks;
+  # set -e stops the package if any is missing.
+  for n in libmpv.so.2 libass.so.9 libavcodec.so.60 libavfilter.so.9 libavformat.so.60 \
+           libavutil.so.58 libswresample.so.4 libswscale.so.7 libfreetype.so.6 \
+           libharfbuzz.so.0 libharfbuzz-subset.so.0 libfribidi.so.0 libfontconfig.so.1 \
+           libexpat.so.1; do
+    cp -L "${PP_MPV_LIBS:-/opt/mpv/lib}/$n" "$pak/lib/$n"
+  done
+  chmod +x "$pak/launch.sh" "$pak/PocketPlex"
   rm -f "$zipout"
   ( cd "$staging" && zip -qr "$zipout" PocketPlex.pak )
   ;;

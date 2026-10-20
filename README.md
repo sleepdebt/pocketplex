@@ -39,28 +39,15 @@ To update later, copy the new zip over the old files. Your `pocketplex/pocketple
 
 ## Install on the TrimUI Brick Pro
 
-Needs **NextUI** (the `tg5040` platform). Unlike Knulli, NextUI ships no mpv or ffmpeg, so the PocketPlex package has to carry its own libmpv and FFmpeg libraries. The packaging for that is still in progress, so today's install is a **developer test build**:
+Needs **NextUI** (the `tg5040` platform). The package is self-contained: it carries its own libmpv and FFmpeg libraries, so nothing else is needed on the device.
 
-1. Build the package (see [Building](#building)): `make docker-tg5040` → `dist/pocketplex-tg5040.zip`.
-2. On the SD card, unzip it into `Tools/tg5040/`, so you have `Tools/tg5040/PocketPlex.pak/`.
-3. Add the libraries. The FFmpeg and libmpv libraries are in the build image under `/opt/mpv/lib`. Copy them into `PocketPlex.pak/lib/` as real files named by their SONAME (`libmpv.so.2`, `libavcodec.so.60`, `libavformat.so.60`, `libavutil.so.58`, `libswresample.so.4`, `libswscale.so.7`, `libavfilter.so.9`, `libass.so.9`, `libfreetype.so.6`, `libharfbuzz.so.0`, `libharfbuzz-subset.so.0`, `libfribidi.so.0`, `libfontconfig.so.1`, `libexpat.so.1`). The SD card is exFAT, which can't hold symlinks, so don't copy the symlinks.
-4. Replace the pak's `launch.sh` with one that sets the library path, the CA bundle and an empty CA directory, then starts the binary:
-   ```sh
-   #!/bin/sh
-   cd "$(dirname "$0")"
-   LOGS="${LOGS_PATH:-/mnt/SDCARD/.userdata/tg5040/logs}"
-   mkdir -p "${USERDATA_PATH:-$PWD/data}/PocketPlex" "$LOGS"
-   export POCKETPLEX_INI="${USERDATA_PATH:-$PWD/data}/PocketPlex/pocketplex.ini"
-   export CURL_CA_BUNDLE="$PWD/cacert.pem"
-   export PP_CA_PATH="$PWD/certs"     # an existing, empty directory in the pak
-   export LD_LIBRARY_PATH="$PWD/lib:/usr/trimui/lib:$LD_LIBRARY_PATH"
-   ./PocketPlex > "$LOGS/PocketPlex.txt" 2>&1
-   exit $?
-   ```
-   Create the empty `certs/` folder next to it.
-5. Open **Tools → PocketPlex** from the NextUI launcher. Launch it from the menu, not over SSH: SSH launches let the launcher steal input and draw over the video.
+1. Get `pocketplex-tg5040.zip`, from the `pocketplex-tg5040-zip` artifact of a green build, or by building it yourself (see [Building](#building)).
+2. Unzip it into `Tools/tg5040/` on the SD card, so you have `Tools/tg5040/PocketPlex.pak/`.
+3. In the NextUI launcher, open **Tools → PocketPlex**.
 
-Because it's a test build, expect rough edges: nothing is signed or listed in the Pak Store yet, and the layout above will change when packaging lands.
+To update later, unzip the new package over the old pak. Your login and settings are in the userdata folder (`.userdata/tg5040/PocketPlex/pocketplex.ini`), not in the pak, so they survive.
+
+Launch PocketPlex from the Tools menu, not over SSH: SSH launches let the launcher steal input and draw over the video.
 
 ## First run
 
@@ -90,20 +77,20 @@ The A/B/X/Y buttons follow the labels printed on the SP. If they seem swapped on
 
 ### Controls on the TrimUI Brick Pro
 
-The labels on the Brick Pro's buttons are the ones that count: the bottom button is **B**, the right button is **A**.
+The labels on the buttons are the ones that count: B is the bottom button, A the right, X the top, Y the left.
 
 | Button | Menus | During playback |
 |---|---|---|
 | D-pad Left / Right | — | Seek −10 / +10 s |
-| D-pad Up / Down | Move | Seek ±60 s (direction not yet measured) |
 | A (right) | Select / Play | Pause / resume |
 | B (bottom) | Back one level | Stop and return to Detail |
-| L1 / R1 | — | Seek −10 / +10 s |
-| X / Y | — | Seek −60 / +60 s |
-| Start / Select | — | Pause / resume |
+| X (top) | — | Show or hide the time and progress bar |
+| Y (left) | — | — (Mark watched in Detail) |
+| Select | — | Show or hide the time and progress bar |
+| Start | — | Pause / resume |
 | Menu | Quit | Stop and return to Detail |
 
-Keys F1 and F2 are left unmapped on purpose, so you can bind them to system buttons in NextUI.
+The D-pad left and right are the only seek controls. Keys F1 and F2 are left unmapped on purpose, so you can bind them to system buttons in NextUI.
 
 **Settings** (Select):
 - **Video Quality:** 480p (default, ~1.5 Mbps) or 360p (~0.8 Mbps, for weaker Wi-Fi).

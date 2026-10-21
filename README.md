@@ -142,7 +142,6 @@ Device packages are cross-compiled in Docker. Docker Desktop or OrbStack needs t
 ```bash
 make docker-sp       # dist/pocketplex-sp.zip        (aarch64, RG35XX SP and Knulli)
 make docker-tg5040   # dist/pocketplex-tg5040.zip    (aarch64, TrimUI Brick Pro and NextUI; glibc 2.23 or older)
-make docker-mmp      # dist/pocketplex-mmp.zip       (armhf, Miyoo Mini Plus and Onion; not tested on the device)
 ```
 
 The Brick Pro image also builds libmpv 0.36 (OpenGL render API, ALSA audio) and FFmpeg 6.1 with mbedTLS under LGPL v3 (`--enable-version3`). CI (`.github/workflows/build.yml`) builds the desktop, SP and MMP packages on every push and uploads the zips as artifacts.
@@ -157,7 +156,7 @@ A change is ready to merge when `make`, `make test`, `make docker-sp` and `make 
 
 - **RG35XX SP (done):** PIN login, server discovery with friendly names, Movies and TV browsing, transcoded playback at 640×480 (no dropped frames in a 10-minute soak), pause, seek and exit from the buttons, resume, watch-progress sync, subtitles on or off, and the Nintendo button layout.
 - **TrimUI Brick Pro (done, on the device):** PIN login, server choice, browsing, full-screen UI, smooth hardware-accelerated video through libmpv with a clean hand-off back to the launcher, the controls above, watch-progress sync, the Wi-Fi-off message, and a self-contained package.
-- **Next:** music mode (Artist, Album, Track, and now-playing), and a Miyoo Mini Plus feasibility spike.
+- **Next:** music mode (Artist, Album, Track, and now-playing).
 - **Later:** poster thumbnails, on-screen keyboard search, and Plex Home users.
 - Smaller known issues are in [`docs/BACKLOG.md`](docs/BACKLOG.md).
 

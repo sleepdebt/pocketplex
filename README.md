@@ -11,7 +11,7 @@ It runs on two devices today:
 | Anbernic RG35XX SP | Knulli | Working and tested on the device | [Install on the RG35XX SP](#install-on-the-rg35xx-sp) |
 | TrimUI Brick Pro | NextUI | Working and tested on the device | [Install on the TrimUI Brick Pro](#install-on-the-trimui-brick-pro) |
 
-A Miyoo Mini Plus port is planned, music first. PocketPlex isn't affiliated with Plex Inc. Per-device notes (install, build targets, what differs) are in [docs/devices.md](docs/devices.md).
+PocketPlex isn't affiliated with Plex Inc. Per-device notes (install, build targets, what differs) are in [docs/devices.md](docs/devices.md).
 
 ## What you need
 

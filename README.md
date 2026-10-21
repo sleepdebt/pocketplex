@@ -144,7 +144,7 @@ make docker-sp       # dist/pocketplex-sp.zip        (aarch64, RG35XX SP and Knu
 make docker-tg5040   # dist/pocketplex-tg5040.zip    (aarch64, TrimUI Brick Pro and NextUI; glibc 2.23 or older)
 ```
 
-The Brick Pro image also builds libmpv 0.36 (OpenGL render API, ALSA audio) and FFmpeg 6.1 with mbedTLS under LGPL v3 (`--enable-version3`). CI (`.github/workflows/build.yml`) builds the desktop, SP and MMP packages on every push and uploads the zips as artifacts.
+The Brick Pro image also builds libmpv 0.36 (OpenGL render API, ALSA audio) and FFmpeg 6.1 with mbedTLS under LGPL v3 (`--enable-version3`). CI (`.github/workflows/build.yml`) builds the desktop and SP packages on every push and uploads the zips as artifacts.
 
 Developer tools:
 - `build/pp-cli` is a headless client for a real server. Commands: `login`, `servers`, `ls [key]`, `ondeck`, `url <rk>`, `stop <session>`, `progress <rk> <ms>`, `watched <rk>`, `unwatch <rk>`. It reads `pocketplex.ini`, or the file named in `POCKETPLEX_INI`.

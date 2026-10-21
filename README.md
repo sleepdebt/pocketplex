@@ -4,6 +4,10 @@
 
 PocketPlex lets you watch your own Plex library on a handheld. It's a small text-menu client. Your Plex server transcodes to a 480p H.264 stream over home Wi-Fi, and the handheld plays it with mpv. You don't need a Plex Pass.
 
+![Home screen with Continue Watching](assets/screenshots/home-continue-watching.png)
+
+The picture is the desktop build with sample titles.
+
 It runs on two devices today:
 
 | Device | Firmware | Status | Install |

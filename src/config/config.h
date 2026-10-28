@@ -17,6 +17,7 @@ typedef struct {
   char quality[16];     /* "360p" | "480p" */
   char subtitles[16];   /* "burn" | "off" */
   int  swap_ab;         /* A/B button swap */
+  int  audio_delay_ms;  /* audio late (+) or early (-) against video, -1000..1000 */
 } pp_config;
 
 void pp_config_defaults(pp_config *cfg);

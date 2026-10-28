@@ -21,7 +21,7 @@ static void settings_render(pp_screen *self) {
                PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
   int y = PP_HEADER_H + 20;
-  const char *labels[] = { "Video Quality", "Subtitles", "Swap A/B", "Sign Out", NULL };
+  const char *labels[] = { "Video Quality", "Subtitles", "Swap A/B", "Audio Delay", "Sign Out", NULL };
   int i;
   for (i = 0; labels[i]; i++) {
     pp_color col = (i == d->sel) ? PP_COLOR_SEL : PP_COLOR_FG;
@@ -34,6 +34,8 @@ static void settings_render(pp_screen *self) {
       snprintf(val, sizeof(val), "%s", play_burn_subtitles(d->cfg.subtitles) ? "on" : "off");
     } else if (i == 2) {
       snprintf(val, sizeof(val), "%s", d->cfg.swap_ab ? "on" : "off");
+    } else if (i == 3) {
+      snprintf(val, sizeof(val), "%+d ms", d->cfg.audio_delay_ms);
     } else {
       snprintf(val, sizeof(val), "%s", d->cfg.token[0] ? "signed in" : "signed out");
     }
@@ -48,6 +50,9 @@ static void settings_render(pp_screen *self) {
   else if (d->sel == 2)
     ui_draw_text("Off = buttons follow their printed labels",
                  PP_MARGIN_L, y + 12, PP_COLOR_DIM);
+  else if (d->sel == 3)
+    ui_draw_text("Left/right: 50 ms. Plus if the sound is late, minus if early",
+                 PP_MARGIN_L, y + 12, PP_COLOR_DIM);
 
   ui_draw_text("D-pad: navigate  A: toggle  B: back",
                PP_MARGIN_L, PP_SCREEN_H - 24, PP_COLOR_DIM);
@@ -59,10 +64,19 @@ static int settings_save(settings_data_t *d) {
 
 static void settings_handle(pp_screen *self, pp_btn btn) {
   settings_data_t *d = (settings_data_t *)self->data;
-  int count = 4;
+  int count = 5;
   switch (btn) {
   case BTN_DOWN: if (d->sel < count - 1) d->sel++; break;
   case BTN_UP:   if (d->sel > 0) d->sel--; break;
+  case BTN_LEFT:
+  case BTN_RIGHT:
+    if (d->sel == 3) {
+      int step = btn == BTN_RIGHT ? 50 : -50;
+      int ms = d->cfg.audio_delay_ms + step;
+      d->cfg.audio_delay_ms = ms < -1000 ? -1000 : ms > 1000 ? 1000 : ms;
+      if (!settings_save(d)) ui_toast("Failed to save settings");
+    }
+    break;
   case BTN_A:
     if (d->sel == 0) {
       int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
@@ -78,7 +92,7 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
       ui_set_swap_ab(d->cfg.swap_ab);  /* takes effect on the next press */
       if (!settings_save(d)) ui_toast("Failed to save settings");
       else ui_toast(d->cfg.swap_ab ? "A/B swapped" : "A/B follow labels");
-    } else if (d->sel == 3) {
+    } else if (d->sel == 4) {
       memset(d->cfg.token, 0, sizeof(d->cfg.token));
       int saved = settings_save(d);
       ui_sign_out();  /* clears the session and resets the stack to Link */

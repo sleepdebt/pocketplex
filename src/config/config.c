@@ -55,6 +55,10 @@ static void assign(pp_config *cfg, const char *section, const char *key, char *v
     else if (strcmp(key, "subtitles") == 0) copy_field(cfg->subtitles, sizeof cfg->subtitles, value);
     else if (strcmp(key, "swap_ab") == 0)
       cfg->swap_ab = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0 || strcmp(value, "yes") == 0);
+    else if (strcmp(key, "audio_delay_ms") == 0) {
+      int ms = atoi(value);
+      cfg->audio_delay_ms = ms < -1000 ? -1000 : ms > 1000 ? 1000 : ms;
+    }
   }
 }
 
@@ -108,10 +112,11 @@ int pp_config_save(const pp_config *cfg, const char *path) {
               "[ui]\n"
               "quality = %s        ; 360p | 480p\n"
               "subtitles = %s      ; burn | off\n"
-              "swap_ab = %s\n",
+              "swap_ab = %s\n"
+              "audio_delay_ms = %d   ; + if sound is late, - if early\n",
               cfg->server_url, cfg->token, cfg->server_token, cfg->client_id,
               cfg->quality, cfg->subtitles,
-              cfg->swap_ab ? "true" : "false") >= 0 &&
+              cfg->swap_ab ? "true" : "false", cfg->audio_delay_ms) >= 0 &&
       fclose(f) == 0;
   if (!ok || rename(tmp, path) != 0) { remove(tmp); return -1; }
   return 0;

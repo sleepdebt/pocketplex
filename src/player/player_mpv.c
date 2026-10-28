@@ -95,6 +95,11 @@ struct pp_player {
 #endif
 };
 
+/* [ui] audio_delay_ms, read by the UI before each playback. Applied to mpv on the Brick Pro
+ * (the libmpv path); the external-process players on the SP ignore it. */
+static int g_audio_delay_ms;
+void player_set_audio_delay_ms(int ms) { g_audio_delay_ms = ms; }
+
 #if defined(PP_PLATFORM_TG5040)
 /* mpv's render API takes a 2-arg (ctx, name) get_proc_address; wrap SDL's. */
 static void *tg_gl_get_proc(void *ctx, const char *name) {
@@ -542,6 +547,11 @@ pp_player *player_start(const char *url, long start_ms) {
     mpv_set_property_string(p->mpv, "demuxer-max-back-bytes", "16MiB");
     mpv_set_property_string(p->mpv, "network-timeout", "20");
     mpv_set_property_string(p->mpv, "ao", "alsa");       /* device audio via ALSA (ao=alsa) */
+    if (g_audio_delay_ms) {
+      char delay[32];
+      snprintf(delay, sizeof delay, "%.3f", g_audio_delay_ms / 1000.0);
+      mpv_set_property_string(p->mpv, "audio-delay", delay);   /* + delays the sound */
+    }
     /* The device has no system trust store, so mpv's HTTPS (plex.direct transcodes) needs the
      * pak's CA bundle, the same file the HTTP client uses. */
     const char *ca = getenv("CURL_CA_BUNDLE");

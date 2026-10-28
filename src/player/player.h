@@ -7,6 +7,9 @@
 
 typedef struct pp_player pp_player;
 
+/* Audio delay in ms for the next player_start (Brick Pro). + makes the sound later. */
+void player_set_audio_delay_ms(int ms);
+
 /* Hands the screen to the player and starts playing url at start_ms. NULL on failure. */
 pp_player *player_start(const char *url, long start_ms);
 

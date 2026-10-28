@@ -206,6 +206,7 @@ pp_screen *screen_player_create(const pp_item *item, long start_ms, pp_item *upd
   pp_config_load(&cfg, ui_ini_path());
   d->kbps = play_quality_kbps(cfg.quality);
   d->burn_subtitles = play_burn_subtitles(cfg.subtitles);
+  player_set_audio_delay_ms(cfg.audio_delay_ms);
   memset(&cfg, 0, sizeof cfg);   /* holds the token */
 
   s->id = SCREEN_PLAYER;

@@ -8,10 +8,24 @@
 #include <stdio.h>
 #include <string.h>
 
+enum { ROW_QUALITY, ROW_SUBS, ROW_SWAP, ROW_AUDIO, ROW_SIGNOUT, ROW_COUNT };
+
 typedef struct {
   pp_config cfg;
   int sel;
 } settings_data_t;
+
+/* Audio delay only works on the Brick Pro (libmpv); the SP's external player ignores it. */
+static int row_shown(int row) {
+  if (row == ROW_AUDIO) {
+#if defined(PP_PLATFORM_TG5040)
+    return 1;
+#else
+    return 0;
+#endif
+  }
+  return 1;
+}
 
 static void settings_render(pp_screen *self) {
   settings_data_t *d = (settings_data_t *)self->data;
@@ -20,21 +34,24 @@ static void settings_render(pp_screen *self) {
   ui_draw_text("A: toggle  B: back  Menu: quit",
                PP_SCREEN_W - 200, 10, PP_COLOR_DIM);
 
+  static const char *labels[ROW_COUNT] = {
+    "Video Quality", "Subtitles", "Swap A/B", "Audio Delay", "Sign Out"
+  };
   int y = PP_HEADER_H + 20;
-  const char *labels[] = { "Video Quality", "Subtitles", "Swap A/B", "Audio Delay", "Sign Out", NULL };
-  int i;
-  for (i = 0; labels[i]; i++) {
-    pp_color col = (i == d->sel) ? PP_COLOR_SEL : PP_COLOR_FG;
-    ui_draw_text(labels[i], PP_MARGIN_L, y, col);
+  int row;
+  for (row = 0; row < ROW_COUNT; row++) {
+    if (!row_shown(row)) continue;
+    pp_color col = (row == d->sel) ? PP_COLOR_SEL : PP_COLOR_FG;
+    ui_draw_text(labels[row], PP_MARGIN_L, y, col);
     char val[64];
-    if (i == 0) {
+    if (row == ROW_QUALITY) {
       int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
       snprintf(val, sizeof(val), "%s", is_480 ? "480p" : "360p");
-    } else if (i == 1) {
+    } else if (row == ROW_SUBS) {
       snprintf(val, sizeof(val), "%s", play_burn_subtitles(d->cfg.subtitles) ? "on" : "off");
-    } else if (i == 2) {
+    } else if (row == ROW_SWAP) {
       snprintf(val, sizeof(val), "%s", d->cfg.swap_ab ? "on" : "off");
-    } else if (i == 3) {
+    } else if (row == ROW_AUDIO) {
       snprintf(val, sizeof(val), "%+d ms", d->cfg.audio_delay_ms);
     } else {
       snprintf(val, sizeof(val), "%s", d->cfg.token[0] ? "signed in" : "signed out");
@@ -44,13 +61,13 @@ static void settings_render(pp_screen *self) {
     y += PP_LINE_H;
   }
 
-  if (d->sel == 1)
+  if (d->sel == ROW_SUBS)
     ui_draw_text("Uses the subtitle track chosen in Plex",
                  PP_MARGIN_L, y + 12, PP_COLOR_DIM);
-  else if (d->sel == 2)
+  else if (d->sel == ROW_SWAP)
     ui_draw_text("Off = buttons follow their printed labels",
                  PP_MARGIN_L, y + 12, PP_COLOR_DIM);
-  else if (d->sel == 3)
+  else if (d->sel == ROW_AUDIO)
     ui_draw_text("Left/right: 50 ms. Plus if the sound is late, minus if early",
                  PP_MARGIN_L, y + 12, PP_COLOR_DIM);
 
@@ -64,13 +81,19 @@ static int settings_save(settings_data_t *d) {
 
 static void settings_handle(pp_screen *self, pp_btn btn) {
   settings_data_t *d = (settings_data_t *)self->data;
-  int count = 5;
+  int next;
   switch (btn) {
-  case BTN_DOWN: if (d->sel < count - 1) d->sel++; break;
-  case BTN_UP:   if (d->sel > 0) d->sel--; break;
+  case BTN_DOWN:
+    for (next = d->sel + 1; next < ROW_COUNT && !row_shown(next); next++) ;
+    if (next < ROW_COUNT) d->sel = next;
+    break;
+  case BTN_UP:
+    for (next = d->sel - 1; next >= 0 && !row_shown(next); next--) ;
+    if (next >= 0) d->sel = next;
+    break;
   case BTN_LEFT:
   case BTN_RIGHT:
-    if (d->sel == 3) {
+    if (d->sel == ROW_AUDIO) {
       int step = btn == BTN_RIGHT ? 50 : -50;
       int ms = d->cfg.audio_delay_ms + step;
       d->cfg.audio_delay_ms = ms < -1000 ? -1000 : ms > 1000 ? 1000 : ms;
@@ -78,21 +101,21 @@ static void settings_handle(pp_screen *self, pp_btn btn) {
     }
     break;
   case BTN_A:
-    if (d->sel == 0) {
+    if (d->sel == ROW_QUALITY) {
       int is_480 = (strcmp(d->cfg.quality, "480p") == 0);
       snprintf(d->cfg.quality, sizeof(d->cfg.quality), "%s", is_480 ? "360p" : "480p");
       ui_toast(settings_save(d) ? d->cfg.quality : "Failed to save settings");
-    } else if (d->sel == 1) {
+    } else if (d->sel == ROW_SUBS) {
       int on = play_burn_subtitles(d->cfg.subtitles);
       snprintf(d->cfg.subtitles, sizeof(d->cfg.subtitles), "%s", on ? "off" : "burn");
       if (!settings_save(d)) ui_toast("Failed to save settings");
       else ui_toast(on ? "Subtitles off" : "Subtitles on");
-    } else if (d->sel == 2) {
+    } else if (d->sel == ROW_SWAP) {
       d->cfg.swap_ab = !d->cfg.swap_ab;
       ui_set_swap_ab(d->cfg.swap_ab);  /* takes effect on the next press */
       if (!settings_save(d)) ui_toast("Failed to save settings");
       else ui_toast(d->cfg.swap_ab ? "A/B swapped" : "A/B follow labels");
-    } else if (d->sel == 4) {
+    } else if (d->sel == ROW_SIGNOUT) {
       memset(d->cfg.token, 0, sizeof(d->cfg.token));
       int saved = settings_save(d);
       ui_sign_out();  /* clears the session and resets the stack to Link */
